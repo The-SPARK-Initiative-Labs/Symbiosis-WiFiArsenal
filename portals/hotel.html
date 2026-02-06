@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hotel Guest WiFi</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Georgia, serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 50px 40px;
+            max-width: 450px;
+            width: 100%;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        .logo {
+            text-align: center;
+            font-size: 36px;
+            color: #1e3c72;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 28px;
+            font-weight: normal;
+        }
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .field-label {
+            color: #333;
+            font-size: 14px;
+            margin-bottom: 5px;
+            display: block;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: #1e3c72;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #2a5298;
+        }
+        .info {
+            font-size: 12px;
+            color: #999;
+            text-align: center;
+            margin-top: 25px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">★ HOTEL ★</div>
+        <h1>Guest WiFi Access</h1>
+        <p class="subtitle">Complimentary Internet for All Guests</p>
+        <form action="/submit" method="POST">
+            <label class="field-label">Room Number or Last Name</label>
+            <input type="text" name="room" placeholder="Enter room number or last name" required>
+            
+            <label class="field-label">Email Address</label>
+            <input type="email" name="email" placeholder="Your email address" required>
+            
+            <button type="submit">Access WiFi</button>
+        </form>
+        <p class="info">
+            For your security, please use your room credentials to access our guest network. 
+            WiFi access is complimentary for all registered guests.
+        </p>
+    </div>
+</body>
+</html>

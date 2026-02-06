@@ -1,0 +1,1478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WiFi Arsenal - Sh4d0wFr4m3</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #00ff00;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            padding: 20px;
+            border-bottom: 2px solid #00ff00;
+            margin-bottom: 30px;
+        }
+        
+        h1 {
+            font-size: 2em;
+            text-shadow: 0 0 10px #00ff00;
+        }
+        
+        .subtitle {
+            color: #888;
+            margin-top: 10px;
+        }
+        
+        .panel {
+            background: #111;
+            border: 1px solid #00ff00;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        
+        .panel h2 {
+            color: #00ff00;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .button {
+            background: #003300;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .button:hover {
+            background: #00ff00;
+            color: #000;
+        }
+        
+        .button:active {
+            transform: scale(0.95);
+        }
+        
+        .button.danger {
+            background: #330000;
+            border-color: #ff0000;
+            color: #ff0000;
+        }
+        
+        .button.danger:hover {
+            background: #ff0000;
+            color: #000;
+        }
+        
+        input[type="text"], input[type="number"], select {
+            background: #000;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 8px;
+            margin: 5px;
+            font-family: 'Courier New', monospace;
+            width: 200px;
+        }
+        
+        select {
+            cursor: pointer;
+        }
+        
+        .output {
+            background: #000;
+            border: 1px solid #00ff00;
+            padding: 15px;
+            margin-top: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .network-list {
+            margin-top: 15px;
+        }
+        
+        .network-item {
+            background: #001a00;
+            border: 1px solid #003300;
+            padding: 10px;
+            margin: 5px 0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .network-item:hover {
+            background: #003300;
+            border-color: #00ff00;
+        }
+        
+        .network-item.selected {
+            background: #004400;
+            border-color: #00ff00;
+            box-shadow: 0 0 10px #00ff00;
+        }
+        
+        .status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #003300;
+            border: 1px solid #00ff00;
+            padding: 10px 20px;
+            border-radius: 5px;
+        }
+        
+        .status.active {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 5px #00ff00; }
+            50% { box-shadow: 0 0 20px #00ff00; }
+        }
+        
+        .mode-status {
+            display: inline-block;
+            padding: 5px 10px;
+            margin: 5px;
+            border: 1px solid #00ff00;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+    
+    .monitor-button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: 2px solid #5568d3;
+    }
+    
+    .monitor-button:hover {
+        background: linear-gradient(135deg, #5568d3 0%, #5f3c87 100%);
+        transform: translateY(-2px);
+    }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🛡️ WiFi Arsenal 🛡️</h1>
+            <div class="subtitle">Sh4d0wFr4m3 Penetration Testing Platform</div>
+            <div class="subtitle">Monitor: alfa0 | Portal: alfa1</div>
+        </header>
+        
+        <div class="panel">
+            <h2>🔧 Interface Status</h2>
+            <div>
+                <span class="mode-status" id="alfa0Status" title="Current operating mode - Monitor: captures all packets | Managed: normal WiFi client | Master: access point">alfa0: checking...</span>
+                <span class="mode-status" id="alfa1Status" title="Current operating mode - Monitor: captures all packets | Managed: normal WiFi client | Master: access point">alfa1: checking...</span>
+            </div>
+            <button class="button" onclick="refreshModes()" title="Check current mode of both WiFi cards">Refresh Status</button>
+            <button class="button" onclick="setMode('alfa0', 'monitor')" title="Manually set alfa0 to monitor mode for scanning/attacks">Set alfa0 Monitor</button>
+            <button class="button" onclick="setMode('alfa0', 'managed')" title="Manually set alfa0 to managed mode (normal WiFi)">Set alfa0 Managed</button>
+            <button class="button" onclick="setMode('alfa0', 'master')" title="Manually set alfa0 to AP mode (creates access point)">Set alfa0 AP</button>
+            <button class="button" onclick="setMode('alfa1', 'monitor')" title="Manually set alfa1 to monitor mode for scanning/attacks">Set alfa1 Monitor</button>
+            <button class="button" onclick="setMode('alfa1', 'managed')" title="Manually set alfa1 to managed mode (normal WiFi)">Set alfa1 Managed</button>
+            <button class="button" onclick="setMode('alfa1', 'master')" title="Manually set alfa1 to AP mode (creates access point)">Set alfa1 AP</button>
+        </div>
+        
+        <div class="panel">
+            <h2>📡 Network Scanner</h2>
+            <button class="button" onclick="scanNetworks()" title="Scan for nearby WiFi networks on all channels (auto-switches alfa0 to monitor mode)">Scan Networks</button>
+            <input type="number" id="scanDuration" placeholder="Duration (sec)" value="30" title="How long to scan for networks (seconds)">
+            <button class="button" onclick="revealHidden()" title="Monitor probe requests for 60s to reveal hidden network names. Clients connecting to hidden networks broadcast the SSID.">Reveal Hidden SSIDs</button>
+            <button class="button" onclick="batchRevealAllHidden()" title="Deauth ALL hidden networks in one batch operation. Monitors for 90s to reveal multiple SSIDs simultaneously.">Batch Reveal All Hidden</button>
+            <div class="output" id="scanOutput">Ready to scan...</div>
+            <div class="network-list" id="networkList"></div>
+        </div>
+        
+        <div class="panel">
+            <h2>🎯 Target Configuration</h2>
+            <div>
+                <label>BSSID: </label>
+                <input type="text" id="targetBSSID" placeholder="00:11:22:33:44:55" readonly title="MAC address of target access point">
+            </div>
+            <div>
+                <label>Channel: </label>
+                <input type="text" id="targetChannel" placeholder="6" readonly title="WiFi channel of target network">
+            </div>
+            <div>
+                <label>SSID: </label>
+                <input type="text" id="targetSSID" placeholder="Network Name" readonly title="Network name of target">
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>⚡ Attack Operations</h2>
+            <button class="button" onclick="capturePMKID()" title="Passive stealth capture - waits for natural client connections without deauth. Slower but undetectable. If no clients connect during capture window, no PMKID will be found.">Capture PMKID (Stealth)</button>
+            <input type="number" id="pmkidDuration" placeholder="Duration (sec)" value="60" title="How long to attempt PMKID capture (seconds)">
+            <br>
+            <button class="button" onclick="captureHandshake()" title="Force clients to reconnect and capture WPA handshake for password cracking">Capture Handshake (with deauth)</button>
+            <input type="number" id="handshakeDuration" placeholder="Duration (sec)" value="60" title="How long to capture handshake traffic (seconds)">
+            <input type="number" id="deauthInterval" placeholder="Deauth interval (sec)" value="10" title="Time between deauth packets - gives clients time to reconnect">
+            <br>
+            <button class="button" onclick="deauthOnly()" title="Send deauthentication packets to disconnect clients from target network">Deauth Only</button>
+            <input type="number" id="deauthOnlyCount" placeholder="Packet count" value="10" title="Number of deauth packets to send">
+            <br>
+            <button class="button" onclick="revealHiddenWithDeauth()" title="Deauth target network + monitor 60s to reveal hidden SSID. Clients forced to reconnect will broadcast the network name.">Reveal Hidden (with deauth)</button>
+            
+            <br>
+            <button class="button monitor-button" onclick="monitorClients()" title="Scan for 30 seconds to check if devices are connected. Shows client count and signal strength. Use BEFORE attacking to avoid wasting time on empty networks.">🔍 Monitor for Clients (30s)</button>
+
+            <hr style="border: 1px solid #003300; margin: 20px 0;">
+            <h3 style="color: #00ff00; margin-bottom: 10px;">🎯 Professional Attack Methods</h3>
+            
+            <button class="button" onclick="autoCaptureAttack()" title="AUTO CAPTURE: Tries all 5 attack methods in sequence until one succeeds. Takes 5-20 minutes total. Shows which method is currently running.">🤖 Auto Capture (Orchestrator)</button>
+            <br><br>
+            
+            <button class="button" onclick="pmkidActiveAttack()" title="METHOD 1: Active PMKID using hcxdumptool. Actively requests PMKID from router (not passive wait). 70-80% success on WPA2 without PMF. Duration: 2 minutes.">Active PMKID (hcxdumptool)</button>
+            <br>
+            
+            <button class="button" onclick="wpsAttack()" title="METHOD 2: WPS Attacks - tries Pixie Dust (30% success) then NULL PIN (5% success). Gets actual password if WPS enabled. Duration: up to 5 minutes.">WPS Attack (Pixie + NULL PIN)</button>
+            <br>
+            
+            <button class="button" onclick="clientDeauthAttack()" title="METHOD 3: Scans for connected clients, floods each with 50 deauth packets. 60-70% success if clients connected. Duration: 3 minutes.">Targeted Client Deauth</button>
+            <br>
+            
+            <button class="button" onclick="deauthFloodAttack()" title="METHOD 4: Continuous broadcast deauth flood - overwhelming sustained attack (200+ packets). 50-60% success on stubborn routers. Duration: 3 minutes.">Continuous Deauth Flood</button>
+            <br>
+            
+            <button class="button" onclick="extendedCaptureAttack()" title="METHOD 5: Extended 5-minute capture with multiple deauth waves at 0s, 60s, 120s, 180s, 240s. 40-50% success if natural client activity. Duration: 5 minutes.">Extended Capture (Multi-Wave)</button>
+            <div class="output" id="attackOutput">Ready to attack...</div>
+        </div>
+        
+        <div class="panel">
+            <h2>🔓 Password Cracking</h2>
+            <button class="button" onclick="startCracking()" title="Start cracking the most recent capture with hashcat + rockyou.txt. Shows live progress including speed and ETA.">Start Cracking (Local)</button>
+            <button class="button danger" onclick="stopCracking()" title="Stop the current cracking process immediately">Stop Cracking</button>
+            <br>
+            <button class="button" onclick="sendToGlass()" title="Upload selected hash file to Glass for remote GPU cracking">Send to Glass</button>
+            <button class="button" onclick="checkGlassStatus()" title="Check Glass cracking status">Check Glass Status</button>
+            <button class="button" onclick="getGlassResult()" title="Retrieve cracked password from Glass">Get Result from Glass</button>
+            <div id="crackStatus" style="margin-top: 10px; padding: 10px; background: #001100; border: 1px solid #003300;">
+                <div><strong>Status:</strong> <span id="crackStatusText">-</span></div>
+                <div><strong>Device:</strong> <span id="crackDevice">-</span></div>
+                <div><strong>Progress:</strong> <span id="crackProgress">-</span></div>
+                <div><strong>Speed:</strong> <span id="crackSpeed">-</span></div>
+                <div><strong>ETA:</strong> <span id="crackETA">-</span></div>
+            </div>
+            <div id="glassStatus" style="margin-top: 10px; padding: 10px; background: #110000; border: 1px solid #330000;">
+                <div style="color: #ff6600;"><strong>Currently on Glass:</strong> <span id="glassCurrentFile" style="font-weight: bold;">-</span></div>
+                <div style="color: #ff6600;"><strong>Glass Status:</strong> <span id="glassStatusText">-</span></div>
+                <div style="color: #ff6600;"><strong>Progress:</strong> <span id="glassProgress">-</span></div>
+                <div style="color: #ff6600;"><strong>Speed:</strong> <span id="glassSpeed">-</span></div>
+                <div style="color: #ff6600;"><strong>ETA:</strong> <span id="glassETA">-</span></div>
+            </div>
+            <div class="output" id="crackOutput">Ready to crack...</div>
+        </div>
+        
+        <div class="panel">
+            <h2>📁 Capture Management</h2>
+            <input type="file" id="importFile" accept=".pcapng,.cap,.pcap" style="display: none;" onchange="importCapture()">
+            <button class="button" onclick="document.getElementById('importFile').click()" title="Import .pcapng, .cap, or .pcap file from Flipper or other source - will auto-convert to hashcat format">Import Capture</button>
+            <button class="button" onclick="loadCaptures()" title="Refresh the list of capture files from the captures directory">Refresh List</button>
+            <button class="button" onclick="selectAllCaptures()" title="Check all capture files for bulk deletion">Select All</button>
+            <button class="button" onclick="deselectAllCaptures()" title="Uncheck all capture files">Deselect All</button>
+            <button class="button danger" onclick="deleteSelected()" title="Permanently delete all checked capture files - cannot be undone">Delete Selected</button>
+            <div class="output" id="captureList" style="max-height: 300px;">Loading captures...</div>
+        </div>
+        
+        <div class="panel">
+            <h2>👹 Evil Portal</h2>
+            <input type="text" id="portalSSID" placeholder="Network Name" value="Free WiFi" title="SSID for fake access point - choose something convincing">
+            <select id="portalTemplate" title="Portal template design - pick one that matches your fake SSID">
+                <option value="starbucks">Starbucks</option>
+                <option value="hotel">Hotel</option>
+                <option value="airport">Airport</option>
+            </select>
+            <br>
+            <button class="button" onclick="startPortal()" title="Start fake WiFi access point with captive portal to harvest credentials (auto-switches alfa1 to managed mode)">Start Portal</button>
+            <button class="button danger" onclick="stopPortal()" title="Stop evil portal and shut down all related services">Stop Portal</button>
+            <button class="button" onclick="clearConnections()" title="Kick all connected clients - forces clean reconnections without full restart">Clear Connections</button>
+            <button class="button" onclick="viewPortalLog()" title="View captured credentials from users who connected to the portal">View Credentials</button>
+            <div class="output" id="portalOutput">Ready to deploy portal...</div>
+        </div>
+    </div>
+    
+    <div class="status" id="status">IDLE</div>
+    
+    <script>
+        let selectedTarget = null;
+        let countdownInterval = null;
+        
+        // Refresh mode status on load
+        window.addEventListener('load', function() {
+            refreshModes();
+            loadTemplates();
+            setInterval(refreshModes, 10000); // Auto-refresh every 10 seconds
+        });
+        
+        // Load portal templates dynamically
+        async function loadTemplates() {
+            try {
+                const response = await fetch('/api/portal/templates');
+                const result = await response.json();
+                
+                const select = document.getElementById('portalTemplate');
+                select.innerHTML = ''; // Clear existing options
+                
+                result.templates.forEach(template => {
+                    const option = document.createElement('option');
+                    option.value = template.name;
+                    option.textContent = template.display_name;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading templates:', error);
+            }
+        }
+        
+        function setStatus(text, active = false) {
+            const status = document.getElementById('status');
+            status.textContent = text;
+            status.classList.toggle('active', active);
+        }
+        
+        function startCountdown(baseText, seconds) {
+            // Clear any existing countdown
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+            
+            let remaining = seconds;
+            setStatus(`${baseText} ${remaining}s`, true);
+            
+            countdownInterval = setInterval(() => {
+                remaining--;
+                if (remaining > 0) {
+                    setStatus(`${baseText} ${remaining}s`, true);
+                } else {
+                    clearInterval(countdownInterval);
+                    countdownInterval = null;
+                }
+            }, 1000);
+        }
+        
+        function stopCountdown() {
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
+            setStatus('IDLE', false);
+        }
+        
+        async function refreshModes() {
+            try {
+                const response = await fetch('/api/mode/status');
+                const result = await response.json();
+                
+                document.getElementById('alfa0Status').textContent = `alfa0: ${result.alfa0}`;
+                document.getElementById('alfa1Status').textContent = `alfa1: ${result.alfa1}`;
+            } catch (error) {
+                console.error('Error refreshing modes:', error);
+            }
+        }
+        
+        async function setMode(interface, mode) {
+            const output = document.getElementById('scanOutput');
+            
+            try {
+                const response = await fetch('/api/mode/set', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ interface, mode })
+                });
+                
+                const result = await response.json();
+                output.textContent = result.output;
+                
+                // Refresh status after mode change
+                setTimeout(refreshModes, 1000);
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        function selectTarget(bssid, channel, ssid) {
+            document.getElementById('targetBSSID').value = bssid;
+            document.getElementById('targetChannel').value = channel;
+            document.getElementById('targetSSID').value = ssid;
+            
+            // Update UI to show selection
+            document.querySelectorAll('.network-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            event.target.closest('.network-item').classList.add('selected');
+            
+            selectedTarget = { bssid, channel, ssid };
+        }
+        
+        async function revealHidden() {
+            const output = document.getElementById('scanOutput');
+            
+            setStatus('REVEALING HIDDEN...', true);
+            output.textContent = 'Monitoring probe requests for 60 seconds...\n\nClients connecting to hidden networks will reveal SSIDs.\n\nPlease wait...';
+            
+            try {
+                const response = await fetch('/api/reveal_hidden', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                
+                const result = await response.json();
+                output.textContent = result.output;
+                
+                if (result.success && result.revealed_count > 0) {
+                    output.textContent += '\n\n✓ Run "Scan Networks" again to see revealed names.';
+                }
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+            }
+            
+            setStatus('IDLE', false);
+        }
+        
+        async function revealHiddenWithDeauth() {
+            const bssid = document.getElementById('targetBSSID').value;
+            const channel = document.getElementById('targetChannel').value;
+            const output = document.getElementById('scanOutput');
+            
+            if (!bssid || !channel) {
+                output.textContent = 'Please select a target network first!';
+                return;
+            }
+            
+            setStatus('REVEALING + DEAUTH...', true);
+            output.textContent = `Deauthing ${bssid} + monitoring for 60s...\n\nForcing clients to reconnect will reveal hidden SSID.\n\nPlease wait...`;
+            
+            try {
+                const response = await fetch('/api/reveal_hidden', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bssid, channel })
+                });
+                
+                const result = await response.json();
+                output.textContent = result.output;
+                
+                if (result.success && result.revealed_count > 0) {
+                    output.textContent += '\n\n✓ Run "Scan Networks" again to see revealed name.';
+                }
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+            }
+            
+            setStatus('IDLE', false);
+        }
+        
+
+        // Store scan results globally for batch operations
+        let lastScanResults = [];
+        
+        async function batchRevealAllHidden() {
+            const output = document.getElementById('scanOutput');
+            
+            // Filter hidden networks from last scan
+            const hiddenNetworks = lastScanResults.filter(net => 
+                (net.ssid === '[hidden]' || !net.ssid) && net.channel && net.channel !== '-1'
+            );
+            
+            if (hiddenNetworks.length === 0) {
+                output.textContent = 'No hidden networks found in last scan.\n\nRun "Scan Networks" first.';
+                return;
+            }
+            
+            // Build targets array
+            const targets = hiddenNetworks.map(net => ({
+                bssid: net.bssid,
+                channel: net.channel
+            }));
+            
+            setStatus('BATCH REVEALING...', true);
+            output.textContent = `Batch revealing ${targets.length} hidden network(s)...\n\nDeauthing each network sequentially.\nMonitoring for 90 seconds total.\n\nPlease wait...`;
+            
+            try {
+                const response = await fetch('/api/reveal_hidden_batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ targets })
+                });
+                
+                const result = await response.json();
+                output.textContent = result.output;
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+            }
+            
+            setStatus('IDLE', false);
+        }
+        
+        async function scanNetworks() {
+            const duration = parseInt(document.getElementById('scanDuration').value) || 30;
+            const output = document.getElementById('scanOutput');
+            const networkList = document.getElementById('networkList');
+            
+            startCountdown('SCANNING...', duration);
+            output.textContent = `Starting scan for ${duration} seconds...\n`;
+            networkList.innerHTML = '';
+            
+            try {
+                const response = await fetch('/api/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ duration: parseInt(duration) })
+                });
+                
+                const result = await response.json();
+                output.textContent = result.output;
+                
+                // Display networks as clickable items
+                if (result.networks) {
+                    lastScanResults = result.networks;
+                    result.networks.forEach(net => {
+                        const item = document.createElement('div');
+                        item.className = 'network-item';
+                        item.onclick = () => selectTarget(net.bssid, net.channel, net.ssid);
+                        item.innerHTML = `
+                            <strong>${net.ssid || '[hidden]'}</strong><br>
+                            BSSID: ${net.bssid} | Channel: ${net.channel} | Power: ${net.power} | ${net.encryption}
+                        `;
+                        networkList.appendChild(item);
+                    });
+                }
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+            }
+            
+            stopCountdown();
+            refreshModes();
+        }
+        
+        async function capturePMKID() {
+            const bssid = document.getElementById('targetBSSID').value;
+            const channel = document.getElementById('targetChannel').value;
+            const ssid = document.getElementById('targetSSID').value;
+            const duration = parseInt(document.getElementById('pmkidDuration').value) || 60;
+            const output = document.getElementById('attackOutput');
+            
+            if (!bssid || !channel) {
+                output.textContent = 'Please select a target network first!';
+                return;
+            }
+            
+            startCountdown('CAPTURING PMKID...', duration);
+            output.textContent = `Capturing PMKID from ${bssid}...\n`;
+            
+            try {
+                const response = await fetch('/api/pmkid', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bssid, channel, ssid, duration: parseInt(duration) })
+                });
+                
+                const result = await response.json();
+                output.textContent = result.output;
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+            }
+            
+            stopCountdown();
+        }
+        
+        async function captureHandshake() {
+            const bssid = document.getElementById('targetBSSID').value;
+            const channel = document.getElementById('targetChannel').value;
+            const ssid = document.getElementById('targetSSID').value;
+            const duration = parseInt(document.getElementById('handshakeDuration').value) || 60;
+            const deauth_interval = document.getElementById('deauthInterval').value || 10;
+            const output = document.getElementById('attackOutput');
+            
+            if (!bssid || !channel) {
+                output.textContent = 'Please select a target network first!';
+                return;
+            }
+            
+            startCountdown('CAPTURING HANDSHAKE...', duration);
+            output.textContent = `Capturing handshake from ${bssid} with deauth every ${deauth_interval}s...\n`;
+            
+            try {
+                const response = await fetch('/api/handshake', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        bssid, 
+                        channel,
+                        ssid, 
+                        duration: parseInt(duration),
+                        deauth_interval: parseInt(deauth_interval)
+                    })
+                });
+                
+                const result = await response.json();
+                output.textContent = result.output;
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+            }
+            
+            stopCountdown();
+        }
+        
+        async function deauthOnly() {
+            const bssid = document.getElementById('targetBSSID').value;
+            const channel = document.getElementById('targetChannel').value;
+            const count = document.getElementById('deauthOnlyCount').value || 10;
+            const output = document.getElementById('attackOutput');
+            
+            if (!bssid || !channel) {
+                output.textContent = 'Please select a target network first!';
+                return;
+            }
+            
+            setStatus('DEAUTHING...', true);
+            output.textContent = `Sending ${count} deauth packets to ${bssid}...\n`;
+            
+            try {
+                const response = await fetch('/api/deauth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        bssid, 
+                        channel,
+                        count: parseInt(count)
+                    })
+                });
+                
+                const result = await response.json();
+                output.textContent = result.output;
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+            }
+            
+            setStatus('IDLE', false);
+        }
+        
+        async function startPortal() {
+            const ssid = document.getElementById('portalSSID').value || 'Free WiFi';
+            const template = document.getElementById('portalTemplate').value;
+            const output = document.getElementById('portalOutput');
+            
+            setStatus('STARTING PORTAL...', true);
+            output.textContent = `Starting evil portal...\nSSID: ${ssid}\nTemplate: ${template}\n\nThis takes about 12 seconds...`;
+            
+            try {
+                // Start the portal (returns immediately)
+                const response = await fetch('/api/portal/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ssid, template })
+                });
+                
+                const result = await response.json();
+                
+                if (!result.success) {
+                    output.textContent = `Failed to start: ${result.output}`;
+                    setStatus('IDLE', false);
+                    return;
+                }
+                
+                // Poll for status
+                let attempts = 0;
+                const maxAttempts = 15; // 30 seconds max
+                
+                const checkStatus = async () => {
+                    const statusResponse = await fetch('/api/portal/status');
+                    const statusResult = await statusResponse.json();
+                    
+                    if (statusResult.running) {
+                        output.textContent = `Portal is ACTIVE!\nSSID: ${ssid}\nTemplate: ${template}\n\nCredentials logging to captures/portal_log.txt`;
+                        setStatus('PORTAL ACTIVE', true);
+                        refreshModes();
+                    } else {
+                        attempts++;
+                        if (attempts < maxAttempts) {
+                            output.textContent = `Starting... (${attempts * 2}s)`;
+                            setTimeout(checkStatus, 2000);
+                        } else {
+                            output.textContent = 'Portal start timed out. Check manually.';
+                            setStatus('IDLE', false);
+                        }
+                    }
+                };
+                
+                setTimeout(checkStatus, 2000);
+                
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+                setStatus('IDLE', false);
+            }
+        }
+
+        
+        async function clearConnections() {
+            const output = document.getElementById('portalOutput');
+            
+            setStatus('CLEARING...', true);
+            output.textContent = 'Kicking all connected clients...\n';
+            
+            try {
+                const response = await fetch('/api/portal/clear', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                
+                const result = await response.json();
+                output.textContent = result.output;
+                setStatus('PORTAL ACTIVE', true);
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+                setStatus('IDLE', false);
+            }
+        }
+        
+        async function stopPortal() {
+            const output = document.getElementById('portalOutput');
+            
+            setStatus('STOPPING PORTAL...', true);
+            output.textContent = 'Shutting down portal services...\n';
+            
+            try {
+                const response = await fetch('/api/portal/stop', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                
+                const result = await response.json();
+                output.textContent = result.output;
+                setStatus('IDLE', false);
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+                setStatus('IDLE', false);
+            }
+            
+            refreshModes();
+        }
+        
+        async function viewPortalLog() {
+            const output = document.getElementById('portalOutput');
+            
+            try {
+                const response = await fetch('/api/portal/log');
+                const result = await response.json();
+                
+                output.textContent = '=== CAPTURED CREDENTIALS ===\n\n' + result.log;
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        let crackingInterval = null;
+        let selectedCrackFile = null;  // Track which file is selected for cracking
+        let lastUploadedFile = null;  // Track last file uploaded to Glass
+        
+        async function startCracking() {
+            const output = document.getElementById('crackOutput');
+            
+            setStatus('CRACKING...', true);
+            output.textContent = 'Starting cracking process...\n';
+            
+            try {
+                const requestBody = {};
+                if (selectedCrackFile) {
+                    requestBody.filename = selectedCrackFile;
+                }
+                
+                const response = await fetch('/api/crack/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                const result = await response.json();
+                output.textContent = result.output;
+                
+                if (result.success) {
+                    // Start polling for status
+                    crackingInterval = setInterval(updateCrackStatus, 2000);
+                }
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+                setStatus('IDLE', false);
+            }
+        }
+        
+        async function updateCrackStatus() {
+            try {
+                const response = await fetch('/api/crack/status');
+                const result = await response.json();
+                
+                document.getElementById('crackStatusText').textContent = result.status;
+                document.getElementById('crackDevice').textContent = result.device;
+                document.getElementById('crackProgress').textContent = result.progress;
+                document.getElementById('crackSpeed').textContent = result.speed;
+                document.getElementById('crackETA').textContent = result.time_remaining;
+                
+                if (!result.running) {
+                    // Cracking finished
+                    clearInterval(crackingInterval);
+                    crackingInterval = null;
+                    setStatus('IDLE', false);
+                    document.getElementById('crackOutput').textContent += '\n\n' + result.status;
+                }
+            } catch (error) {
+                console.error('Error updating crack status:', error);
+            }
+        }
+        
+        async function stopCracking() {
+            const output = document.getElementById('crackOutput');
+            
+            try {
+                const response = await fetch('/api/crack/stop', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                
+                const result = await response.json();
+                output.textContent = result.output;
+                
+                if (crackingInterval) {
+                    clearInterval(crackingInterval);
+                    crackingInterval = null;
+                }
+                
+                setStatus('IDLE', false);
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        async function sendToGlass() {
+            const output = document.getElementById('crackOutput');
+            
+            if (!selectedCrackFile) {
+                output.textContent = 'Please select a hash file first (click filename in capture list)';
+                return;
+            }
+            
+            setStatus('UPLOADING TO GLASS...', true);
+            output.textContent = `Uploading ${selectedCrackFile} to Glass...\n`;
+            
+            try {
+                const response = await fetch('/api/glass/upload', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: selectedCrackFile })
+                });
+                
+                const result = await response.json();
+                output.textContent = result.output;
+                
+                if (result.success) {
+                    // Track uploaded file and show indicator
+                    lastUploadedFile = selectedCrackFile;
+                    document.getElementById('glassCurrentFile').textContent = lastUploadedFile;
+                    
+                    // Start checking Glass status
+                    setTimeout(checkGlassStatus, 3000);
+                }
+                
+                setStatus('IDLE', false);
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+                setStatus('IDLE', false);
+            }
+        }
+        
+        async function checkGlassStatus() {
+            try {
+                const response = await fetch('/api/glass/status');
+                const result = await response.json();
+                
+                document.getElementById('glassStatusText').textContent = result.status || '-';
+                document.getElementById('glassProgress').textContent = result.progress || '-';
+                document.getElementById('glassSpeed').textContent = result.speed || '-';
+                document.getElementById('glassETA').textContent = result.eta || '-';
+                
+                if (result.running) {
+                    setStatus('GLASS CRACKING', true);
+                }
+            } catch (error) {
+                document.getElementById('glassStatusText').textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        async function getGlassResult() {
+            const output = document.getElementById('crackOutput');
+            
+            // Use manually selected file if available, otherwise use last uploaded
+            const fileToCheck = selectedCrackFile || lastUploadedFile;
+            
+            if (!fileToCheck) {
+                output.textContent = 'No file selected and no recent upload to Glass';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/glass/result?filename=${fileToCheck}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    output.textContent = `=== GLASS RESULT ===\n\n${result.result}`;
+                    
+                    // Clear indicator after successful result retrieval
+                    if (fileToCheck === lastUploadedFile) {
+                        document.getElementById('glassCurrentFile').textContent = '-';
+                        lastUploadedFile = null;
+                    }
+                } else {
+                    output.textContent = result.output;
+                }
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        async function loadCaptures() {
+            const list = document.getElementById('captureList');
+            list.innerHTML = 'Loading...';
+            
+            try {
+                const response = await fetch('/api/captures');
+                const result = await response.json();
+                
+                if (result.captures.length === 0) {
+                    list.innerHTML = 'No captures found.';
+                    return;
+                }
+                
+                list.innerHTML = '';
+                result.captures.forEach(cap => {
+                    const label = document.createElement('label');
+                    label.style.cursor = 'pointer';
+                    label.style.display = 'block';
+                    label.style.padding = '2px 5px';
+                    
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.className = 'capture-checkbox';
+                    checkbox.value = cap.name;
+                    checkbox.style.marginRight = '10px';
+                    
+                    const filenameSpan = document.createElement('span');
+                    filenameSpan.textContent = `${cap.name} (${cap.size})`;
+                    filenameSpan.style.cursor = 'pointer';
+                    filenameSpan.className = 'crack-selectable';
+                    filenameSpan.onclick = (e) => {
+                        e.stopPropagation();
+                        selectForCracking(cap.name);
+                    };
+                    
+                    label.appendChild(checkbox);
+                    label.appendChild(filenameSpan);
+                    list.appendChild(label);
+                });
+            } catch (error) {
+                list.innerHTML = `Error: ${error.message}`;
+            }
+        }
+        
+        function selectAllCaptures() {
+            document.querySelectorAll('.capture-checkbox').forEach(cb => cb.checked = true);
+        }
+        
+        function deselectAllCaptures() {
+            document.querySelectorAll('.capture-checkbox').forEach(cb => cb.checked = false);
+        }
+        
+        function selectForCracking(filename) {
+            selectedCrackFile = filename;
+            
+            // Highlight selected file
+            document.querySelectorAll('.crack-selectable').forEach(span => {
+                span.style.fontWeight = 'normal';
+                span.style.color = '#00ff00';
+            });
+            
+            event.target.style.fontWeight = 'bold';
+            event.target.style.color = '#00ff00';
+            
+            // Update crack output to show selected file
+            document.getElementById('crackOutput').textContent = `Selected for cracking: ${filename}\n\nClick Start Cracking to begin.`;
+        }
+        
+        async function deleteSelected() {
+            const checkedBoxes = document.querySelectorAll('.capture-checkbox:checked');
+            const files = Array.from(checkedBoxes).map(cb => cb.value);
+            
+            if (files.length === 0) {
+                document.getElementById('captureList').innerHTML = 'No files selected.';
+                return;
+            }
+            
+            if (!confirm(`Delete ${files.length} file(s)?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/captures/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ files })
+                });
+                
+                const result = await response.json();
+                document.getElementById('captureList').innerHTML = result.output;
+                
+                // Reload list after 2 seconds
+                setTimeout(loadCaptures, 2000);
+            } catch (error) {
+                document.getElementById('captureList').innerHTML = `Error: ${error.message}`;
+            }
+        }
+        
+        async function importCapture() {
+            const fileInput = document.getElementById('importFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                return;
+            }
+            
+            const list = document.getElementById('captureList');
+            list.innerHTML = `Importing ${file.name}...`;
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const response = await fetch('/api/captures/import', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                list.innerHTML = result.output;
+                
+                // Clear file input
+                fileInput.value = '';
+                
+                // Reload list after 2 seconds
+                setTimeout(loadCaptures, 2000);
+            } catch (error) {
+                list.innerHTML = `Error: ${error.message}`;
+            }
+        }
+        
+        
+        
+        let autoCaptureInterval = null;
+        
+        async function autoCaptureAttack() {
+            const bssid = document.getElementById('targetBSSID').value;
+            const channel = document.getElementById('targetChannel').value;
+            const ssid = document.getElementById('targetSSID').value;
+            const output = document.getElementById('attackOutput');
+            
+            if (!bssid || !channel) {
+                output.textContent = 'Please select a target network first!';
+                return;
+            }
+            
+            setStatus('AUTO CAPTURE...', true);
+            output.textContent = 'Starting automated attack orchestrator...\n\nWill try all 5 methods in sequence until one succeeds.\n\n';
+            
+            // Start polling for status
+            autoCaptureInterval = setInterval(updateAutoCaptureStatus, 2000);
+            
+            try {
+                const response = await fetch('/api/auto_capture', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bssid, channel, ssid })
+                });
+                
+                const result = await response.json();
+                
+                // Stop polling when complete
+                if (autoCaptureInterval) {
+                    clearInterval(autoCaptureInterval);
+                    autoCaptureInterval = null;
+                }
+                
+                output.textContent = result.output;
+            } catch (error) {
+                if (autoCaptureInterval) {
+                    clearInterval(autoCaptureInterval);
+                    autoCaptureInterval = null;
+                }
+                output.textContent = `Error: ${error.message}`;
+            }
+            
+            setStatus('IDLE', false);
+        }
+        
+        async function updateAutoCaptureStatus() {
+            try {
+                const response = await fetch('/api/auto_capture_status');
+                const status = await response.json();
+                
+                if (status.running) {
+                    const minutes = Math.floor(status.elapsed_seconds / 60);
+                    const seconds = status.elapsed_seconds % 60;
+                    const elapsed = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                    
+                    const output = document.getElementById('attackOutput');
+                    output.textContent = `AUTO CAPTURE ORCHESTRATOR\n\n` +
+                        `Method ${status.current_method}/5: ${status.method_name}\n` +
+                        `Status: ${status.status}\n` +
+                        `Elapsed Time: ${elapsed}\n` +
+                        `Last Update: ${status.timestamp}`;
+                }
+            } catch (error) {
+                console.error('Error updating auto capture status:', error);
+            }
+        }
+        async function pmkidActiveAttack() {
+            const bssid = document.getElementById('targetBSSID').value;
+            const channel = document.getElementById('targetChannel').value;
+            const ssid = document.getElementById('targetSSID').value;
+            const output = document.getElementById('attackOutput');
+            
+            if (!bssid || !channel) {
+                output.textContent = 'Please select a target network first!';
+                return;
+            }
+            
+            startCountdown('PMKID ACTIVE...', 120);
+            output.textContent = 'METHOD 1: Active PMKID (hcxdumptool)\n\nActively requesting PMKID from router...\n';
+            
+            try {
+                const response = await fetch('/api/pmkid_active', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bssid, channel, ssid, duration: 120 })
+                });
+                
+                const result = await response.json();
+                output.textContent = result.output;
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+            }
+            
+            stopCountdown();
+        }
+        
+        async function wpsAttack() {
+            const bssid = document.getElementById('targetBSSID').value;
+            const channel = document.getElementById('targetChannel').value;
+            const ssid = document.getElementById('targetSSID').value;
+            const output = document.getElementById('attackOutput');
+            
+            if (!bssid || !channel) {
+                output.textContent = 'Please select a target network first!';
+                return;
+            }
+            
+            setStatus('WPS ATTACK...', true);
+            output.textContent = 'METHOD 2: WPS Attacks\n\nChecking WPS status...\nTrying Pixie Dust...\nTrying NULL PIN...\n\nThis may take up to 5 minutes.\n';
+            
+            try {
+                const response = await fetch('/api/attack_wps', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bssid, channel, ssid })
+                });
+                
+                const result = await response.json();
+                output.textContent = result.output;
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+            }
+            
+            setStatus('IDLE', false);
+        }
+        
+        async function clientDeauthAttack() {
+            const bssid = document.getElementById('targetBSSID').value;
+            const channel = document.getElementById('targetChannel').value;
+            const ssid = document.getElementById('targetSSID').value;
+            const output = document.getElementById('attackOutput');
+            
+            if (!bssid || !channel) {
+                output.textContent = 'Please select a target network first!';
+                return;
+            }
+            
+            startCountdown('CLIENT DEAUTH...', 180);
+            output.textContent = 'METHOD 3: Targeted Client Deauth\n\nScanning for connected clients...\n';
+            
+            try {
+                const response = await fetch('/api/attack_client_deauth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bssid, channel, ssid })
+                });
+                
+                const result = await response.json();
+                output.textContent = result.output;
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+            }
+            
+            stopCountdown();
+        }
+        
+        async function deauthFloodAttack() {
+            const bssid = document.getElementById('targetBSSID').value;
+            const channel = document.getElementById('targetChannel').value;
+            const ssid = document.getElementById('targetSSID').value;
+            const output = document.getElementById('attackOutput');
+            
+            if (!bssid || !channel) {
+                output.textContent = 'Please select a target network first!';
+                return;
+            }
+            
+            startCountdown('DEAUTH FLOOD...', 180);
+            output.textContent = 'METHOD 4: Continuous Deauth Flood\n\nSending overwhelming deauth stream...\n';
+            
+            try {
+                const response = await fetch('/api/attack_deauth_flood', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bssid, channel, ssid })
+                });
+                
+                const result = await response.json();
+                output.textContent = result.output;
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+            }
+            
+            stopCountdown();
+        }
+        
+        async function extendedCaptureAttack() {
+            const bssid = document.getElementById('targetBSSID').value;
+            const channel = document.getElementById('targetChannel').value;
+            const ssid = document.getElementById('targetSSID').value;
+            const output = document.getElementById('attackOutput');
+            
+            if (!bssid || !channel) {
+                output.textContent = 'Please select a target network first!';
+                return;
+            }
+            
+            startCountdown('EXTENDED CAPTURE...', 300);
+            output.textContent = 'METHOD 5: Extended Capture\n\nMultiple deauth waves over 5 minutes...\n';
+            
+            try {
+                const response = await fetch('/api/attack_extended', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bssid, channel, ssid })
+                });
+                
+                const result = await response.json();
+                output.textContent = result.output;
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+            }
+            
+            stopCountdown();
+        }
+        // Load captures on page load
+        window.addEventListener('load', function() {
+            loadCaptures();
+        });
+    
+function monitorClients() {
+    if (!selectedTarget) {
+        setStatus("Please select a network first", true);
+        return;
+    }
+    
+    setStatus("🔍 Monitoring for clients on " + selectedTarget.ssid + "...\n\nScanning for 30 seconds to detect connected devices...", false);
+    
+    const duration = 30;  // 30 seconds
+    
+    fetch('/api/monitor_clients', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            bssid: selectedTarget.bssid,
+            channel: selectedTarget.channel,
+            ssid: selectedTarget.ssid,
+            duration: duration
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            setStatus(data.output, false);
+        } else {
+            setStatus("Error: " + data.output, true);
+        }
+    })
+    .catch(error => {
+        setStatus("Error monitoring clients: " + error, true);
+    });
+}
+
+
+// Live log streaming for auto_capture
+let liveLogOffset = 0;
+let liveLogTimer = null;
+let lastOutputLine = null;
+
+function startAutoCaptureLive() {
+    if (!selectedNetwork) {
+        setStatus("Please select a network first", true);
+        return;
+    }
+    
+    // Clear previous output
+    liveLogOffset = 0;
+    lastOutputLine = null;
+    setStatus("Starting orchestrator...\n", false);
+    
+    // Start orchestrator
+    fetch('/api/auto_capture', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            bssid: selectedNetwork.bssid,
+            channel: selectedNetwork.channel,
+            ssid: selectedNetwork.ssid
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Start polling for live output
+            pollLiveLog();
+        } else {
+            setStatus("Error: " + data.output, true);
+        }
+    })
+    .catch(error => {
+        setStatus("Error starting orchestrator: " + error, true);
+    });
+}
+
+function pollLiveLog() {
+    fetch('/api/auto_capture_live_log?offset=' + liveLogOffset)
+    .then(response => response.json())
+    .then(data => {
+        if (data.content) {
+            appendLiveOutput(data.content, data.elapsed);
+            liveLogOffset = data.bytes_read;
+        }
+        
+        // Continue polling if still running
+        if (data.running) {
+            liveLogTimer = setTimeout(pollLiveLog, 1000); // Poll every 1 second
+        } else {
+            // Finished - do one final poll to get any remaining output
+            setTimeout(() => {
+                fetch('/api/auto_capture_live_log?offset=' + liveLogOffset)
+                .then(response => response.json())
+                .then(finalData => {
+                    if (finalData.content) {
+                        appendLiveOutput(finalData.content, finalData.elapsed);
+                    }
+                    appendLiveOutput("\n✓ Orchestrator complete\n", finalData.elapsed);
+                });
+            }, 500);
+        }
+    })
+    .catch(error => {
+        console.error("Live log poll error:", error);
+        // Retry on error
+        if (liveLogTimer) {
+            liveLogTimer = setTimeout(pollLiveLog, 2000);
+        }
+    });
+}
+
+function appendLiveOutput(text, elapsed) {
+    const statusDiv = document.getElementById('status');
+    const lines = text.split('\n');
+    
+    lines.forEach(line => {
+        if (!line.trim()) return;
+        
+        // Detect progress/counting lines (should replace previous)
+        const isProgressLine = (
+            line.includes('remaining') ||
+            line.includes('Flooding...') ||
+            line.includes('Waiting...') ||
+            line.includes('Capturing...') ||
+            /\d+s/.test(line)  // Contains pattern like "45s"
+        );
+        
+        if (isProgressLine && lastOutputLine && lastOutputLine.isProgress) {
+            // Replace the last progress line
+            const lines = statusDiv.textContent.split('\n');
+            lines[lines.length - 2] = line;  // -2 because last is empty from \n
+            statusDiv.textContent = lines.join('\n');
+        } else {
+            // Append new line
+            statusDiv.textContent += line + '\n';
+        }
+        
+        lastOutputLine = {
+            text: line,
+            isProgress: isProgressLine
+        };
+    });
+    
+    // Auto-scroll to bottom
+    statusDiv.scrollTop = statusDiv.scrollHeight;
+    
+    // Update elapsed time in corner if available
+    if (elapsed) {
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = elapsed % 60;
+        const timeStr = `${minutes}m ${seconds}s`;
+        // Could display this somewhere prominent
+    }
+}
+
+function stopAutoCapture() {
+    if (liveLogTimer) {
+        clearTimeout(liveLogTimer);
+        liveLogTimer = null;
+    }
+    // Could add endpoint to kill orchestrator process
+}
+</script>
+</body>
+</html>

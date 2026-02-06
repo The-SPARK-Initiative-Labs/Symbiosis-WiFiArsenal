@@ -1,0 +1,620 @@
+# WARDRIVE MAPPER - USER MANUAL
+
+Complete instructions for transferring Flipper Zero wardrive data and generating interactive maps on both Windows and Linux systems.
+
+---
+
+## SYSTEM OVERVIEW
+
+**Equipment:**
+- Flipper Zero (Br34ch3r, Dr1v3r, or S3nt1n3l) with Momentum firmware
+- USB drive labeled "WARDRIVE" (1.4TB exFAT formatted)
+- Katana (Windows 11 laptop)
+- Sh4d0wFr4m3 (Kali Linux laptop with RTX 3050)
+
+**What This Does:**
+1. Collects wardrive data from Flipper Zero devices
+2. Combines all wardrive sessions into a single cumulative database
+3. Generates interactive HTML maps with network locations, security info, and signal strength
+4. Works offline with downloadable map tiles
+5. Fully portable - all data stays on USB drive
+
+---
+
+## PART 1: COLLECTING WARDRIVE DATA ON FLIPPER ZERO
+
+### Starting a Wardrive Session
+
+1. **Launch Marauder App:**
+   - Navigate: Apps → GPIO → [ESP32] WiFi Marauder
+
+2. **Start Wardriving:**
+   - From main menu, select **Console**
+   - Type: `wardrive`
+   - Press OK/Enter
+
+3. **During Wardriving:**
+   - Flipper displays detected networks in real-time
+   - GPS coordinates are automatically tagged (if GPS lock acquired)
+   - Red LED on FlipMods board flashes when GPS has satellite lock
+   - Data saves continuously to SD card
+
+4. **Stop Wardriving:**
+   - Type: `stopscan`
+   - May need to press multiple times to fully stop
+   - Files are saved automatically
+
+5. **File Location on Flipper:**
+   - Path: `SD Card/apps_data/marauder/dumps/`
+   - Filename format: `wardrive_[timestamp].txt`
+   - Example: `wardrive_0.txt`, `wardrive_1.txt`, etc.
+
+---
+
+## PART 2: TRANSFERRING FILES WITH qFLIPPER
+
+### On Both Windows and Linux
+
+1. **Connect Flipper to Computer:**
+   - Plug Flipper Zero into USB port
+   - Launch **qFlipper** application
+
+2. **Navigate to Wardrive Files:**
+   - In qFlipper, click **"File Manager"** tab
+   - Navigate to: `SD Card` → `apps_data` → `marauder` → `dumps`
+   - You'll see files named `wardrive_0.txt`, `wardrive_1.txt`, etc.
+
+3. **Insert USB Drive:**
+   - Plug in the WARDRIVE USB drive
+   - Wait for system to mount it
+
+4. **Copy Files to USB:**
+   - **Select** the wardrive files you want to transfer
+   - **Right-click** → Select **"Download"** or click the download button
+   - **Navigate** to your USB drive in the save dialog:
+     - **Windows:** `E:\wardrive\` (or whatever drive letter assigned)
+     - **Linux:** `/media/[username]/WARDRIVE/wardrive/`
+   - Click **"Save"** to copy files
+
+5. **Verify Transfer:**
+   - Open the `wardrive` folder on your USB drive
+   - Confirm the .txt files are present
+   - File sizes should be several KB to several MB depending on networks found
+
+6. **Eject Flipper:**
+   - Close qFlipper
+   - Safely eject/disconnect Flipper Zero
+
+---
+
+## PART 3: GENERATING MAPS ON WINDOWS (KATANA)
+
+### Running the Wardrive Mapper
+
+1. **Insert USB Drive:**
+   - Plug WARDRIVE USB into Katana
+   - Windows assigns drive letter (usually E:)
+   - File Explorer may auto-open
+
+2. **Launch Mapper:**
+   - Navigate to USB drive root
+   - **Double-click:** `WARDRIVE_WINDOWS.bat`
+   - Command window opens automatically
+
+3. **Processing:**
+   - Script counts wardrive*.txt files found
+   - Displays: "Found X wardrive file(s) to process"
+
+4. **Tile Download Prompt:**
+   - Question: "Download offline map tiles? (Y/N, default=N):"
+   - Press **N** + Enter (default) - uses online Google Maps tiles
+   - Press **Y** + Enter - downloads tiles for offline use (takes time, internet required)
+
+5. **Map Generation:**
+   - Script processes each wardrive file in order
+   - Shows progress for each file
+   - Updates cumulative database
+   - Displays statistics (networks added, updated, skipped)
+
+6. **Completion:**
+   - Message: "Map generation complete!"
+   - Browser automatically opens `wardrive_master_map.html`
+   - Map appears in USB drive root folder
+   - Press any key to close command window
+
+### Understanding the Output
+
+**Database File:**
+- Location: `E:\wardrive\wardrive_data.db`
+- Contains: All networks from all wardrive sessions combined
+- Keeps: Strongest signal location for each network
+- Updates: Automatically when processing new files
+
+**Map File:**
+- Location: `E:\wardrive_master_map.html`
+- Opens: In default web browser
+- Shows: Interactive map with all discovered networks
+
+---
+
+## PART 4: GENERATING MAPS ON LINUX (SH4D0WFR4M3)
+
+### Running the Wardrive Mapper
+
+1. **Insert USB Drive:**
+   - Plug WARDRIVE USB into Sh4d0wFr4m3
+   - Auto-mounts to `/media/ov3rr1d3/WARDRIVE/`
+   - Thunar file manager may auto-open
+
+2. **Launch Mapper:**
+   - Navigate to USB drive root in file manager
+   - **Double-click:** `WARDRIVE_LINUX.desktop`
+   - If prompted, select "Execute" or "Run in Terminal"
+   - Terminal window opens automatically
+
+3. **Processing:**
+   - Script counts wardrive*.txt files found
+   - Displays: "Found X wardrive file(s) to process"
+
+4. **Tile Download Prompt:**
+   - Question: "Download offline map tiles? (Y/N, default=N):"
+   - Press **N** + Enter (default) - uses online Google Maps tiles
+   - Press **Y** + Enter - downloads tiles for offline use (takes time, internet required)
+
+5. **Map Generation:**
+   - Script processes each wardrive file in order
+   - Shows progress for each file
+   - Updates cumulative database
+   - Displays statistics (networks added, updated, skipped)
+
+6. **Completion:**
+   - Message: "Map generation complete!"
+   - Browser automatically opens `wardrive_master_map.html`
+   - Map appears in USB drive root folder
+   - Press Enter to close terminal
+
+### Alternative Launch Method (If Desktop File Doesn't Work)
+
+1. Right-click in USB drive folder
+2. Select "Open Terminal Here"
+3. Type: `./LAUNCH_WARDRIVE.sh`
+4. Press Enter
+
+### Understanding the Output
+
+**Database File:**
+- Location: `/media/ov3rr1d3/WARDRIVE/wardrive/wardrive_data.db`
+- Contains: All networks from all wardrive sessions combined
+- Keeps: Strongest signal location for each network
+- Updates: Automatically when processing new files
+
+**Map File:**
+- Location: `/media/ov3rr1d3/WARDRIVE/wardrive_master_map.html`
+- Opens: In default web browser (usually Firefox)
+- Shows: Interactive map with all discovered networks
+
+---
+
+## PART 5: USING THE INTERACTIVE MAP
+
+### Map Interface Elements
+
+**Layer Controls (Bottom Left):**
+- **Google Satellite** - Aerial imagery with labels
+- **Google Streets** - Traditional street map view
+- **Density Heat Map** - WiFi concentration visualization
+- **🔓 Open Networks** - Unsecured networks (toggleable)
+- **🔒 Secured Networks** - Password-protected networks (toggleable)
+
+**Legend (Top Right):**
+- **Green markers:** Strong signal (-50 dBm or better)
+- **Orange markers:** Medium signal (-51 to -70 dBm)
+- **Red markers:** Weak signal (-71 dBm or worse)
+- **Unlock icon:** Open/unsecured network
+
+**Statistics Dashboard (Top Left):**
+- **Unique Networks:** Total SSIDs discovered
+- **🔒 Secured:** Password-protected networks
+- **🔓 Open:** Unsecured networks (security risk)
+- **Most Used Channel:** Common WiFi channel
+- **Signal Strength Stats:** Strongest, weakest, average
+
+### Interacting with the Map
+
+**Viewing Network Details:**
+1. Click any marker on the map
+2. Popup shows:
+   - SSID (network name)
+   - MAC address
+   - Security type (WPA2, WPA3, Open, etc.)
+   - Channel number
+   - Signal strength in dBm
+   - First seen timestamp
+   - Last updated timestamp
+   - GPS coordinates
+   - Altitude and accuracy
+
+**Navigation:**
+- **Zoom:** Mouse scroll wheel or +/- buttons
+- **Pan:** Click and drag
+- **Fullscreen:** Click fullscreen button (top left)
+- **Toggle Layers:** Click layer names in bottom-left control
+
+**Heat Map:**
+- Shows WiFi density by color
+- Blue: Low density
+- Yellow: Medium density
+- Red: High density
+- Helps identify WiFi-rich areas
+
+**Clustering:**
+- Markers cluster when zoomed out
+- Numbers show how many networks in cluster
+- Click cluster to zoom in and expand
+
+---
+
+## PART 6: OFFLINE MAP TILES (OPTIONAL)
+
+### When to Download Tiles
+
+**Advantages:**
+- Works without internet connection
+- Faster map loading
+- No data usage
+- Useful for field operations
+
+**Disadvantages:**
+- Large download (several GB)
+- Takes 20-60 minutes depending on connection
+- Requires internet during initial download
+- Must be re-downloaded for updated imagery
+
+### Downloading Tiles
+
+1. Run mapper as normal
+2. When prompted "Download offline map tiles?", press **Y** + Enter
+3. Script downloads tiles for your wardrive area
+4. Progress shows tile count
+5. Tiles saved to: `wardrive/tiles/` folder
+6. Future maps automatically use offline tiles when internet unavailable
+
+### Tile Storage Locations
+
+- **Windows:** `E:\wardrive\tiles\`
+- **Linux:** `/media/ov3rr1d3/WARDRIVE/wardrive/tiles/`
+- **Subfolders:**
+  - `y/` - Satellite imagery tiles
+  - `m/` - Street map tiles
+
+---
+
+## PART 7: DATABASE MANAGEMENT
+
+### How the Database Works
+
+**Cumulative Collection:**
+- Each wardrive file adds networks to database
+- Database never forgets networks
+- Keeps strongest signal location for each MAC address
+- Updates metadata (SSID, channel, etc.) on each run
+
+**Network Updates:**
+- **New network:** Added to database with all details
+- **Existing network, stronger signal:** Updates location to new coordinates
+- **Existing network, weaker signal:** Keeps old location, updates metadata only
+
+**Deduplication:**
+- Same SSID from multiple locations: Shows strongest signal point only
+- Prevents cluttered map with duplicate markers
+- Each MAC address tracked separately
+
+### Database File
+
+- **Filename:** `wardrive_data.db`
+- **Format:** SQLite3 database
+- **Location:** `wardrive/` folder on USB
+- **Size:** Grows with more networks (typically 100KB-10MB)
+- **Portable:** Same database shared between Windows and Linux
+
+### Backing Up Your Data
+
+**Recommended Backup Locations:**
+1. Copy entire USB `wardrive/` folder to:
+   - External hard drive
+   - Cloud storage (encrypted)
+   - Network attached storage
+
+2. Keep original wardrive .txt files - can rebuild database anytime
+
+**Rebuilding Database:**
+1. Delete `wardrive_data.db`
+2. Run mapper - creates fresh database
+3. Processes all wardrive*.txt files
+4. Rebuilds complete history
+
+---
+
+## PART 8: TROUBLESHOOTING
+
+### "No wardrive files found"
+
+**Cause:** No wardrive*.txt files in wardrive folder
+**Solution:**
+1. Verify files copied from Flipper via qFlipper
+2. Check files are in correct location: `wardrive/` subfolder, not USB root
+3. Confirm filenames start with "wardrive" and end with ".txt"
+
+### "Virtual environment not found" (Windows)
+
+**Cause:** Python packages missing or corrupted
+**Solution:**
+1. Check `venv_windows/` folder exists on USB root
+2. If missing, contact support for package reinstallation
+
+### "Python packages not found" (Linux)
+
+**Cause:** Python packages missing
+**Solution:**
+1. Check `python_packages/` folder exists on USB root
+2. If missing, contact support for package reinstallation
+
+### Map doesn't open automatically
+
+**Cause:** Default browser not set or file association issue
+**Solution:**
+1. Navigate to USB root folder
+2. Double-click `wardrive_master_map.html` manually
+3. Choose browser if prompted
+
+### Map shows no networks
+
+**Cause:** Database empty or GPS data missing from wardrive files
+**Solutions:**
+1. Verify wardrive files contain GPS coordinates
+2. Check Flipper GPS was working during wardrive (red LED flashing)
+3. Ensure files were processed (check console output)
+
+### "Permission denied" errors (Linux)
+
+**Cause:** USB mounted with incorrect permissions
+**Solution:**
+1. Unmount USB: `sudo umount /media/ov3rr1d3/WARDRIVE`
+2. Remount with permissions: `sudo mount -o uid=1000,gid=1000 /dev/sda1 /mnt/usb`
+3. Re-run mapper
+
+### Map tiles don't load
+
+**Cause:** No internet and offline tiles not downloaded
+**Solution:**
+1. Connect to internet, OR
+2. Run mapper with "Y" for tile download, OR
+3. Accept that map background won't display (markers still work)
+
+### Duplicate networks appearing
+
+**Cause:** Different MAC addresses with same SSID
+**Solution:**
+- This is normal - different routers can share SSIDs
+- Map shows strongest signal location for each unique MAC
+- Hover over markers to see individual MAC addresses
+
+---
+
+## PART 9: WORKFLOW SUMMARY
+
+### Typical Field Operation
+
+1. **Morning Prep:**
+   - Charge all Flipper devices
+   - Verify GPS functionality (outdoor test for satellite lock)
+   - Clear old wardrive files from Flipper if desired
+
+2. **Field Work:**
+   - Start wardrive on Flipper
+   - Drive/walk target area
+   - Monitor GPS lock (red LED flashing)
+   - Stop scan when complete
+
+3. **Evening Processing:**
+   - Connect Flipper to laptop
+   - Open qFlipper
+   - Copy new wardrive files to USB drive `wardrive/` folder
+   - Disconnect Flipper
+   - Run mapper (double-click launcher)
+   - Review map for coverage and findings
+
+4. **Repeat:**
+   - Each session adds to cumulative database
+   - Build comprehensive network map over time
+   - Track changes as networks are added/removed/moved
+
+### Multi-Device Workflow
+
+If using multiple Flipper devices (Br34ch3r, Dr1v3r, S3nt1n3l):
+
+1. Collect wardrive data from all devices simultaneously
+2. Copy all wardrive files to USB using qFlipper (one device at a time)
+3. Name files uniquely if needed (e.g., `wardrive_breacher_1.txt`)
+4. Run mapper once - processes all files together
+5. Database combines data from all devices into single map
+
+---
+
+## PART 10: FILE STRUCTURE REFERENCE
+
+### USB Drive Organization
+
+```
+WARDRIVE (USB Root)
+│
+├── WARDRIVE_WINDOWS.bat          # Windows launcher
+├── WARDRIVE_LINUX.desktop        # Linux launcher  
+├── LAUNCH_WARDRIVE.sh            # Linux launcher (alternative)
+├── wardrive_master_map.html      # Generated map (output)
+│
+├── wardrive/                     # Main data folder
+│   ├── wardrive_0.txt           # Wardrive data files (input)
+│   ├── wardrive_1.txt
+│   ├── wardrive_data.db         # Cumulative database
+│   ├── wardrive_mapper.py       # Main processing script
+│   ├── download_tiles.py        # Tile download script
+│   ├── RUN_WARDRIVE.bat         # Windows script (called by launcher)
+│   ├── RUN_WARDRIVE.sh          # Linux script (called by launcher)
+│   └── tiles/                   # Offline map tiles (optional)
+│       ├── y/                   # Satellite tiles
+│       └── m/                   # Street map tiles
+│
+├── venv_windows/                # Windows Python packages
+│   └── [Python virtual environment files]
+│
+└── python_packages/             # Linux Python packages
+    └── [Portable Python packages]
+```
+
+### Important Files
+
+**DO NOT DELETE:**
+- `wardrive_data.db` - Your entire network database
+- `venv_windows/` - Windows dependencies
+- `python_packages/` - Linux dependencies
+- `.py` and `.bat` and `.sh` files - Scripts
+
+**SAFE TO DELETE:**
+- Individual `wardrive_*.txt` files after processing (if database exists)
+- `tiles/` folder (re-download anytime)
+- `wardrive_master_map.html` (regenerates each run)
+
+**COPY TO FLIPPER (via qFlipper):**
+- Only `wardrive_*.txt` files
+- Direction: FROM Flipper TO USB
+- Never copy files FROM USB TO Flipper
+
+---
+
+## PART 11: TIPS & BEST PRACTICES
+
+### GPS Performance
+
+**Optimal Conditions:**
+- Clear sky view
+- Outdoors or near windows
+- Flipper screen facing down (GPS antenna on back)
+- Wait 30-60 seconds for initial satellite lock
+
+**Poor Conditions:**
+- Inside buildings
+- Under heavy tree cover
+- In vehicles with metallic window tinting
+- Urban canyons (tall buildings blocking sky)
+
+### Wardriving Best Practices
+
+1. **Legal Compliance:**
+   - Only wardrive on public streets/property
+   - Never attempt to access networks without authorization
+   - Follow local laws regarding RF scanning
+
+2. **Coverage Strategy:**
+   - Drive slowly (15-25 mph) for better capture rates
+   - Cover area systematically (grid pattern)
+   - Run multiple passes for completeness
+   - Note areas with poor GPS signal for re-scan
+
+3. **Data Quality:**
+   - Verify GPS lock before starting (red LED flashing)
+   - Keep Flipper in consistent position
+   - Avoid rapid direction changes that confuse GPS
+   - Stop occasionally to let GPS accuracy improve
+
+### Security Analysis
+
+**Open Networks (🔓):**
+- Displayed with unlock icon
+- Red warning in popup
+- Security risk indicators
+- Good targets for network owner education
+
+**Signal Strength:**
+- Strong (green): Network likely nearby
+- Medium (orange): Moderate distance
+- Weak (red): Far away or obstacles present
+
+**Channel Analysis:**
+- Most Used Channel shows congestion
+- Networks on same channel compete for bandwidth
+- Useful for optimizing own network placement
+
+---
+
+## PART 12: ADVANCED FEATURES
+
+### Filtering Networks
+
+**Using Layer Controls:**
+- Toggle "🔓 Open Networks" ON - Show only unsecured
+- Toggle "🔒 Secured Networks" ON - Show only secured
+- Turn both OFF - See heat map only
+- Turn both ON - See everything
+
+### Custom Analysis
+
+**Database Access (Advanced Users):**
+- Database is standard SQLite3 format
+- Can query with any SQLite tool
+- Example queries:
+  - Count networks by security type
+  - Find strongest signals
+  - Track network density by area
+  - Identify networks seen at specific times
+
+**Exporting Data:**
+- Map can be saved (right-click → Save As)
+- Database can be copied for analysis
+- Wardrive .txt files are WiGLE.net compatible
+- Can upload to WiGLE for global database contribution
+
+### Multiple Maps
+
+**Creating Separate Maps:**
+1. Copy wardrive files to different folders
+2. Rename database for each project
+3. Generate separate maps for different areas/times
+4. Compare coverage between sessions
+
+---
+
+## SUPPORT & MAINTENANCE
+
+### Regular Maintenance
+
+**Weekly:**
+- Backup database file
+- Review map for coverage gaps
+- Clear old wardrive .txt files (after backup)
+
+**Monthly:**
+- Verify USB drive health
+- Update offline tiles if using
+- Clean up duplicate or test files
+
+**As Needed:**
+- Update Flipper firmware
+- Update Python packages
+- Regenerate maps with new data
+
+### Contact Information
+
+For technical issues, firmware updates, or feature requests:
+- Review documentation in USB drive
+- Check Flipper Zero forums
+- Consult Momentum firmware documentation
+
+---
+
+## END OF MANUAL
+
+Version: 1.0
+Last Updated: October 2025
+System: Wardrive Mapper - Portable Edition
+Compatible: Windows 11, Kali Linux

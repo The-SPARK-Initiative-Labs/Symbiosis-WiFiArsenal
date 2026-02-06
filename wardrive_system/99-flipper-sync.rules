@@ -1,0 +1,8 @@
+# Flipper Zero Auto-Sync Rule
+# Triggers GUI prompt when Flipper is plugged in
+# Flipper Zero USB: Vendor=0483 (STM), Product=5740
+
+ACTION=="add", SUBSYSTEM=="tty", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="5740", \
+    ENV{DISPLAY}=":0", \
+    ENV{XAUTHORITY}="/home/ov3rr1d3/.Xauthority", \
+    RUN+="/bin/su ov3rr1d3 -c '/home/ov3rr1d3/wifi_arsenal/wardrive_system/flipper_sync_gui.sh'"

