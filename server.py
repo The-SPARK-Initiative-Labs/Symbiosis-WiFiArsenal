@@ -18,6 +18,7 @@ import requests
 import logging
 
 import json
+import queue
 from datetime import datetime
 
 app = Flask(__name__, static_folder='web', static_url_path='')
@@ -222,6 +223,14 @@ orchestrator_state = {
     'process': None,
     'log_file': None,
     'start_time': None
+}
+
+# Global state for live wardrive scanning
+import sys
+sys.path.insert(0, '/home/ov3rr1d3/wifi_arsenal/wardrive_system/wardrive')
+wardrive_live_state = {
+    'session': None,
+    'running': False
 }
 
 # Global state for live attack streaming
@@ -653,6 +662,23 @@ def serve_wardrive_v2(filename):
 @app.route('/wardrive_system/<path:filename>')
 def serve_wardrive(filename):
     """Serve wardrive system files (map, etc)"""
+    # Tile requests must go to serve_tiles() - not here
+    if filename.startswith('tiles/'):
+        tiles_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wardrive_system', 'wardrive', 'tiles')
+        tile_path = filename[6:]  # strip 'tiles/' prefix
+        tile_full_path = os.path.join(tiles_dir, tile_path)
+        if not os.path.isfile(tile_full_path):
+            return "", 404
+        with open(tile_full_path, 'rb') as f:
+            magic = f.read(4)
+        if magic.startswith(b'\xff\xd8'):
+            mimetype = 'image/jpeg'
+        elif magic.startswith(b'\x89PNG'):
+            mimetype = 'image/png'
+        else:
+            mimetype = 'application/octet-stream'
+        return send_from_directory(tiles_dir, tile_path, mimetype=mimetype)
+
     wardrive_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wardrive_system')
     response = send_from_directory(wardrive_dir, filename)
     if filename.endswith('.html'):
@@ -3063,6 +3089,304 @@ def get_target_tags():
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ========== CUSTOM MAP MARKERS ==========
+
+@app.route('/api/wardrive/markers', methods=['GET'])
+def get_custom_markers():
+    """Fetch all custom map markers"""
+    db_path = '/home/ov3rr1d3/wifi_arsenal/wardrive_system/wardrive/wardrive_data.db'
+    try:
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, latitude, longitude, label, color, created_at FROM custom_markers ORDER BY created_at DESC')
+        markers = [{'id': r[0], 'lat': r[1], 'lon': r[2], 'label': r[3], 'color': r[4], 'created_at': r[5]} for r in cursor.fetchall()]
+        conn.close()
+        return jsonify({'success': True, 'markers': markers})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/wardrive/marker', methods=['POST'])
+def create_custom_marker():
+    """Create a new custom map marker"""
+    import html as html_mod
+    data = request.json or {}
+    lat = data.get('lat')
+    lon = data.get('lon')
+    label = data.get('label', '').strip()
+    color = data.get('color', '#ff0000').strip()
+
+    if lat is None or lon is None:
+        return jsonify({'success': False, 'error': 'lat and lon required'}), 400
+    if not label:
+        return jsonify({'success': False, 'error': 'label required'}), 400
+
+    label = html_mod.escape(label)[:100]
+    # Validate hex color
+    if not (len(color) == 7 and color[0] == '#' and all(c in '0123456789abcdefABCDEF' for c in color[1:])):
+        color = '#ff0000'
+
+    db_path = '/home/ov3rr1d3/wifi_arsenal/wardrive_system/wardrive/wardrive_data.db'
+    try:
+        import sqlite3
+        from datetime import datetime
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        cursor.execute('INSERT INTO custom_markers (latitude, longitude, label, color, created_at) VALUES (?, ?, ?, ?, ?)',
+                       (float(lat), float(lon), label, color, now))
+        marker_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'id': marker_id, 'lat': float(lat), 'lon': float(lon), 'label': label, 'color': color})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/wardrive/marker/<int:marker_id>', methods=['DELETE'])
+def delete_custom_marker(marker_id):
+    """Delete a custom map marker"""
+    db_path = '/home/ov3rr1d3/wifi_arsenal/wardrive_system/wardrive/wardrive_data.db'
+    try:
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM custom_markers WHERE id = ?', (marker_id,))
+        if cursor.rowcount == 0:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Marker not found'}), 404
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': 'Marker deleted'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ========== LIVE WARDRIVE ENDPOINTS ==========
+
+@app.route('/api/wardrive/live/start', methods=['POST'])
+def wardrive_live_start():
+    """Start a live wardrive scanning session"""
+    global wardrive_live_state
+
+    if wardrive_live_state['running']:
+        return jsonify({'success': False, 'error': 'Live scan already running'})
+
+    try:
+        # Stop the server's GPS reader so it doesn't conflict with the scanner's
+        _stop_gps_reader()
+        import time as _time
+        _time.sleep(0.5)  # Let serial port release
+
+        from live_scanner import LiveWardriveSession
+        session = LiveWardriveSession()
+        session.start()
+        wardrive_live_state['session'] = session
+        wardrive_live_state['running'] = True
+        return jsonify({
+            'success': True,
+            'session_id': session.session_id,
+            'message': 'Live wardrive started'
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/wardrive/live/stop', methods=['POST'])
+def wardrive_live_stop():
+    """Stop live wardrive and finalize session"""
+    global wardrive_live_state
+
+    if not wardrive_live_state['running']:
+        return jsonify({'success': False, 'error': 'No live scan running'})
+
+    try:
+        session = wardrive_live_state['session']
+        session.stop()
+        result = {
+            'success': True,
+            'session_id': session.session_id,
+            'networks_found': session.networks_found,
+            'new_networks': session.new_networks,
+            'elapsed': int(time.time() - session.start_time)
+        }
+        wardrive_live_state['session'] = None
+        wardrive_live_state['running'] = False
+
+        # Restart the server's GPS reader for status polling
+        _start_gps_reader()
+
+        # Trigger map regeneration in background
+        def regen_map():
+            try:
+                subprocess.run(
+                    ['python3', 'wardrive_mapper.py', '--regen'],
+                    cwd='/home/ov3rr1d3/wifi_arsenal/wardrive_system/wardrive',
+                    capture_output=True, timeout=300
+                )
+            except Exception as e:
+                print(f"Map regen error: {e}")
+        threading.Thread(target=regen_map, daemon=True).start()
+
+        return jsonify(result)
+    except Exception as e:
+        wardrive_live_state['running'] = False
+        wardrive_live_state['session'] = None
+        return jsonify({'success': False, 'error': str(e)})
+
+
+# Persistent GPS reader thread — keeps serial port open so u-blox doesn't reset
+import threading
+
+_gps_state = {
+    'connected': False, 'fix': False, 'satellites': 0,
+    'latitude': 0.0, 'longitude': 0.0, 'speed': 0.0,
+    'reader_running': False
+}
+_gps_lock = threading.Lock()
+
+def _find_gps_device():
+    """Find the u-blox GPS serial device"""
+    import glob
+    for dev in sorted(glob.glob('/dev/ttyACM*')):
+        try:
+            import serial
+            ser = serial.Serial(dev, 9600, timeout=2)
+            line = ser.readline().decode('ascii', errors='ignore')
+            ser.close()
+            if '$G' in line:  # NMEA sentence
+                return dev
+        except Exception:
+            continue
+    return None
+
+def _gps_reader_thread():
+    """Background thread that continuously reads GPS NMEA data"""
+    import serial
+    import time
+    while _gps_state['reader_running']:
+        dev = _find_gps_device()
+        if not dev:
+            with _gps_lock:
+                _gps_state['connected'] = False
+                _gps_state['fix'] = False
+                _gps_state['satellites'] = 0
+            time.sleep(3)
+            continue
+        try:
+            ser = serial.Serial(dev, 9600, timeout=2)
+            with _gps_lock:
+                _gps_state['connected'] = True
+            while _gps_state['reader_running']:
+                line = ser.readline().decode('ascii', errors='ignore').strip()
+                if not line:
+                    continue
+                if line.startswith('$GNGGA') or line.startswith('$GPGGA'):
+                    parts = line.split(',')
+                    if len(parts) >= 8:
+                        with _gps_lock:
+                            fix_quality = int(parts[6]) if parts[6] else 0
+                            _gps_state['satellites'] = int(parts[7]) if parts[7] else 0
+                            if fix_quality > 0 and parts[2] and parts[4]:
+                                _gps_state['fix'] = True
+                                raw_lat = float(parts[2])
+                                _gps_state['latitude'] = int(raw_lat / 100) + (raw_lat % 100) / 60.0
+                                if parts[3] == 'S':
+                                    _gps_state['latitude'] = -_gps_state['latitude']
+                                raw_lon = float(parts[4])
+                                _gps_state['longitude'] = int(raw_lon / 100) + (raw_lon % 100) / 60.0
+                                if parts[5] == 'W':
+                                    _gps_state['longitude'] = -_gps_state['longitude']
+                            else:
+                                _gps_state['fix'] = False
+                elif line.startswith('$GNRMC') or line.startswith('$GPRMC'):
+                    parts = line.split(',')
+                    if len(parts) >= 8 and parts[7]:
+                        try:
+                            with _gps_lock:
+                                _gps_state['speed'] = float(parts[7]) * 1.151  # knots to mph
+                        except ValueError:
+                            pass
+            ser.close()
+        except Exception:
+            with _gps_lock:
+                _gps_state['connected'] = False
+                _gps_state['fix'] = False
+                _gps_state['satellites'] = 0
+            import time
+            time.sleep(2)  # Retry after 2 seconds
+
+def _start_gps_reader():
+    if not _gps_state['reader_running']:
+        _gps_state['reader_running'] = True
+        t = threading.Thread(target=_gps_reader_thread, daemon=True)
+        t.start()
+
+def _stop_gps_reader():
+    _gps_state['reader_running'] = False
+
+@app.route('/api/wardrive/live/gps', methods=['GET'])
+def wardrive_live_gps():
+    """Get current GPS status — from live session if scanning, otherwise persistent reader"""
+    if wardrive_live_state['running'] and wardrive_live_state['session']:
+        # Pull from the session's GPS reader
+        session = wardrive_live_state['session']
+        pos = session.gps.get_position()
+        return jsonify({
+            'connected': True,
+            'fix': pos.get('valid', False),
+            'satellites': pos.get('satellites', 0),
+            'latitude': pos.get('latitude', 0.0),
+            'longitude': pos.get('longitude', 0.0),
+            'speed': pos.get('speed_mph', 0.0),
+            'reader_running': True
+        })
+    # No scan running — use persistent reader
+    _start_gps_reader()
+    with _gps_lock:
+        return jsonify(dict(_gps_state))
+
+@app.route('/api/wardrive/live/status', methods=['GET'])
+def wardrive_live_status():
+    """Get current live wardrive status"""
+    global wardrive_live_state
+
+    if not wardrive_live_state['running'] or not wardrive_live_state['session']:
+        return jsonify({'running': False})
+
+    return jsonify(wardrive_live_state['session'].get_status())
+
+
+@app.route('/api/wardrive/live/stream', methods=['GET'])
+def wardrive_live_stream():
+    """SSE endpoint for real-time wardrive updates"""
+    global wardrive_live_state
+
+    def generate():
+        import json as json_module
+        while wardrive_live_state['running'] and wardrive_live_state['session']:
+            session = wardrive_live_state['session']
+            try:
+                event = session.event_queue.get(timeout=1)
+                yield f"data: {json_module.dumps(event)}\n\n"
+            except queue.Empty:
+                # Heartbeat to keep connection alive
+                yield f"data: {json_module.dumps({'type': 'heartbeat'})}\n\n"
+        yield f"data: {json_module.dumps({'type': 'stopped'})}\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no'
+        }
+    )
 
 
 # ========== END WARDRIVING ENDPOINTS ==========

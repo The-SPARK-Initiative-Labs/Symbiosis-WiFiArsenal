@@ -224,6 +224,9 @@
     }
 
     </style>
+    <!-- Leaflet for live wardrive map (local copies for offline use) -->
+    <link rel="stylesheet" href="/lib/leaflet.css" />
+    <script src="/lib/leaflet.js"></script>
 </head>
 <body>
     <!-- J4Rv15 Lock Screen -->
@@ -981,14 +984,47 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <h2 style="margin: 0;">🗺️ Wardrive Map</h2>
                     <div>
-                        <button class="button" onclick="refreshWardriveMap()" style="padding: 5px 15px;" title="Reload the wardrive map to show latest data">Refresh Map</button>
+                        <button id="liveToggleBtn" class="button" onclick="toggleLiveMode()" style="padding: 5px 15px; background: #003300;" title="Switch between live scanning mode and history map view">📡 Live Mode</button>
+                        <button id="historyRefreshBtn" class="button" onclick="refreshWardriveMap()" style="padding: 5px 15px;" title="Reload the wardrive map to show latest data">Refresh Map</button>
+                        <button id="placeMarkerBtn" class="button" onclick="toggleMarkerPlacement()" style="padding: 5px 15px; background: #550055;" title="Click to place a custom marker on the map">📍 Place Marker</button>
                         <button class="button" onclick="openMapFullscreen()" style="padding: 5px 15px;" title="Open wardrive map in new browser tab for fullscreen viewing">⛶ Fullscreen</button>
                     </div>
                 </div>
+                <!-- Custom marker placement form (hidden until marker is placed) -->
+                <div id="markerForm" style="display:none; background:#1a1a2e; border:1px solid #00ff00; border-radius:5px; padding:10px; margin-bottom:8px; font-size:12px;">
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <span style="color:#00ff00;">📍 New Marker</span>
+                        <input id="markerLabel" type="text" placeholder="Label (e.g. Front Entrance)" maxlength="100" style="flex:1; min-width:150px; padding:4px 8px; background:#0d0d1a; color:#fff; border:1px solid #444; border-radius:3px; font-size:12px;">
+                        <input id="markerColor" type="color" value="#ff0000" style="width:36px; height:28px; border:1px solid #444; border-radius:3px; cursor:pointer;" title="Pick marker color">
+                        <button onclick="saveCustomMarker()" class="button" style="padding:4px 12px; background:#27ae60;" title="Save this marker to the map">Save</button>
+                        <button onclick="cancelMarkerPlacement()" class="button" style="padding:4px 12px; background:#666;" title="Cancel marker placement">Cancel</button>
+                    </div>
+                </div>
+                <!-- History Mode: Folium map iframe -->
                 <iframe id="wardriveMapFrame"
                         src="/wardrive_system/wardrive_master_map.html"
                         style="flex: 1; border: 1px solid #00ff00; background: #000; width: 100%;">
                 </iframe>
+                <!-- Live Mode: Leaflet map + controls (hidden by default) -->
+                <div id="liveWardriveContainer" style="display: none; flex: 1; flex-direction: column; min-height: 0; overflow: hidden;">
+                    <div style="display: flex; gap: 10px; margin-bottom: 8px; align-items: center;">
+                        <button id="liveStartBtn" class="button" onclick="startLiveWardrive()" style="padding: 5px 15px; background: #004400;" title="Start live WiFi scanning with GPS tracking">▶ Start Scan</button>
+                        <button id="liveStopBtn" class="button" onclick="stopLiveWardrive()" style="padding: 5px 15px; background: #440000; display: none;" title="Stop scanning and save session to database">⬛ Stop Scan</button>
+                        <div style="flex: 1; display: flex; gap: 15px; font-size: 11px; color: #888; align-items: center;">
+                            <span>GPS: <span id="gpsFixStatus" style="color: #ff4444;">No Fix</span> (<span id="gpsSatCount">0</span> sats)</span>
+                            <span>Speed: <span id="gpsSpeed">0</span> mph</span>
+                            <span>Networks: <span id="liveNetworkCount" style="color: #00ff00; font-weight: bold;">0</span></span>
+                            <span>New: <span id="liveNewCount" style="color: #ff6600; font-weight: bold;">0</span></span>
+                            <span>Time: <span id="liveElapsed" style="color: #00aaff;">00:00</span></span>
+                        </div>
+                    </div>
+                    <div style="display: flex; flex: 1; gap: 8px; min-height: 0; overflow: hidden;">
+                        <div id="liveMapContainer" style="flex: 3; border: 1px solid #00ff00; background: #111;"></div>
+                        <div id="liveNetworkFeed" style="flex: 1; min-width: 220px; max-width: 300px; overflow-y: auto; font-size: 10px; font-family: monospace; background: #0a0a0a; border: 1px solid #333; padding: 5px;">
+                            <div style="color: #666;">Start a scan to see live network discoveries...</div>
+                        </div>
+                    </div>
+                </div>
             </div>
             
             <!-- Right: Sidebar (25%) -->
@@ -5505,9 +5541,283 @@ function monitorClients() {
             logWardriveSync('🗺️ Map refreshed');
         }
 
+        // ========== LIVE WARDRIVE FUNCTIONS ==========
+        var liveMode = false;
+        var liveMap = null;
+        var liveEventSource = null;
+        var liveGpsMarker = null;
+        var liveTrackLine = null;
+        var liveTrackPoints = [];
+        var liveMarkers = {};
+        var liveElapsedTimer = null;
+        var liveStartTime = null;
+        var liveNewNetworks = 0;
+        var gpsPollingTimer = null;
+        var gpsFirstFix = false;
+
+        function toggleLiveMode() {
+            liveMode = !liveMode;
+            var btn = document.getElementById('liveToggleBtn');
+            var iframe = document.getElementById('wardriveMapFrame');
+            var liveDiv = document.getElementById('liveWardriveContainer');
+            var refreshBtn = document.getElementById('historyRefreshBtn');
+
+            if (liveMode) {
+                btn.textContent = '📋 History Mode';
+                btn.style.background = '#330033';
+                btn.title = 'Switch back to historical map view';
+                iframe.style.display = 'none';
+                liveDiv.style.display = 'flex';
+                refreshBtn.style.display = 'none';
+                initLiveMap();
+                startGpsPolling();
+            } else {
+                btn.textContent = '📡 Live Mode';
+                btn.style.background = '#003300';
+                btn.title = 'Switch to live scanning mode';
+                iframe.style.display = '';
+                liveDiv.style.display = 'none';
+                refreshBtn.style.display = '';
+                stopGpsPolling();
+                gpsFirstFix = false;
+                // Reload iframe to pick up any new data from live session
+                refreshWardriveMap();
+            }
+        }
+
+        function startGpsPolling() {
+            stopGpsPolling();
+            pollGpsStatus();
+            gpsPollingTimer = setInterval(pollGpsStatus, 3000);
+        }
+
+        function stopGpsPolling() {
+            if (gpsPollingTimer) { clearInterval(gpsPollingTimer); gpsPollingTimer = null; }
+        }
+
+        async function pollGpsStatus() {
+            try {
+                var resp = await fetch('/api/wardrive/live/gps');
+                var gps = await resp.json();
+                var fixEl = document.getElementById('gpsFixStatus');
+                var satEl = document.getElementById('gpsSatCount');
+                if (!gps.connected) {
+                    fixEl.textContent = 'Disconnected';
+                    fixEl.style.color = '#ff4444';
+                    satEl.textContent = '0';
+                } else if (gps.fix) {
+                    fixEl.textContent = 'Fix OK';
+                    fixEl.style.color = '#00ff00';
+                    satEl.textContent = gps.satellites;
+                    if (liveMap && !gpsFirstFix) {
+                        liveMap.setView([gps.latitude, gps.longitude], 16);
+                        gpsFirstFix = true;
+                    }
+                } else {
+                    fixEl.textContent = 'No Fix';
+                    fixEl.style.color = '#ffaa00';
+                    satEl.textContent = gps.satellites;
+                }
+            } catch(e) {
+                // ignore polling errors
+            }
+        }
+
+        function initLiveMap() {
+            if (liveMap) return;
+            liveMap = L.map('liveMapContainer', {
+                center: [29.93, -96.96],
+                zoom: 13,
+                zoomControl: true
+            });
+            L.tileLayer('/wardrive_system/tiles/m/{z}/{x}/{y}.png', {
+                attribution: 'Offline Streets',
+                maxZoom: 20,
+                errorTileUrl: ''
+            }).addTo(liveMap);
+            liveGpsMarker = L.circleMarker([0, 0], {
+                radius: 8, color: '#0088ff', fillColor: '#0088ff',
+                fillOpacity: 0.8, weight: 2
+            });
+            liveTrackLine = L.polyline([], {
+                color: '#00aaff', weight: 3, opacity: 0.7
+            }).addTo(liveMap);
+            // Fix map size after container becomes visible
+            setTimeout(function() { liveMap.invalidateSize(); }, 100);
+        }
+
+        async function startLiveWardrive() {
+            initLiveMap();
+            try {
+                var response = await fetch('/api/wardrive/live/start', {method: 'POST'});
+                var result = await response.json();
+                if (!result.success) {
+                    alert('Failed to start: ' + result.error);
+                    return;
+                }
+                document.getElementById('liveStartBtn').style.display = 'none';
+                document.getElementById('liveStopBtn').style.display = '';
+                document.getElementById('liveNetworkFeed').innerHTML = '';
+                liveStartTime = Date.now();
+                liveNewNetworks = 0;
+                document.getElementById('liveNetworkCount').textContent = '0';
+                document.getElementById('liveNewCount').textContent = '0';
+                liveElapsedTimer = setInterval(updateLiveElapsed, 1000);
+                // Clear previous markers
+                Object.values(liveMarkers).forEach(function(m) { liveMap.removeLayer(m); });
+                liveMarkers = {};
+                liveTrackPoints = [];
+                liveTrackLine.setLatLngs([]);
+                if (liveMap.hasLayer(liveGpsMarker)) liveMap.removeLayer(liveGpsMarker);
+                // Connect SSE
+                liveEventSource = new EventSource('/api/wardrive/live/stream');
+                liveEventSource.onmessage = function(e) {
+                    handleLiveEvent(JSON.parse(e.data));
+                };
+                liveEventSource.onerror = function() {
+                    console.log('SSE error');
+                };
+                addToFeed('Scan started - session #' + result.session_id, '#00ff00');
+                logWardriveSync('📡 Live scan started - session #' + result.session_id);
+                setStatus('SCANNING', true);
+            } catch(e) {
+                alert('Error: ' + e);
+            }
+        }
+
+        async function stopLiveWardrive() {
+            if (liveEventSource) { liveEventSource.close(); liveEventSource = null; }
+            if (liveElapsedTimer) { clearInterval(liveElapsedTimer); liveElapsedTimer = null; }
+            try {
+                var response = await fetch('/api/wardrive/live/stop', {method: 'POST'});
+                var result = await response.json();
+                document.getElementById('liveStartBtn').style.display = '';
+                document.getElementById('liveStopBtn').style.display = 'none';
+                if (result.success) {
+                    var msg = 'SESSION COMPLETE: ' + result.networks_found + ' networks (' + result.new_networks + ' new) in ' + formatElapsed(result.elapsed);
+                    addToFeed(msg, '#00ff00');
+                    logWardriveSync('📡 ' + msg);
+                    addToFeed('Map regenerating in background...', '#888');
+                }
+                setStatus('IDLE', false);
+            } catch(e) {
+                console.error('Stop error:', e);
+                setStatus('IDLE', false);
+            }
+        }
+
+        function handleLiveEvent(data) {
+            if (data.type === 'network') {
+                var color = data.auth_mode.indexOf('OPEN') !== -1 ? '#ff4444' :
+                           data.auth_mode.indexOf('WEP') !== -1 ? '#ff8800' :
+                           data.auth_mode.indexOf('WPA3') !== -1 ? '#2ecc71' :
+                           data.auth_mode.indexOf('WPA2') !== -1 ? '#27ae60' :
+                           data.auth_mode.indexOf('WPA') !== -1 ? '#90EE90' : '#95a5a6';
+                if (!liveMarkers[data.mac] && data.lat && data.lon) {
+                    var marker = L.circleMarker([data.lat, data.lon], {
+                        radius: 6, color: color, fillColor: color,
+                        fillOpacity: 0.7, weight: 1
+                    }).addTo(liveMap);
+                    marker.bindPopup('<b>' + (data.ssid || '[Hidden]') + '</b><br>' +
+                        data.mac + '<br>' + data.auth_mode + ' CH:' + data.channel +
+                        '<br>' + data.rssi + ' dBm');
+                    liveMarkers[data.mac] = marker;
+                } else if (liveMarkers[data.mac] && data.lat && data.lon) {
+                    // Update position as triangulation improves
+                    liveMarkers[data.mac].setLatLng([data.lat, data.lon]);
+                }
+                document.getElementById('liveNetworkCount').textContent = Object.keys(liveMarkers).length;
+                if (data.is_new) {
+                    liveNewNetworks++;
+                    document.getElementById('liveNewCount').textContent = liveNewNetworks;
+                }
+                var prefix = data.is_new ? 'NEW' : 'UPD';
+                var feedColor = data.is_new ? '#00ff00' : '#555';
+                var name = data.ssid || data.mac.substr(0,8);
+                var auth = data.auth_mode || '?';
+                var ch = data.channel ? 'ch' + data.channel : '';
+                var sig = data.rssi + 'dBm';
+                // Color auth type
+                var authColor = auth === 'OPEN' ? '#ff4444' : auth === 'WEP' ? '#ff8800' : '#27ae60';
+                var feedHtml = '<span style="color:' + (data.is_new ? '#00ff00' : '#666') + ';">[' + prefix + ']</span> '
+                    + '<span style="color:#ddd;">' + name + '</span> '
+                    + '<span style="color:' + authColor + ';">' + auth + '</span> '
+                    + '<span style="color:#888;">' + sig + ' ' + ch + '</span>';
+                addToFeedHtml(feedHtml, feedColor);
+            } else if (data.type === 'gps' && data.position) {
+                var pos = data.position;
+                if (pos.latitude && pos.longitude) {
+                    liveGpsMarker.setLatLng([pos.latitude, pos.longitude]);
+                    if (!liveMap.hasLayer(liveGpsMarker)) {
+                        liveGpsMarker.addTo(liveMap);
+                        if (!gpsFirstFix) {
+                            liveMap.setView([pos.latitude, pos.longitude], 16);
+                            gpsFirstFix = true;
+                        }
+                    }
+                    // Only add track points when moving (speed > 2 mph) to filter GPS jitter
+                    if (pos.speed_mph > 2) {
+                        liveTrackPoints.push([pos.latitude, pos.longitude]);
+                        liveTrackLine.setLatLngs(liveTrackPoints);
+                    }
+                    document.getElementById('gpsFixStatus').textContent = 'Fix OK';
+                    document.getElementById('gpsFixStatus').style.color = '#00ff00';
+                    document.getElementById('gpsSatCount').textContent = pos.satellites || 0;
+                    document.getElementById('gpsSpeed').textContent = (pos.speed_mph || 0).toFixed(1);
+                }
+            }
+        }
+
+        function addToFeed(text, color) {
+            var feed = document.getElementById('liveNetworkFeed');
+            var div = document.createElement('div');
+            div.style.color = color || '#aaa';
+            div.style.borderBottom = '1px solid #1a1a1a';
+            div.style.padding = '2px 0';
+            var now = new Date();
+            var time = now.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+            div.textContent = time + ' ' + text;
+            feed.insertBefore(div, feed.firstChild);
+            while (feed.children.length > 200) feed.removeChild(feed.lastChild);
+        }
+
+        function addToFeedHtml(html, color) {
+            var feed = document.getElementById('liveNetworkFeed');
+            var div = document.createElement('div');
+            div.style.borderBottom = '1px solid #1a1a1a';
+            div.style.padding = '2px 0';
+            var now = new Date();
+            var time = now.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+            div.innerHTML = '<span style="color:#444;">' + time + '</span> ' + html;
+            feed.insertBefore(div, feed.firstChild);
+            while (feed.children.length > 200) feed.removeChild(feed.lastChild);
+        }
+
+        function updateLiveElapsed() {
+            if (!liveStartTime) return;
+            var secs = Math.floor((Date.now() - liveStartTime) / 1000);
+            var elapsed = formatElapsed(secs);
+            document.getElementById('liveElapsed').textContent = elapsed;
+            document.getElementById('status').textContent = 'SCAN ' + elapsed;
+        }
+
+        function formatElapsed(secs) {
+            var m = Math.floor(secs / 60);
+            var s = secs % 60;
+            return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+        }
+        // ========== END LIVE WARDRIVE FUNCTIONS ==========
+
         // Target tagging functions - called from map popup buttons
         async function tagNetwork(mac, tagCategory) {
             try {
+                // Toggle: if already this tag, remove it instead
+                var f = document.getElementById('wardriveMapFrame');
+                var currentTag = null;
+                try { currentTag = f.contentWindow.networkProperties && f.contentWindow.networkProperties[mac] ? f.contentWindow.networkProperties[mac].tag : null; } catch(e) {}
+                if (currentTag === tagCategory) {
+                    return removeNetworkTag(mac);
+                }
                 const response = await fetch(`/api/wardrive/tag/${encodeURIComponent(mac)}`, {
                     method: 'PUT',
                     headers: {'Content-Type': 'application/json'},
@@ -5516,8 +5826,7 @@ function monitorClients() {
                 const result = await response.json();
                 if (result.success) {
                     logWardriveSync(`🎯 Tagged ${result.ssid || mac} as ${tagCategory}`);
-                    // Refresh map to show updated tag
-                    setTimeout(refreshWardriveMap, 500);
+                    try { if (f.contentWindow.networkProperties && f.contentWindow.networkProperties[mac]) f.contentWindow.networkProperties[mac].tag = tagCategory; } catch(e) {}
                 } else {
                     logWardriveSync(`❌ Tag failed: ${result.error}`);
                 }
@@ -5534,7 +5843,8 @@ function monitorClients() {
                 const result = await response.json();
                 if (result.success) {
                     logWardriveSync(`🏷️ Removed tag from ${mac}`);
-                    setTimeout(refreshWardriveMap, 500);
+                    // Clear tag in iframe networkProperties so filters update immediately
+                    try { var f = document.getElementById('wardriveMapFrame'); if (f.contentWindow.networkProperties && f.contentWindow.networkProperties[mac]) f.contentWindow.networkProperties[mac].tag = null; } catch(e) {}
                 } else {
                     logWardriveSync(`❌ Remove tag failed: ${result.error}`);
                 }
@@ -5542,6 +5852,99 @@ function monitorClients() {
                 logWardriveSync(`❌ Remove tag error: ${error.message}`);
             }
         }
+
+        // ========== CUSTOM MARKER FUNCTIONS ==========
+        var markerPlacementMode = false;
+        var pendingMarkerLatLng = null;
+
+        function toggleMarkerPlacement() {
+            var btn = document.getElementById('placeMarkerBtn');
+            var frame = document.getElementById('wardriveMapFrame');
+            markerPlacementMode = !markerPlacementMode;
+            if (markerPlacementMode) {
+                btn.style.background = '#aa00aa';
+                btn.textContent = '📍 Click Map...';
+                frame.contentWindow.postMessage('enable-placement', '*');
+                logWardriveSync('📍 Click on the map to place a marker');
+            } else {
+                btn.style.background = '#550055';
+                btn.textContent = '📍 Place Marker';
+                frame.contentWindow.postMessage('disable-placement', '*');
+                document.getElementById('markerForm').style.display = 'none';
+            }
+        }
+
+        function cancelMarkerPlacement() {
+            markerPlacementMode = false;
+            pendingMarkerLatLng = null;
+            document.getElementById('markerForm').style.display = 'none';
+            document.getElementById('placeMarkerBtn').style.background = '#550055';
+            document.getElementById('placeMarkerBtn').textContent = '📍 Place Marker';
+            document.getElementById('wardriveMapFrame').contentWindow.postMessage('disable-placement', '*');
+        }
+
+        // Listen for marker placement from iframe
+        window.addEventListener('message', function(e) {
+            if (e.data && e.data.type === 'marker-placed') {
+                pendingMarkerLatLng = {lat: e.data.lat, lng: e.data.lng};
+                document.getElementById('markerForm').style.display = 'block';
+                document.getElementById('markerLabel').value = '';
+                document.getElementById('markerLabel').focus();
+                document.getElementById('placeMarkerBtn').style.background = '#550055';
+                document.getElementById('placeMarkerBtn').textContent = '📍 Place Marker';
+                markerPlacementMode = false;
+            }
+        });
+
+        async function saveCustomMarker() {
+            if (!pendingMarkerLatLng) return;
+            var label = document.getElementById('markerLabel').value.trim();
+            var color = document.getElementById('markerColor').value;
+            if (!label) { document.getElementById('markerLabel').style.border = '1px solid red'; return; }
+            try {
+                const response = await fetch('/api/wardrive/marker', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({lat: pendingMarkerLatLng.lat, lon: pendingMarkerLatLng.lng, label: label, color: color})
+                });
+                const result = await response.json();
+                if (result.success) {
+                    logWardriveSync(`📍 Placed marker: ${label}`);
+                    // Inject marker into iframe immediately
+                    var frame = document.getElementById('wardriveMapFrame');
+                    frame.contentWindow.postMessage({type: 'add-marker', id: result.id, lat: result.lat, lng: pendingMarkerLatLng.lng, label: result.label, color: result.color}, '*');
+                    document.getElementById('markerForm').style.display = 'none';
+                    pendingMarkerLatLng = null;
+                } else {
+                    logWardriveSync(`❌ Marker save failed: ${result.error}`);
+                }
+            } catch (error) {
+                logWardriveSync(`❌ Marker error: ${error.message}`);
+            }
+        }
+
+        async function deleteCustomMarker(id) {
+            try {
+                const response = await fetch(`/api/wardrive/marker/${id}`, {method: 'DELETE'});
+                const result = await response.json();
+                if (result.success) {
+                    logWardriveSync('🗑️ Custom marker deleted');
+                    // Remove from iframe map
+                    var frame = document.getElementById('wardriveMapFrame');
+                    frame.contentWindow.postMessage({type: 'remove-marker', id: id}, '*');
+                } else {
+                    logWardriveSync(`❌ Delete failed: ${result.error}`);
+                }
+            } catch (error) {
+                logWardriveSync(`❌ Delete error: ${error.message}`);
+            }
+        }
+
+        // Allow Enter key to save marker
+        document.addEventListener('DOMContentLoaded', function() {
+            var labelInput = document.getElementById('markerLabel');
+            if (labelInput) labelInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') saveCustomMarker(); });
+        });
 
         function openMapFullscreen() {
             window.open('/wardrive_system/wardrive_master_map.html', '_blank');
@@ -5852,6 +6255,8 @@ function monitorClients() {
             refreshWardriveStats();
             loadSessions();
             refreshReportRiskCounts();
+            // Auto-refresh map iframe so overlays load properly
+            refreshWardriveMap();
         }
 
         // Fetch risk counts for the main panel (not the modal)

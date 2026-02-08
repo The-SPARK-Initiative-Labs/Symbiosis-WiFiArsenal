@@ -18,6 +18,10 @@ logs/
 *.backup2
 *.backup3
 *.backup_*
+*.bak.*
+
+# Database files
+*.db
 
 # Python cache
 __pycache__/

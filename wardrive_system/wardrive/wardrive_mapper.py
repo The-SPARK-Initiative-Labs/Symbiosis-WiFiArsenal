@@ -150,23 +150,23 @@ GPS_TRACK_COLORS = [
 ]
 
 # Color coding based on signal strength (RSSI) - radar gradient style
-# Thresholds adjusted for typical wardrive distribution where most signals are -70 to -90 dBm
+# Thresholds calibrated for Alfa high-gain adapter (~7 dBi) which inflates RSSI by ~8-10 dB
 def get_marker_color(rssi):
     """Return color based on signal strength - radar gradient (green to red)"""
     try:
         rssi = int(rssi)
-        if rssi >= -65:
-            return 'green'        # Top ~18% - Strong signals (drove close)
+        if rssi >= -45:
+            return 'green'        # Strong - physically very close
+        elif rssi >= -55:
+            return 'lightgreen'   # Good - nearby
+        elif rssi >= -65:
+            return 'beige'        # Fair - moderate distance
         elif rssi >= -72:
-            return 'lightgreen'   # Next ~15% - Good signals
-        elif rssi >= -78:
-            return 'beige'        # Middle ~20% - Fair signals (yellow-ish)
-        elif rssi >= -84:
-            return 'orange'       # Next ~25% - Moderate signals
-        elif rssi >= -92:
-            return 'lightred'     # Next ~15% - Weak signals
+            return 'orange'       # Moderate - further away
+        elif rssi >= -80:
+            return 'lightred'     # Weak - distant
         else:
-            return 'red'          # Bottom ~7% - Very weak (barely detected)
+            return 'red'          # Very weak - barely detected
     except:
         return 'gray'
 
@@ -2670,6 +2670,18 @@ def init_database():
     except:
         pass  # Index already exists
 
+    # Custom markers table for user-placed map annotations
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS custom_markers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            latitude REAL NOT NULL,
+            longitude REAL NOT NULL,
+            label TEXT NOT NULL,
+            color TEXT DEFAULT '#ff0000',
+            created_at TEXT NOT NULL
+        )
+    ''')
+
     conn.commit()
     return conn
 
@@ -2956,82 +2968,61 @@ def create_map(conn):
     has_internet = check_internet_connection()
     has_local_tiles = os.path.exists(tiles_dir)
     
-    # Use local tiles ONLY if offline AND tiles exist
-    use_local_tiles = not has_internet and has_local_tiles
-    
-    if use_local_tiles:
-        print("🗺️  Using offline tiles from ./tiles/ (no internet connection)")
-        # Add local Google Satellite Hybrid tiles
-        folium.TileLayer(
-            tiles='tiles/y/{z}/{x}/{y}.png',
-            attr='Google (Offline)',
-            name='Google Satellite',
-            overlay=False,
-            control=True,
-            max_zoom=22
-        ).add_to(m)
-        
-        # Add local Google Street Map tiles
-        folium.TileLayer(
-            tiles='tiles/m/{z}/{x}/{y}.png',
-            attr='Google (Offline)',
-            name='Google Streets',
-            overlay=False,
-            control=True,
-            max_zoom=22
-        ).add_to(m)
-    else:
-        if has_internet:
-            print("🌐 Using online tiles (internet connected)")
-        else:
-            print("⚠️  No internet and no local tiles - map may not display properly")
-
-        # Add Google Satellite Hybrid (satellite imagery with street labels/business names)
-        tile_google_sat = folium.TileLayer(
-            tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
-            attr='Google',
-            name='🛰️ Google Satellite',
-            overlay=False,
-            control=False,
-            max_zoom=22
-        )
-        tile_google_sat.add_to(m)
-
-        # Add Google Maps (street view with labels)
-        tile_google_str = folium.TileLayer(
-            tiles='https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-            attr='Google',
-            name='🗺️ Google Streets',
-            overlay=False,
-            control=False,
-            max_zoom=22
-        )
-        tile_google_str.add_to(m)
-
-    # Always add local tiles as fallback options if they exist
+    # Add tile layers - LAST added becomes visible default in Folium/Leaflet
+    # Order: offline sat -> offline str -> google sat -> google str (LAST = default)
     tile_offline_sat = None
     tile_offline_str = None
     if has_local_tiles:
-        print("📦 Adding offline tile layers as fallback options")
-        tile_offline_sat = folium.TileLayer(
-            tiles='tiles/y/{z}/{x}/{y}.png',
-            attr='Google (Offline)',
-            name='📴 Offline Satellite',
-            overlay=False,
-            control=False,
-            max_zoom=22
-        )
-        tile_offline_sat.add_to(m)
+        sat_dir = os.path.join(tiles_dir, 'y')
+        str_dir = os.path.join(tiles_dir, 'm')
+        if os.path.exists(sat_dir):
+            print("📦 Adding offline satellite tile layer")
+            tile_offline_sat = folium.TileLayer(
+                tiles='/wardrive_system/tiles/y/{z}/{x}/{y}.png',
+                attr='Google (Offline)',
+                name='📴 Offline Satellite',
+                overlay=False,
+                control=False,
+                max_zoom=20
+            )
+            tile_offline_sat.add_to(m)
+        if os.path.exists(str_dir):
+            print("📦 Adding offline street tile layer")
+            tile_offline_str = folium.TileLayer(
+                tiles='/wardrive_system/tiles/m/{z}/{x}/{y}.png',
+                attr='Google (Offline)',
+                name='📴 Offline Streets',
+                overlay=False,
+                control=False,
+                max_zoom=20
+            )
+            tile_offline_str.add_to(m)
 
-        tile_offline_str = folium.TileLayer(
-            tiles='tiles/m/{z}/{x}/{y}.png',
-            attr='Google (Offline)',
-            name='📴 Offline Streets',
-            overlay=False,
-            control=False,
-            max_zoom=22
-        )
-        tile_offline_str.add_to(m)
+    # Google tiles added LAST - Google Streets is the visible default when online
+    if has_internet:
+        print("🌐 Using online tiles (internet connected)")
+    else:
+        print("⚠️  No internet - online tiles won't load")
+
+    tile_google_sat = folium.TileLayer(
+        tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+        attr='Google',
+        name='🛰️ Google Satellite',
+        overlay=False,
+        control=False,
+        max_zoom=22
+    )
+    tile_google_sat.add_to(m)
+
+    tile_google_str = folium.TileLayer(
+        tiles='https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+        attr='Google',
+        name='🗺️ Google Streets',
+        overlay=False,
+        control=False,
+        max_zoom=22
+    )
+    tile_google_str.add_to(m)
     
     # Add heat map layer (WiFi density) - include all networks
     all_coords = [[n[6], n[7]] for n in networks + hidden_networks]
@@ -3143,7 +3134,7 @@ def create_map(conn):
     # ========== SIGNAL STRENGTH LAYERS (CLUSTERED) ==========
     # Filter networks by signal strength (RSSI) - strong signals shown by default
     signal_green = plugins.MarkerCluster(
-        name='💚 Strong (≥ -65 dBm)',
+        name='💚 Strong (≥ -45 dBm)',
         overlay=True,
         control=False,
         show=True,  # ON by default
@@ -3152,7 +3143,7 @@ def create_map(conn):
     signal_green.add_to(m)
 
     signal_lightgreen = plugins.MarkerCluster(
-        name='💚 Good (-72 to -65 dBm)',
+        name='💚 Good (-55 to -45 dBm)',
         overlay=True,
         control=False,
         show=True,  # ON by default
@@ -3161,7 +3152,7 @@ def create_map(conn):
     signal_lightgreen.add_to(m)
 
     signal_beige = plugins.MarkerCluster(
-        name='💛 Fair (-78 to -72 dBm)',
+        name='💛 Fair (-65 to -55 dBm)',
         overlay=True,
         control=False,
         show=False,  # OFF by default
@@ -3170,7 +3161,7 @@ def create_map(conn):
     signal_beige.add_to(m)
 
     signal_orange = plugins.MarkerCluster(
-        name='🧡 Moderate (-84 to -78 dBm)',
+        name='🧡 Moderate (-72 to -65 dBm)',
         overlay=True,
         control=False,
         show=False,  # OFF by default
@@ -3179,7 +3170,7 @@ def create_map(conn):
     signal_orange.add_to(m)
 
     signal_lightred = plugins.MarkerCluster(
-        name='🩷 Weak (-92 to -84 dBm)',
+        name='🩷 Weak (-80 to -72 dBm)',
         overlay=True,
         control=False,
         show=False,  # OFF by default
@@ -3188,7 +3179,7 @@ def create_map(conn):
     signal_lightred.add_to(m)
 
     signal_red = plugins.MarkerCluster(
-        name='❤️ Very Weak (< -92 dBm)',
+        name='❤️ Very Weak (< -80 dBm)',
         overlay=True,
         control=False,
         show=False,  # OFF by default
@@ -3427,10 +3418,10 @@ def create_map(conn):
         base_layers['🛰️ Google Satellite'] = tile_google_sat.get_name()
     except:
         pass
-    if tile_offline_sat:
-        base_layers['📴 Offline Satellite'] = tile_offline_sat.get_name()
     if tile_offline_str:
         base_layers['📴 Offline Streets'] = tile_offline_str.get_name()
+    if tile_offline_sat:
+        base_layers['📴 Offline Satellite'] = tile_offline_sat.get_name()
 
     layer_refs = {
         'base': base_layers,
@@ -3746,15 +3737,15 @@ def create_map(conn):
 
         # Determine signal strength category from RSSI
         rssi_val = marker_data.get('rssi', -100)
-        if rssi_val >= -65:
+        if rssi_val >= -45:
             signal_category = 'strong'
-        elif rssi_val >= -72:
+        elif rssi_val >= -55:
             signal_category = 'good'
-        elif rssi_val >= -78:
+        elif rssi_val >= -65:
             signal_category = 'fair'
-        elif rssi_val >= -84:
+        elif rssi_val >= -72:
             signal_category = 'moderate'
-        elif rssi_val >= -92:
+        elif rssi_val >= -80:
             signal_category = 'weak'
         else:
             signal_category = 'very_weak'
@@ -3838,15 +3829,15 @@ def create_map(conn):
 
         # Determine signal strength
         rssi_val = marker_data.get('rssi', -100)
-        if rssi_val >= -65:
+        if rssi_val >= -45:
             signal_category = 'strong'
-        elif rssi_val >= -72:
+        elif rssi_val >= -55:
             signal_category = 'good'
-        elif rssi_val >= -78:
+        elif rssi_val >= -65:
             signal_category = 'fair'
-        elif rssi_val >= -84:
+        elif rssi_val >= -72:
             signal_category = 'moderate'
-        elif rssi_val >= -92:
+        elif rssi_val >= -80:
             signal_category = 'weak'
         else:
             signal_category = 'very_weak'
@@ -3886,6 +3877,34 @@ def create_map(conn):
 
         # NO MORE DUPLICATE MARKERS FOR HIDDEN NETWORKS - filtering handled by JavaScript
 
+    # ========== CUSTOM USER MARKERS (never clustered) ==========
+    custom_markers_group = folium.FeatureGroup(name='📍 Custom Markers', overlay=True, control=True, show=True)
+    try:
+        cm_cursor = conn.cursor()
+        cm_cursor.execute('SELECT id, latitude, longitude, label, color FROM custom_markers')
+        for cm_row in cm_cursor.fetchall():
+            cm_id, cm_lat, cm_lon, cm_label, cm_color = cm_row
+            cm_popup = f'''
+            <div style="font-family:Arial;font-size:12px;min-width:180px;">
+                <h4 style="margin:0 0 6px 0;">📍 {html.escape(cm_label)}</h4>
+                <div style="width:16px;height:16px;background:{cm_color};border-radius:3px;display:inline-block;vertical-align:middle;border:1px solid #ccc;"></div>
+                <span style="color:#666;margin-left:6px;">{cm_color}</span>
+                <div style="margin-top:8px;">
+                    <button onclick="window.parent.deleteCustomMarker({cm_id})" style="background:#e74c3c;color:white;border:none;padding:5px 12px;border-radius:3px;cursor:pointer;font-size:11px;" title="Delete this custom marker">🗑️ Delete</button>
+                </div>
+            </div>
+            '''
+            folium.Marker(
+                location=[cm_lat, cm_lon],
+                popup=folium.Popup(cm_popup, max_width=250),
+                tooltip=cm_label,
+                icon=folium.Icon(color='white', icon_color=cm_color, icon='map-pin', prefix='fa')
+            ).add_to(custom_markers_group)
+        print(f"   📍 Custom markers: {cm_cursor.rowcount if cm_cursor.rowcount > 0 else 0}")
+    except Exception as e:
+        print(f"   ⚠️ Custom markers skipped: {e}")
+    custom_markers_group.add_to(m)
+
     # Add fullscreen button
     plugins.Fullscreen().add_to(m)
     
@@ -3921,12 +3940,12 @@ def create_map(conn):
             <b>Signal Strength</b>
         </div>
         <div id="legend-content" style="padding: 10px; display: none;">
-            <p style="margin:3px 0;"><i class="fa fa-map-marker" style="color:#2ecc71"></i> -65+ dBm (Strong)</p>
-            <p style="margin:3px 0;"><i class="fa fa-map-marker" style="color:#90EE90"></i> -72 to -66 (Good)</p>
-            <p style="margin:3px 0;"><i class="fa fa-map-marker" style="color:#F5DEB3"></i> -78 to -73 (Fair)</p>
-            <p style="margin:3px 0;"><i class="fa fa-map-marker" style="color:#FFA500"></i> -84 to -79 (Moderate)</p>
-            <p style="margin:3px 0;"><i class="fa fa-map-marker" style="color:#FF6B6B"></i> -92 to -85 (Weak)</p>
-            <p style="margin:3px 0;"><i class="fa fa-map-marker" style="color:#FF0000"></i> Below -92 (Very Weak)</p>
+            <p style="margin:3px 0;"><i class="fa fa-map-marker" style="color:#2ecc71"></i> -45+ dBm (Strong)</p>
+            <p style="margin:3px 0;"><i class="fa fa-map-marker" style="color:#90EE90"></i> -55 to -46 (Good)</p>
+            <p style="margin:3px 0;"><i class="fa fa-map-marker" style="color:#F5DEB3"></i> -65 to -56 (Fair)</p>
+            <p style="margin:3px 0;"><i class="fa fa-map-marker" style="color:#FFA500"></i> -72 to -66 (Moderate)</p>
+            <p style="margin:3px 0;"><i class="fa fa-map-marker" style="color:#FF6B6B"></i> -80 to -73 (Weak)</p>
+            <p style="margin:3px 0;"><i class="fa fa-map-marker" style="color:#FF0000"></i> Below -80 (Very Weak)</p>
             <hr style="margin: 8px 0;">
             <p style="margin:3px 0;"><i class="fa fa-unlock" style="color:red"></i> Open Network</p>
             <p style="margin:3px 0;"><i class="fa fa-question" style="color:#666"></i> Hidden Network</p>
@@ -4875,6 +4894,17 @@ def create_map(conn):
                 }}
             }})();
 
+            // Ensure default view layers are visible and checkboxes match
+            for (var name in viewLayers) {{
+                if (name.includes('clustered') || name.includes('Heatmap')) {{
+                    if (!map.hasLayer(viewLayers[name])) {{
+                        map.addLayer(viewLayers[name]);
+                    }}
+                    var cb = document.querySelector('#view-layers input[data-layer="' + name + '"]');
+                    if (cb) cb.checked = true;
+                }}
+            }}
+
             // Cache all markers and set up filtering
             setTimeout(function() {{
                 cacheAllMarkers();
@@ -4883,6 +4913,51 @@ def create_map(conn):
         }}
         // Start initialization - retries automatically until Folium layers are ready
         setTimeout(initLayerControl, 2000);
+
+        // Auto-detect online/offline and switch tile layer + sync radio buttons
+        setTimeout(function() {{
+            var img = new Image();
+            img.onload = function() {{
+                console.log('TILES: Online - Google Streets is default');
+            }};
+            img.onerror = function() {{
+                console.log('TILES: Offline - switching to local tiles');
+                var mapEl = document.querySelector('.folium-map');
+                if (!mapEl) return;
+                var map = window[mapEl.id];
+                if (!map) return;
+
+                // Remove all Google tile layers from the map
+                var googleLayers = [];
+                map.eachLayer(function(layer) {{
+                    if (layer._url && layer._url.indexOf('google.com') !== -1) {{
+                        googleLayers.push(layer);
+                    }}
+                }});
+                googleLayers.forEach(function(layer) {{ map.removeLayer(layer); }});
+
+                // Sync radio buttons: hide Google, check Offline Streets
+                var baseDiv = document.getElementById('base-layers');
+                if (baseDiv) {{
+                    var labels = baseDiv.querySelectorAll('label');
+                    for (var i = 0; i < labels.length; i++) {{
+                        var text = labels[i].textContent || '';
+                        var radio = labels[i].querySelector('input[type="radio"]');
+                        if (text.indexOf('Google') !== -1) {{
+                            labels[i].style.display = 'none';
+                            if (radio) radio.checked = false;
+                        }} else if (text.indexOf('Offline Streets') !== -1) {{
+                            if (radio) {{
+                                radio.checked = true;
+                                radio.dispatchEvent(new Event('change'));
+                                console.log('TILES: Activated Offline Streets');
+                            }}
+                        }}
+                    }}
+                }}
+            }};
+            img.src = 'https://mt1.google.com/vt/lyrs=m&x=0&y=0&z=0?' + Date.now();
+        }}, 5000);
     }})();
     </script>
 
@@ -5419,6 +5494,56 @@ def create_map(conn):
     </script>
     '''
     m.get_root().html.add_child(folium.Element(geofence_html))
+
+    # ========== CUSTOM MARKER PLACEMENT LISTENER ==========
+    marker_placement_js = '''
+    <script>
+    // Listen for placement mode from parent frame
+    var _cmPlacementActive = false;
+    var _cmClickHandler = null;
+    window.addEventListener('message', function(e) {
+        if (!e.data) return;
+        var mapEl = document.querySelector('.folium-map');
+        if (!mapEl) return;
+        var map = window[mapEl.id];
+        if (!map) return;
+
+        if (e.data === 'enable-placement') {
+            _cmPlacementActive = true;
+            mapEl.style.cursor = 'crosshair';
+            _cmClickHandler = function(evt) {
+                map.flyTo(evt.latlng, 18);
+                window.parent.postMessage({type: 'marker-placed', lat: evt.latlng.lat, lng: evt.latlng.lng}, '*');
+                mapEl.style.cursor = '';
+                _cmPlacementActive = false;
+                map.off('click', _cmClickHandler);
+            };
+            map.on('click', _cmClickHandler);
+        } else if (e.data === 'disable-placement') {
+            _cmPlacementActive = false;
+            mapEl.style.cursor = '';
+            if (_cmClickHandler) map.off('click', _cmClickHandler);
+        } else if (e.data && e.data.type === 'add-marker') {
+            // Parent tells iframe to inject a marker visually (instant feedback)
+            var d = e.data;
+            var icon = L.AwesomeMarkers.icon({icon: 'map-pin', prefix: 'fa', markerColor: 'white', iconColor: d.color});
+            var m2 = L.marker([d.lat, d.lng], {icon: icon});
+            m2.bindPopup('<div style="font-family:Arial;font-size:12px;"><h4>📍 ' + d.label + '</h4><button onclick="window.parent.deleteCustomMarker(' + d.id + ')" style="background:#e74c3c;color:white;border:none;padding:5px 12px;border-radius:3px;cursor:pointer;">🗑️ Delete</button></div>', {maxWidth: 250});
+            m2.bindTooltip(d.label);
+            m2._customMarkerId = d.id;
+            map.addLayer(m2);
+        } else if (e.data && e.data.type === 'remove-marker') {
+            // Remove a marker by custom ID
+            map.eachLayer(function(layer) {
+                if (layer._customMarkerId === e.data.id) {
+                    map.removeLayer(layer);
+                }
+            });
+        }
+    });
+    </script>
+    '''
+    m.get_root().html.add_child(folium.Element(marker_placement_js))
 
     # Save map
     m.save(output_file)

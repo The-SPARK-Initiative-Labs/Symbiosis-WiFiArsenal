@@ -22,32 +22,33 @@ You must:
 
 ---
 
-## Current Focus: Wardriving V1 Fix + Live Mapping
+## Current Status (as of 2026-02-08)
 
-### Priority 1: Fix V1 Map Filters
-The wardrive map (`wardrive_mapper.py`, 5,346 lines) has broken filters. A previous Claude instance removed marker duplication into separate FeatureGroups but replaced it with a JavaScript `cacheAllMarkers()` approach that doesn't work with MarkerCluster.
+### DONE
+- **V1 Map Filters** (2026-02-05) - all 6 categories working. **DO NOT touch filter code.**
+- **Live Wardriving** (2026-02-07) - real-time scanning, GPS triangulation, SSE streaming
+- **Report Generator** (2026-02-08) - full redesign, WeasyPrint PDF, gauge, all fonts 11pt+, MM/DD/YYYY dates
+- **Tag System** (2026-02-08) - tag from popup, toggle on/off, filters update instantly in iframe
+- **Custom Map Markers** (2026-02-08) - Place Marker button, color picker, label, delete, DB-backed, non-clustered
+- **DB Race Condition** (2026-02-08) - join(timeout=10) on db_writer_thread before final save
+- **Sleep Inhibit** (2026-02-08) - systemd-inhibit in start_with_browser.sh, lid close safe while Arsenal runs
+- **RSSI Calibration** (2026-02-08) - thresholds shifted for Alfa gain, floor filter at -85 dBm in scanner
 
-**The problem:**
-- `cacheAllMarkers()` (line 4486) uses `.eachLayer()` on MarkerCluster - doesn't enumerate nested markers
-- `applyFilters()` (line 4521) tries `.addLayer()/.removeLayer()` on MarkerClusters - causes DOM thrashing
-- 19 FeatureGroups for risk/signal/threat exist (lines 3110-3238) but have ZERO markers
-- Risk and signal checkboxes in UI look functional but do nothing
-- Each network still duplicated into clustered + unclustered views (2x minimum)
+### Current Priorities
+See `~/.claude/projects/-home-ov3rr1d3/memory/next-todo-details.md` for detailed descriptions:
+1. **Nav mode** - auto-center GPS + heading rotation on live map
+2. **Phone dashboard** - laptop hotspot to view Arsenal from phone
+3. **Guest network report language** - softer wording for open guest WiFi
+4. **Operator → Claude Max** - research OpenClaw, use Max sub instead of API key
+5. **Project cleanup** - remove junk files, organize. BE CAREFUL
+6. **Full Arsenal audit** - test every page, every function
+7. **Glass SSH docs** - document SSH access in project directory
+8. **Audit workflow** - build out Internal Network page for on-site assessments
 
-**The fix approach:**
-- Use CSS opacity/visibility to filter markers, not add/remove from layers
-- One marker per network with properties attached
-- Filter checkboxes toggle visibility based on network properties
-
-### Priority 2: Live Wardriving
-Add real-time wardriving with:
-- **Alfa adapter** (alfa0) in monitor mode for WiFi scanning
-- **u-blox 8 GPS** at `/dev/ttyACM0` (10 Hz NMEA)
-- Live map updates as you drive
-- Replaces Flipper batch approach (drive, sync later)
+Also see `~/.claude/projects/-home-ov3rr1d3/memory/improvement-ideas.md` for full feature/bug analysis from previous agent audits.
 
 ### V2 Is Abandoned
-`wardrive_system_v2/` was a ground-up rebuild that reached 60%. We're NOT using it. Fix V1 instead and add live mapping to it. V2 files are reference only.
+`wardrive_system_v2/` was a ground-up rebuild that reached 60%. We're NOT using it. V2 files are reference only.
 
 ---
 
@@ -97,8 +98,8 @@ WiFi Arsenal is a comprehensive WiFi penetration testing platform on Kali Linux.
 ├── logs/attacks/                # Attack method logs
 ├── wardrive_system/             # V1 wardriving (ACTIVE - fixing)
 │   ├── wardrive/
-│   │   ├── wardrive_data.db     # SQLite (7,719 networks, 12,817 observations)
-│   │   ├── wardrive_mapper.py   # Map generator (5,346 lines - BROKEN FILTERS)
+│   │   ├── wardrive_data.db     # SQLite (10,069 networks, 19+ sessions)
+│   │   ├── wardrive_mapper.py   # Map generator (~5,600 lines)
 │   │   ├── tiles/               # Offline map tiles
 │   │   └── wardrive_master_map.html  # Generated map output
 │   ├── flipper_sync.py          # Flipper Zero data import
@@ -145,8 +146,14 @@ WiFi Arsenal is a comprehensive WiFi penetration testing platform on Kali Linux.
 - `GET /api/wardrive/sessions` - session history
 - `POST /api/wardrive/filter` - regenerate filtered map
 - `PUT /api/wardrive/tag/<mac>` - tag networks (primary/secondary/out_of_scope)
+- `DELETE /api/wardrive/tag/<mac>` - remove tag
+- `GET /api/wardrive/tags` - all tagged networks with counts
+- `GET /api/wardrive/markers` - custom map markers
+- `POST /api/wardrive/marker` - create custom marker (lat, lon, label, color)
+- `DELETE /api/wardrive/marker/<id>` - delete custom marker
 - `POST /api/wardrive/report/generate` - PDF report
 - `GET /wardrive_system/<path>` - serve map files and tiles
+- Live: `/api/wardrive/live/{start,stop,status,stream,gps}`
 
 ---
 
@@ -166,7 +173,10 @@ WiFi Arsenal is a comprehensive WiFi penetration testing platform on Kali Linux.
 **geofences** - Geographic filtering boundaries
 - id (PK), name, description, polygon_json, color, created_at, enabled
 
-**Current data:** 7,719 networks, 12,817 observations, 4+ sessions
+**custom_markers** - User-placed map annotations (never clustered)
+- id (PK), latitude, longitude, label, color, created_at
+
+**Current data:** 10,069 networks, 19+ sessions (as of 2026-02-08 field test)
 
 ---
 
@@ -182,7 +192,7 @@ WiFi Arsenal is a comprehensive WiFi penetration testing platform on Kali Linux.
 - Tag filters are positive filters (check = show only matching)
 - **19 empty FeatureGroups still exist** (risk, signal, threat, tag) but are unused - filtering is property-based
 - Marker duplication still exists (clustered + unclustered + IoT + new_session) for view toggling
-- **90MB output**: 7,719 networks * multiple copies * ~2KB each + GPS tracks + search DB all embedded in HTML
+- **Large output**: 10K+ networks * multiple copies * ~2KB each + GPS tracks + search DB all embedded in HTML
 
 ### Key Folium/Leaflet Gotchas
 - Folium popup content = jQuery DOM element, NOT string. Use `content[0].innerHTML` to get HTML.
@@ -209,7 +219,7 @@ WiFi Arsenal is a comprehensive WiFi penetration testing platform on Kali Linux.
 | Cracking | 6 | Local hashcat + Glass GPU |
 | Evil Portal | 12 | Templates, start/stop, credentials, archives |
 | Glass Control | 15 | Upload, status, stages, queue, GPU stats |
-| Wardriving | 13 | Stats, sessions, filter, geofences, reports, tags |
+| Wardriving | 18 | Stats, sessions, filter, geofences, reports, tags, markers, live |
 | Flipper | 2 | Status check, sync |
 | Target Intel | 9 | Notes, hidden SSID reveal, client monitor |
 | Operator AI | 22 | Chat, auth, memory, conversations, tools |
@@ -276,4 +286,4 @@ Ben is building a WiFi security auditing business through S.P.A.R.K. Initiative 
 
 ---
 
-*Last updated: 2026-02-05 by Claude (Opus 4.6) via Claude Code CLI*
+*Last updated: 2026-02-08 by Claude (Opus 4.6) via Claude Code CLI*
