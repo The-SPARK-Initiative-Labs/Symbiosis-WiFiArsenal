@@ -11,6 +11,9 @@ cleanup() {
     echo ""
     echo "Shutting down WiFi Arsenal..."
 
+    # Stop hotspot if running (phone loses connection when Arsenal dies anyway)
+    sudo nmcli connection down Hotspot 2>/dev/null && echo "  Hotspot stopped."
+
     # Kill the server by saved PID
     if [ -f "$PID_FILE" ]; then
         SERVER_PID=$(cat "$PID_FILE")

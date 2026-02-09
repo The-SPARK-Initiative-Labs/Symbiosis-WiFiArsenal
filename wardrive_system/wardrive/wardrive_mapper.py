@@ -2682,6 +2682,18 @@ def init_database():
         )
     ''')
 
+    # Field waypoints — mobile drop-pins during walking audits
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS field_waypoints (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            latitude REAL NOT NULL,
+            longitude REAL NOT NULL,
+            category TEXT NOT NULL,
+            note TEXT DEFAULT '',
+            created_at TEXT NOT NULL
+        )
+    ''')
+
     conn.commit()
     return conn
 

@@ -367,6 +367,10 @@ class WiFiScanner:
             if rssi < -85:
                 return
 
+            # Skip own hotspot — MAC randomizes each session, pollutes DB
+            if ssid == 'Arsenal-Control':
+                return
+
             now = datetime.utcnow().isoformat()
 
             with self.lock:
@@ -511,6 +515,29 @@ class LiveWardriveSession:
 
         # Create and start WiFi scanner
         self.scanner = WiFiScanner(gps_reader=self.gps)
+
+        # Preload known MACs from DB so they aren't falsely flagged as is_new
+        try:
+            conn = sqlite3.connect(self.DB_PATH)
+            cur = conn.cursor()
+            cur.execute('SELECT mac, ssid, auth_mode, channel, rssi FROM networks')
+            for row in cur.fetchall():
+                mac, ssid, auth_mode, channel, rssi = row
+                self.scanner.networks[mac] = {
+                    'mac': mac,
+                    'ssid': ssid or '',
+                    'auth_mode': auth_mode or '',
+                    'channel': channel or 0,
+                    'rssi': rssi if rssi is not None else -100,
+                    'first_seen': None,
+                    'last_seen': None
+                }
+                self.scanner.observations[mac] = []
+            conn.close()
+            print(f"[LIVE] Preloaded {len(self.scanner.networks)} known MACs from DB")
+        except Exception as e:
+            print(f"[WARNING] Failed to preload MACs from DB: {e}")
+
         self.scanner.start()
 
         # Start DB writer thread

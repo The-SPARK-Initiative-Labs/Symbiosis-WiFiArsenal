@@ -421,6 +421,7 @@
             <button class="nav-btn" onclick="showPage('dashboard')" title="System overview and quick stats (coming soon)">📊 Dashboard</button>
             <button class="nav-btn" onclick="showPage('operator')" title="J4Rv15 - AI assistant with full system context, memory, and tools">🤖 Operator</button>
             <div style="margin-left: auto; display: flex; gap: 5px;">
+                <button id="hotspotBtn" class="nav-btn" onclick="toggleHotspot()" style="background: #333; font-size: 11px;" title="Toggle WiFi hotspot — phone connects to Arsenal-Control to access this UI">📱 Hotspot</button>
                 <button class="nav-btn" onclick="globalKillSwitch()" style="background: linear-gradient(180deg, #880000, #440000);" title="EMERGENCY STOP - Kill ALL network operations immediately (scans, attacks, portals, everything)">🛑 KILL ALL</button>
                 <button class="nav-btn" onclick="lockSystem()" style="background: linear-gradient(180deg, #444400, #222200);" title="Lock Arsenal - require passcode to use again">🔒 Lock</button>
             </div>
@@ -1695,18 +1696,21 @@
         
         // Page navigation
         function showPage(pageName) {
+            stopSyncPolling();
             // Hide all pages
             document.querySelectorAll('.page').forEach(page => {
                 page.classList.remove('active');
             });
             // Show selected page
             document.getElementById('page-' + pageName).classList.add('active');
-            
-            // Update nav buttons
+
+            // Update nav buttons - find the right button by onclick content
             document.querySelectorAll('.nav-btn').forEach(btn => {
                 btn.classList.remove('active');
+                if (btn.getAttribute('onclick') && btn.getAttribute('onclick').indexOf("'" + pageName + "'") !== -1) {
+                    btn.classList.add('active');
+                }
             });
-            event.target.classList.add('active');
             
             // Initialize page-specific functions
             if (pageName === 'evil-portal') {
@@ -1715,6 +1719,7 @@
                 loadArchiveList();
             } else if (pageName === 'wardriving') {
                 initWardriving();
+                startSyncPolling();
                 stopGlassPolling();
             } else if (pageName === 'cracking') {
                 checkGlassConnection();
@@ -5560,9 +5565,21 @@ function monitorClients() {
         var gpsFirstFix = false;
         var navMode = false;
         var lastHeading = 0;
+        var liveScanning = false;    // True when scan is active (local or synced)
+        var liveSyncTimer = null;     // Interval for polling backend scan state
 
         function toggleNavMode() {
             navMode = !navMode;
+            applyNavModeUI();
+            // Sync nav state to server so phone mirrors it
+            fetch('/api/wardrive/live/nav', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: navMode })
+            }).catch(function() {});
+        }
+
+        function applyNavModeUI() {
             var btn = document.getElementById('navModeBtn');
             if (navMode) {
                 btn.style.background = '#004488';
@@ -5583,6 +5600,75 @@ function monitorClients() {
                 }
             }
         }
+
+        // ========== HOTSPOT FUNCTIONS ==========
+
+        function checkHotspotStatus() {
+            fetch('/api/hotspot/status')
+                .then(r => r.json())
+                .then(data => {
+                    var btn = document.getElementById('hotspotBtn');
+                    if (data.active) {
+                        btn.style.background = '#006600';
+                        btn.textContent = '📱 Hotspot ON';
+                        btn.title = 'Hotspot active — SSID: ' + data.ssid + ' | URL: ' + data.url + ' | Clients: ' + (data.clients || 0);
+                    } else {
+                        btn.style.background = '#333';
+                        btn.textContent = '📱 Hotspot';
+                        btn.title = 'Toggle WiFi hotspot — phone connects to Arsenal-Control to access this UI';
+                    }
+                })
+                .catch(function() {});
+        }
+
+        function toggleHotspot() {
+            var btn = document.getElementById('hotspotBtn');
+            var isOn = btn.textContent.indexOf('ON') !== -1;
+
+            if (isOn) {
+                // Turn off
+                btn.textContent = '📱 Stopping...';
+                btn.style.background = '#444400';
+                fetch('/api/hotspot/stop', { method: 'POST' })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            btn.style.background = '#333';
+                            btn.textContent = '📱 Hotspot';
+                            btn.title = 'Toggle WiFi hotspot — phone connects to Arsenal-Control to access this UI';
+                        } else {
+                            btn.style.background = '#880000';
+                            btn.textContent = '📱 Error';
+                            alert('Hotspot stop failed: ' + (data.error || 'Unknown error'));
+                            setTimeout(checkHotspotStatus, 2000);
+                        }
+                    });
+            } else {
+                // Turn on
+                btn.textContent = '📱 Starting...';
+                btn.style.background = '#444400';
+                fetch('/api/hotspot/start', { method: 'POST' })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            btn.style.background = '#006600';
+                            btn.textContent = '📱 Hotspot ON';
+                            btn.title = 'Hotspot active — SSID: ' + data.ssid + ' | URL: ' + data.url;
+                            alert('Hotspot Active!\n\nSSID: ' + data.ssid + '\nPassword: ' + data.password + '\nPhone URL: ' + data.url + '/mobile.html\n\nConnect your phone to this network, then open the URL in your browser.');
+                        } else {
+                            btn.style.background = '#880000';
+                            btn.textContent = '📱 Error';
+                            alert('Hotspot start failed: ' + (data.error || 'Unknown error'));
+                            setTimeout(checkHotspotStatus, 2000);
+                        }
+                    });
+            }
+        }
+
+        // Check hotspot status on page load
+        checkHotspotStatus();
+
+        // ========== END HOTSPOT FUNCTIONS ==========
 
         function toggleLiveMode() {
             liveMode = !liveMode;
@@ -5701,8 +5787,13 @@ function monitorClients() {
                 zoomControl: true
             });
             L.tileLayer('/wardrive_system/tiles/m/{z}/{x}/{y}.png', {
-                attribution: 'Offline Streets',
+                attribution: 'Offline',
                 maxZoom: 20,
+                errorTileUrl: ''
+            }).addTo(liveMap);
+            L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+                attribution: 'Google',
+                maxZoom: 22,
                 errorTileUrl: ''
             }).addTo(liveMap);
             liveGpsMarker = L.marker([0, 0], {
@@ -5755,6 +5846,7 @@ function monitorClients() {
                     alert('Failed to start: ' + result.error);
                     return;
                 }
+                liveScanning = true;
                 document.getElementById('liveStartBtn').style.display = 'none';
                 document.getElementById('liveStopBtn').style.display = '';
                 document.getElementById('liveNetworkFeed').innerHTML = '';
@@ -5788,6 +5880,7 @@ function monitorClients() {
         async function stopLiveWardrive() {
             if (liveEventSource) { liveEventSource.close(); liveEventSource = null; }
             if (liveElapsedTimer) { clearInterval(liveElapsedTimer); liveElapsedTimer = null; }
+            liveScanning = false;
             try {
                 var response = await fetch('/api/wardrive/live/stop', {method: 'POST'});
                 var result = await response.json();
@@ -5903,6 +5996,15 @@ function monitorClients() {
                         headingEl.textContent = Math.round(lastHeading) + '\u00b0 ' + dir;
                     }
                 }
+            } else if (data.type === 'stopped' || data.type === 'session_end') {
+                // Scan was stopped externally (e.g. from phone dashboard)
+                liveScanning = false;
+                if (liveEventSource) { liveEventSource.close(); liveEventSource = null; }
+                if (liveElapsedTimer) { clearInterval(liveElapsedTimer); liveElapsedTimer = null; }
+                document.getElementById('liveStartBtn').style.display = '';
+                document.getElementById('liveStopBtn').style.display = 'none';
+                addToFeed('Scan stopped (external)', '#ffaa00');
+                setStatus('IDLE', false);
             }
         }
 
@@ -5944,6 +6046,84 @@ function monitorClients() {
             var s = secs % 60;
             return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
         }
+        // ========== SCAN STATE SYNC (laptop ↔ phone) ==========
+        function startSyncPolling() {
+            stopSyncPolling();
+            syncScanState();
+            liveSyncTimer = setInterval(syncScanState, 5000);
+        }
+
+        function stopSyncPolling() {
+            if (liveSyncTimer) { clearInterval(liveSyncTimer); liveSyncTimer = null; }
+        }
+
+        async function syncScanState() {
+            try {
+                var response = await fetch('/api/wardrive/live/status');
+                var status = await response.json();
+
+                if (status.running && !liveScanning) {
+                    // Scan started externally (e.g. from phone) - sync up
+                    liveScanning = true;
+                    if (!liveMode) { toggleLiveMode(); }
+                    initLiveMap();
+                    document.getElementById('liveStartBtn').style.display = 'none';
+                    document.getElementById('liveStopBtn').style.display = '';
+                    liveStartTime = Date.now() - ((status.elapsed || 0) * 1000);
+                    liveElapsedTimer = setInterval(updateLiveElapsed, 1000);
+                    document.getElementById('liveNetworkCount').textContent = status.networks_found || 0;
+                    document.getElementById('liveNewCount').textContent = status.new_networks || 0;
+                    // Connect SSE stream
+                    if (liveEventSource) { liveEventSource.close(); }
+                    liveEventSource = new EventSource('/api/wardrive/live/stream');
+                    liveEventSource.onmessage = function(e) {
+                        handleLiveEvent(JSON.parse(e.data));
+                    };
+                    liveEventSource.onerror = function() { console.log('SSE error (sync)'); };
+                    addToFeed('Synced to active scan - session #' + (status.session_id || '?'), '#00aaff');
+                    setStatus('SCANNING', true);
+                } else if (!status.running && liveScanning) {
+                    // Scan stopped externally - clean up (fallback if SSE missed it)
+                    liveScanning = false;
+                    if (liveEventSource) { liveEventSource.close(); liveEventSource = null; }
+                    if (liveElapsedTimer) { clearInterval(liveElapsedTimer); liveElapsedTimer = null; }
+                    document.getElementById('liveStartBtn').style.display = '';
+                    document.getElementById('liveStopBtn').style.display = 'none';
+                    addToFeed('Scan stopped (external)', '#ffaa00');
+                    setStatus('IDLE', false);
+                }
+
+                // Sync nav mode from server (works whether scan is running or not)
+                if (typeof status.nav_mode !== 'undefined' && status.nav_mode !== navMode) {
+                    navMode = status.nav_mode;
+                    applyNavModeUI();
+                }
+            } catch(e) {
+                // Network error - skip this cycle
+            }
+        }
+        // Global scan detector - auto-navigates to wardriving page when scan starts from phone
+        var globalScanPoll = null;
+        function startGlobalScanPoll() {
+            if (globalScanPoll) return;
+            globalScanPoll = setInterval(async function() {
+                // Only act when NOT already on the wardriving page
+                var wardrivePage = document.getElementById('page-wardriving');
+                if (wardrivePage && wardrivePage.classList.contains('active')) return;
+                try {
+                    var r = await fetch('/api/wardrive/live/status');
+                    var s = await r.json();
+                    if (s.running) {
+                        // Scan detected from another client - auto-switch to wardriving
+                        showPage('wardriving');
+                    }
+                } catch(e) {}
+            }, 5000);
+        }
+        // Start global poll on page load
+        startGlobalScanPoll();
+        // ========== END SCAN STATE SYNC ==========
+
         // ========== END LIVE WARDRIVE FUNCTIONS ==========
 
         // Target tagging functions - called from map popup buttons
@@ -6408,6 +6588,8 @@ function monitorClients() {
             refreshReportRiskCounts();
             // Auto-refresh map iframe so overlays load properly
             refreshWardriveMap();
+            // Immediately check if a scan is running (e.g. started from phone)
+            syncScanState();
         }
 
         // Fetch risk counts for the main panel (not the modal)

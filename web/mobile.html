@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Arsenal Mobile</title>
+<link rel="stylesheet" href="/lib/leaflet.css" />
+<script src="/lib/leaflet.js"></script>
+<script src="/lib/leaflet-heat.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; background: #0a0a0a; color: #ddd; font-family: -apple-system, system-ui, sans-serif; touch-action: manipulation; }
+
+#topBar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+    background: rgba(10,10,10,0.92); backdrop-filter: blur(8px);
+    padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 6px 16px;
+    align-items: center; font-size: 13px; border-bottom: 1px solid #222;
+}
+#topBar .stat { display: flex; align-items: center; gap: 4px; }
+#topBar .stat .label { color: #666; }
+#topBar .stat .value { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+#mapWrap {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    overflow: hidden;
+}
+#map { width: 100%; height: 100%; }
+
+#bottomBar {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
+    background: rgba(10,10,10,0.92); backdrop-filter: blur(8px);
+    padding: 10px 12px; display: flex; gap: 10px; align-items: center;
+    border-top: 1px solid #222;
+}
+#bottomBar button {
+    flex: 1; padding: 14px 8px; border: none; border-radius: 8px;
+    font-size: 15px; font-weight: 600; cursor: pointer; color: #fff;
+    -webkit-tap-highlight-color: transparent;
+}
+#startBtn { background: #006600; }
+#startBtn.scanning { background: #880000; }
+#navBtn { background: #333; flex: 0.7; }
+#navBtn.active { background: #004488; }
+#fsBtn { background: #333; flex: 0.4; font-size: 18px; }
+
+#feedPanel {
+    position: fixed; bottom: 60px; left: 0; right: 0; z-index: 999;
+    max-height: 40vh; background: rgba(10,10,10,0.95); backdrop-filter: blur(8px);
+    border-top: 1px solid #333; overflow-y: auto; display: none;
+    font-family: monospace; font-size: 11px; padding: 6px 10px;
+}
+#feedPanel.open { display: block; }
+#feedToggle {
+    position: fixed; bottom: 66px; right: 12px; z-index: 1001;
+    background: rgba(40,40,40,0.9); border: 1px solid #444; border-radius: 20px;
+    color: #aaa; padding: 6px 12px; font-size: 12px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#pinPicker {
+    position: fixed; bottom: 70px; left: 10px; right: 10px; z-index: 1003;
+    background: rgba(15,15,15,0.96); backdrop-filter: blur(10px);
+    border: 1px solid #444; border-radius: 12px; padding: 14px;
+    display: none;
+}
+#pinPicker.open { display: block; }
+#pinPicker .pin-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: #ddd; }
+#pinPicker .pin-cats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+#pinPicker .pin-cat {
+    padding: 12px 8px; border: 1px solid #444; border-radius: 8px;
+    background: #1a1a1a; color: #ddd; font-size: 13px; text-align: center;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+#pinPicker .pin-cat:active { background: #333; }
+
+#alertBanner {
+    position: fixed; top: 44px; left: 0; right: 0; z-index: 1002;
+    background: rgba(180,0,0,0.95); backdrop-filter: blur(8px);
+    padding: 10px 14px; font-size: 13px; font-weight: 600; color: #fff;
+    display: none; cursor: pointer; border-bottom: 2px solid #ff4444;
+    animation: alertPulse 1.5s ease-in-out infinite;
+}
+#alertBanner.warning { background: rgba(180,100,0,0.95); border-bottom-color: #ff8800; }
+#alertBanner .alert-title { font-size: 14px; margin-bottom: 2px; }
+#alertBanner .alert-detail { font-size: 11px; font-weight: 400; color: rgba(255,255,255,0.85); }
+@keyframes alertPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.85; } }
+</style>
+</head>
+<body>
+
+<!-- Top Status Bar -->
+<div id="topBar">
+    <div class="stat"><span class="label">GPS</span> <span class="value" id="gpsFix" style="color:#ff4444;">No Fix</span></div>
+    <div class="stat"><span class="label">Sats</span> <span class="value" id="gpsSats">0</span></div>
+    <div class="stat"><span class="label">Spd</span> <span class="value" id="gpsSpd">0</span><span class="label">mph</span></div>
+    <div class="stat"><span class="label">Hdg</span> <span class="value" id="gpsHdg" style="color:#00aaff;">---</span></div>
+    <div class="stat"><span class="label">Net</span> <span class="value" id="netCount" style="color:#00ff00;">0</span></div>
+    <div class="stat"><span class="label">New</span> <span class="value" id="newCount" style="color:#ff6600;">0</span></div>
+    <div class="stat"><span class="label" id="elapsed" style="color:#00aaff;">00:00</span></div>
+    <div class="stat" style="margin-left:auto;"><span class="value" id="openCount" style="color:#ff4444;">0</span><span class="label"> open</span></div>
+    <div class="stat" id="alertStat" style="display:none;"><span class="value" id="alertCount" style="color:#ff0000;">0</span><span class="label"> alerts</span></div>
+    <div class="stat"><span id="batIcon" class="label">&#x1F50B;</span> <span class="value" id="batLevel">--</span><span class="label">%</span></div>
+</div>
+
+<!-- Map -->
+<div id="mapWrap">
+    <div id="map"></div>
+</div>
+
+<!-- Alert Banner -->
+<div id="alertBanner" onclick="dismissAlert()">
+    <div class="alert-title" id="alertTitle"></div>
+    <div class="alert-detail" id="alertDetail"></div>
+</div>
+
+<!-- Pin Category Picker -->
+<div id="pinPicker">
+    <div class="pin-title">Drop Waypoint</div>
+    <div class="pin-cats">
+        <div class="pin-cat" onclick="dropWaypoint('investigate')">🔍 Investigate</div>
+        <div class="pin-cat" onclick="dropWaypoint('rogue_ap')">📡 Rogue AP</div>
+        <div class="pin-cat" onclick="dropWaypoint('physical')">🚪 Physical Access</div>
+        <div class="pin-cat" onclick="dropWaypoint('note')">📝 Note</div>
+    </div>
+</div>
+
+<!-- Feed Toggle Button -->
+<button id="feedToggle" onclick="toggleFeed()">Feed</button>
+
+<!-- Network Feed Panel -->
+<div id="feedPanel"></div>
+
+<!-- Bottom Controls -->
+<div id="bottomBar">
+    <button id="startBtn" onclick="toggleScan()">Start Scan</button>
+    <button id="navBtn" onclick="toggleNav()">Nav</button>
+    <button id="pinBtn" onclick="togglePinPicker()" style="background:#553; flex:0.5;">Pin</button>
+    <button id="heatBtn" onclick="toggleHeatmap()" style="background:#333; flex:0.5;">Heat</button>
+</div>
+
+<script>
+var map, gpsMarker, trackLine, trackPoints = [];
+var markers = {};
+var scanning = false, navMode = false, firstFix = false;
+var lastHeading = 0, newCount = 0, openCount = 0, alertTotal = 0;
+var eventSource = null, gpsTimer = null, elapsedTimer = null, startTime = null;
+var wakeLock = null;
+var ssidMap = {};       // ssid -> [{ mac, auth_mode }]
+var openMacs = {};      // track unique open MACs
+var alertQueue = [];    // pending alerts
+var alertTimer = null;  // auto-dismiss timer
+
+// Init map
+map = L.map('map', { center: [29.93, -96.96], zoom: 13, zoomControl: false });
+L.tileLayer('/wardrive_system/tiles/m/{z}/{x}/{y}.png', {
+    attribution: '', maxZoom: 20, errorTileUrl: ''
+}).addTo(map);
+L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+    attribution: '', maxZoom: 22, errorTileUrl: ''
+}).addTo(map);
+
+// GPS arrow marker
+gpsMarker = L.marker([0, 0], {
+    icon: L.divIcon({
+        className: '',
+        html: '<div id="navArrowOuter" style="position:relative;width:44px;height:44px;">'
+            + '<div style="position:absolute;inset:0;border-radius:50%;background:rgba(0,136,255,0.15);border:2px solid rgba(0,136,255,0.4);"></div>'
+            + '<div id="navArrow" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;transition:transform 0.5s ease;">'
+            + '<svg width="28" height="28" viewBox="0 0 24 24"><polygon points="12,2 5,20 12,15 19,20" fill="#0088ff" stroke="#fff" stroke-width="1.5"/></svg>'
+            + '</div></div>',
+        iconSize: [44, 44], iconAnchor: [22, 22]
+    }),
+    zIndexOffset: 9999
+});
+
+// Track line
+trackLine = L.polyline([], { color: '#00aaff', weight: 3, opacity: 0.7 }).addTo(map);
+
+// Drag to escape nav mode
+map.on('dragstart', function() {
+    if (navMode) {
+        navMode = false;
+        document.getElementById('navBtn').classList.remove('active');
+        document.getElementById('navBtn').textContent = 'Nav';
+        var m = document.getElementById('map');
+        m.style.transform = '';
+        var c = m.querySelector('.leaflet-control-container');
+        if (c) c.style.transform = '';
+    }
+});
+
+// Start GPS polling immediately (works without scan)
+startGpsPoll();
+
+// Check if Arsenal is already scanning and sync to it
+syncWithArsenal();
+setInterval(function() { if (!scanning) syncWithArsenal(); }, 5000);
+
+function toggleScan() {
+    if (scanning) stopScan(); else startScan();
+}
+
+async function startScan() {
+    try {
+        var r = await fetch('/api/wardrive/live/start', { method: 'POST' });
+        var d = await r.json();
+        if (!d.success) { alert('Start failed: ' + d.error); return; }
+        scanning = true;
+        newCount = 0;
+        openCount = 0;
+        openMacs = {};
+        ssidMap = {};
+        alertTotal = 0;
+        alertQueue = [];
+        document.getElementById('netCount').textContent = '0';
+        document.getElementById('newCount').textContent = '0';
+        document.getElementById('openCount').textContent = '0';
+        networkFirstSeen = {};
+        heatPoints = [];
+        if (heatLayer) heatLayer.setLatLngs([]);
+        document.getElementById('alertCount').textContent = '0';
+        document.getElementById('alertStat').style.display = 'none';
+        document.getElementById('alertBanner').style.display = 'none';
+        var btn = document.getElementById('startBtn');
+        btn.textContent = 'Stop Scan';
+        btn.classList.add('scanning');
+        // Clear old markers
+        Object.values(markers).forEach(function(m) { map.removeLayer(m); });
+        markers = {};
+        trackPoints = [];
+        trackLine.setLatLngs([]);
+        // SSE stream
+        eventSource = new EventSource('/api/wardrive/live/stream');
+        eventSource.onmessage = function(e) { handleEvent(JSON.parse(e.data)); };
+        // Timer
+        startTime = Date.now();
+        elapsedTimer = setInterval(updateElapsed, 1000);
+        addFeed('Scan started — session #' + d.session_id, '#00ff00');
+    } catch(e) { alert('Error: ' + e); }
+}
+
+async function stopScan() {
+    if (eventSource) { eventSource.close(); eventSource = null; }
+    if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
+    try {
+        var r = await fetch('/api/wardrive/live/stop', { method: 'POST' });
+        var d = await r.json();
+        scanning = false;
+        var btn = document.getElementById('startBtn');
+        btn.textContent = 'Start Scan';
+        btn.classList.remove('scanning');
+        if (d.success) {
+            addFeed('Done: ' + d.networks_found + ' nets (' + d.new_networks + ' new)', '#00ff00');
+        }
+    } catch(e) { console.error(e); }
+}
+
+async function syncWithArsenal() {
+    try {
+        var r = await fetch('/api/wardrive/live/status');
+        var d = await r.json();
+        if (d.running && !scanning) {
+            // Arsenal is scanning but phone doesn't know — sync up
+            scanning = true;
+            var btn = document.getElementById('startBtn');
+            btn.textContent = 'Stop Scan';
+            btn.classList.add('scanning');
+            // Connect to SSE stream
+            if (eventSource) eventSource.close();
+            eventSource = new EventSource('/api/wardrive/live/stream');
+            eventSource.onmessage = function(e) { handleEvent(JSON.parse(e.data)); };
+            startTime = Date.now() - ((d.elapsed || 0) * 1000);
+            if (!elapsedTimer) elapsedTimer = setInterval(updateElapsed, 1000);
+            addFeed('Synced to active scan — session #' + d.session_id, '#00aaff');
+        } else if (!d.running && scanning && !eventSource) {
+            // Scan stopped on Arsenal
+            scanning = false;
+            var btn2 = document.getElementById('startBtn');
+            btn2.textContent = 'Start Scan';
+            btn2.classList.remove('scanning');
+            if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
+            addFeed('Scan stopped on Arsenal', '#888');
+        }
+        // Sync nav mode from server (laptop may have toggled it)
+        if (typeof d.nav_mode !== 'undefined' && d.nav_mode !== navMode) {
+            navMode = d.nav_mode;
+            var navBtn = document.getElementById('navBtn');
+            if (navMode) {
+                navBtn.classList.add('active');
+                navBtn.textContent = 'Nav ON';
+            } else {
+                navBtn.classList.remove('active');
+                navBtn.textContent = 'Nav';
+                var m = document.getElementById('map');
+                m.style.transform = '';
+                var c = m.querySelector('.leaflet-control-container');
+                if (c) c.style.transform = '';
+            }
+        }
+    } catch(e) {}
+}
+
+function handleEvent(data) {
+    if (data.type === 'network') {
+        var color = data.auth_mode.indexOf('OPEN') !== -1 ? '#ff4444' :
+                   data.auth_mode.indexOf('WEP') !== -1 ? '#ff8800' :
+                   data.auth_mode.indexOf('WPA3') !== -1 ? '#2ecc71' :
+                   data.auth_mode.indexOf('WPA2') !== -1 ? '#27ae60' :
+                   data.auth_mode.indexOf('WPA') !== -1 ? '#90EE90' : '#95a5a6';
+        // Track SSID -> MACs for anomaly detection
+        if (data.ssid && data.is_new) {
+            if (!ssidMap[data.ssid]) ssidMap[data.ssid] = [];
+            ssidMap[data.ssid].push({ mac: data.mac, auth_mode: data.auth_mode });
+        }
+        // Track first-seen time for dwell time
+        if (!networkFirstSeen[data.mac]) networkFirstSeen[data.mac] = Date.now();
+        if (!markers[data.mac] && data.lat && data.lon) {
+            var m = L.circleMarker([data.lat, data.lon], {
+                radius: 5, color: color, fillColor: color, fillOpacity: 0.7, weight: 1
+            }).addTo(map);
+            m._mac = data.mac;
+            m._ssid = data.ssid || '[Hidden]';
+            m._auth = data.auth_mode;
+            m._rssi = data.rssi;
+            m.on('click', function() { this.bindPopup(buildNetPopup(this)).openPopup(); });
+            markers[data.mac] = m;
+        } else if (markers[data.mac] && data.lat && data.lon) {
+            markers[data.mac].setLatLng([data.lat, data.lon]);
+            markers[data.mac]._rssi = data.rssi;
+        }
+        document.getElementById('netCount').textContent = Object.keys(markers).length;
+        if (data.is_new) { newCount++; document.getElementById('newCount').textContent = newCount; }
+        if (data.auth_mode.indexOf('OPEN') !== -1 && !openMacs[data.mac]) {
+            openMacs[data.mac] = true; openCount++;
+            document.getElementById('openCount').textContent = openCount;
+        }
+        // Anomaly detection on new networks
+        if (data.is_new && data.ssid) checkAnomaly(data);
+        addFeed((data.is_new ? '[NEW] ' : '') + (data.ssid || data.mac.substr(0,8)) + ' ' + data.auth_mode + ' ' + data.rssi + 'dBm',
+                data.is_new ? '#00ff00' : '#555');
+    } else if (data.type === 'gps' && data.position) {
+        updateGps(data.position, true);
+    } else if (data.type === 'stopped' || data.type === 'session_end') {
+        // Scan stopped on Arsenal — update phone UI
+        scanning = false;
+        if (eventSource) { eventSource.close(); eventSource = null; }
+        if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
+        var btn = document.getElementById('startBtn');
+        btn.textContent = 'Start Scan';
+        btn.classList.remove('scanning');
+        if (data.type === 'session_end') {
+            addFeed('Done: ' + (data.networks_found || '?') + ' nets (' + (data.new_networks || '?') + ' new)', '#00ff00');
+        } else {
+            addFeed('Scan stopped', '#888');
+        }
+    }
+}
+
+function updateGps(pos, fromSSE) {
+    if (!pos.latitude || !pos.longitude) return;
+    var spd = fromSSE ? (pos.speed_mph || 0) : (pos.speed || 0);
+
+    gpsMarker.setLatLng([pos.latitude, pos.longitude]);
+    if (!map.hasLayer(gpsMarker)) gpsMarker.addTo(map);
+
+    if (!firstFix) {
+        map.setView([pos.latitude, pos.longitude], 17);
+        firstFix = true;
+    }
+
+    // Heading
+    if (spd > 1.5 && pos.heading !== undefined) lastHeading = pos.heading;
+
+    var arrow = document.getElementById('navArrow');
+    var mapEl = document.getElementById('map');
+
+    if (navMode) {
+        mapEl.style.transform = 'rotate(' + (-lastHeading) + 'deg) scale(1.15)';
+        mapEl.style.transformOrigin = 'center center';
+        mapEl.style.transition = 'transform 0.5s ease';
+        var ctrl = mapEl.querySelector('.leaflet-control-container');
+        if (ctrl) { ctrl.style.transform = 'rotate(' + lastHeading + 'deg)'; ctrl.style.transformOrigin = 'top left'; ctrl.style.transition = 'transform 0.5s ease'; }
+        if (arrow) arrow.style.transform = 'rotate(' + lastHeading + 'deg)';
+        map.panTo([pos.latitude, pos.longitude], { animate: true, duration: 0.5 });
+    } else {
+        mapEl.style.transform = '';
+        var ctrl2 = mapEl.querySelector('.leaflet-control-container');
+        if (ctrl2) ctrl2.style.transform = '';
+        if (arrow) arrow.style.transform = 'rotate(' + lastHeading + 'deg)';
+    }
+
+    // Track + heatmap
+    if (spd > 2) {
+        trackPoints.push([pos.latitude, pos.longitude]);
+        trackLine.setLatLngs(trackPoints);
+        heatPoints.push([pos.latitude, pos.longitude, 0.5]);
+        if (heatLayer && heatVisible) heatLayer.setLatLngs(heatPoints);
+    }
+
+    // Status bar
+    document.getElementById('gpsFix').textContent = 'Fix OK';
+    document.getElementById('gpsFix').style.color = '#00ff00';
+    document.getElementById('gpsSats').textContent = pos.satellites || 0;
+    document.getElementById('gpsSpd').textContent = spd.toFixed(1);
+    var dirs = ['N','NE','E','SE','S','SW','W','NW'];
+    var dir = dirs[Math.round(lastHeading / 45) % 8];
+    document.getElementById('gpsHdg').textContent = Math.round(lastHeading) + '\u00b0 ' + dir;
+}
+
+// ========== ANOMALY DETECTION ==========
+
+function levenshtein(a, b) {
+    var m = a.length, n = b.length;
+    if (m === 0) return n;
+    if (n === 0) return m;
+    var d = [];
+    for (var i = 0; i <= m; i++) { d[i] = [i]; }
+    for (var j = 0; j <= n; j++) { d[0][j] = j; }
+    for (var i = 1; i <= m; i++) {
+        for (var j = 1; j <= n; j++) {
+            var cost = a[i-1] === b[j-1] ? 0 : 1;
+            d[i][j] = Math.min(d[i-1][j] + 1, d[i][j-1] + 1, d[i-1][j-1] + cost);
+        }
+    }
+    return d[m][n];
+}
+
+function checkAnomaly(data) {
+    var ssid = data.ssid;
+    var mac = data.mac;
+    var auth = data.auth_mode;
+
+    // 1. Evil Twin — same SSID, different BSSID
+    if (ssidMap[ssid] && ssidMap[ssid].length > 1) {
+        var others = ssidMap[ssid].filter(function(e) { return e.mac !== mac; });
+        if (others.length > 0) {
+            // Check if auth differs (stronger signal)
+            var authDiffers = others.some(function(e) { return e.auth_mode !== auth; });
+            var label = authDiffers ? 'EVIL TWIN SUSPECT' : 'DUPLICATE SSID';
+            var detail = '"' + ssid + '" seen on ' + (others.length + 1) + ' BSSIDs';
+            if (authDiffers) detail += ' — different encryption detected!';
+            showAlert(label, detail, authDiffers ? 'danger' : 'warning');
+            return;
+        }
+    }
+
+    // 2. Typosquat — SSID very similar to an existing one (Levenshtein <= 2, length > 4)
+    if (ssid.length > 4) {
+        var knownSsids = Object.keys(ssidMap);
+        for (var i = 0; i < knownSsids.length; i++) {
+            var known = knownSsids[i];
+            if (known === ssid) continue;
+            if (known.length > 4 && levenshtein(ssid.toLowerCase(), known.toLowerCase()) <= 2) {
+                showAlert('TYPOSQUAT SUSPECT', '"' + ssid + '" looks like "' + known + '"', 'danger');
+                return;
+            }
+        }
+    }
+
+    // 3. Open network with corporate-sounding name
+    if (auth.indexOf('OPEN') !== -1) {
+        var lower = ssid.toLowerCase();
+        var guestWords = ['guest', 'visitor', 'public', 'free', 'customer', 'open'];
+        var isGuest = guestWords.some(function(w) { return lower.indexOf(w) !== -1; });
+        if (!isGuest && !lower.match(/^(xfinity|att|tmobile|spectrum|verizon|optimum)/i)) {
+            // Not a guest/ISP network — could be misconfigured corporate
+            var corpWords = ['corp', 'office', 'enterprise', 'internal', 'staff', 'employee', 'secure', 'private', 'admin', 'mgmt'];
+            var isCorp = corpWords.some(function(w) { return lower.indexOf(w) !== -1; });
+            if (isCorp) {
+                showAlert('OPEN CORPORATE NETWORK', '"' + ssid + '" is unencrypted but looks internal', 'danger');
+                return;
+            }
+        }
+    }
+}
+
+function showAlert(title, detail, type) {
+    alertTotal++;
+    document.getElementById('alertCount').textContent = alertTotal;
+    document.getElementById('alertStat').style.display = '';
+    addFeed('ALERT: ' + title + ' — ' + detail, '#ff0000');
+
+    alertQueue.push({ title: title, detail: detail, type: type });
+    if (!alertTimer) displayNextAlert();
+}
+
+function displayNextAlert() {
+    if (alertQueue.length === 0) { alertTimer = null; return; }
+    var a = alertQueue.shift();
+    var banner = document.getElementById('alertBanner');
+    document.getElementById('alertTitle').textContent = a.title;
+    document.getElementById('alertDetail').textContent = a.detail;
+    banner.className = a.type === 'warning' ? 'warning' : '';
+    banner.style.display = 'block';
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    alertTimer = setTimeout(function() {
+        banner.style.display = 'none';
+        displayNextAlert();
+    }, 8000);
+}
+
+function dismissAlert() {
+    document.getElementById('alertBanner').style.display = 'none';
+    if (alertTimer) { clearTimeout(alertTimer); alertTimer = null; }
+    displayNextAlert();
+}
+
+// ========== END ANOMALY DETECTION ==========
+
+// ========== WAYPOINT BOOKMARKS ==========
+
+var networkFirstSeen = {};  // mac -> timestamp (for dwell time)
+var heatLayer = null;
+var heatPoints = [];
+var heatVisible = false;
+var waypointMarkers = {};
+var waypointIcons = {
+    investigate: { emoji: '🔍', color: '#ffaa00' },
+    rogue_ap:    { emoji: '📡', color: '#ff4444' },
+    physical:    { emoji: '🚪', color: '#aa44ff' },
+    note:        { emoji: '📝', color: '#44aaff' }
+};
+
+function togglePinPicker() {
+    document.getElementById('pinPicker').classList.toggle('open');
+}
+
+function dropWaypoint(category) {
+    document.getElementById('pinPicker').classList.remove('open');
+    var pos = gpsMarker.getLatLng();
+    if (!pos || (pos.lat === 0 && pos.lng === 0)) {
+        addFeed('No GPS fix — cannot drop pin', '#ff4444');
+        return;
+    }
+    fetch('/api/wardrive/waypoint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ latitude: pos.lat, longitude: pos.lng, category: category })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.success) {
+            addWaypointToMap(d.id, pos.lat, pos.lng, category);
+            addFeed('Waypoint dropped: ' + category, waypointIcons[category].color);
+            if (navigator.vibrate) navigator.vibrate(100);
+        }
+    })
+    .catch(function() { addFeed('Failed to save waypoint', '#ff4444'); });
+}
+
+function addWaypointToMap(id, lat, lng, category) {
+    var info = waypointIcons[category] || waypointIcons.note;
+    var m = L.marker([lat, lng], {
+        icon: L.divIcon({
+            className: '',
+            html: '<div style="width:30px;height:30px;background:' + info.color + ';border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,0.5);">' + info.emoji + '</div>',
+            iconSize: [30, 30], iconAnchor: [15, 15]
+        }),
+        zIndexOffset: 5000
+    }).addTo(map);
+    m.bindPopup('<b>' + category.replace('_', ' ').toUpperCase() + '</b><br><button onclick="deleteWaypoint(' + id + ')" style="margin-top:6px;padding:4px 10px;background:#880000;color:#fff;border:none;border-radius:4px;cursor:pointer;">Delete</button>');
+    waypointMarkers[id] = m;
+}
+
+function deleteWaypoint(id) {
+    fetch('/api/wardrive/waypoint/' + id, { method: 'DELETE' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.success && waypointMarkers[id]) {
+            map.removeLayer(waypointMarkers[id]);
+            delete waypointMarkers[id];
+            addFeed('Waypoint deleted', '#888');
+        }
+    });
+}
+
+function loadWaypoints() {
+    fetch('/api/wardrive/waypoints')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (Array.isArray(data)) {
+            data.forEach(function(w) {
+                addWaypointToMap(w.id, w.latitude, w.longitude, w.category);
+            });
+        }
+    })
+    .catch(function() {});
+}
+
+loadWaypoints();
+
+// ========== END WAYPOINT BOOKMARKS ==========
+
+// ========== DWELL TIME + POPUP ==========
+
+function buildNetPopup(marker) {
+    var dwell = '';
+    if (networkFirstSeen[marker._mac]) {
+        var secs = Math.floor((Date.now() - networkFirstSeen[marker._mac]) / 1000);
+        if (secs < 60) dwell = secs + 's';
+        else if (secs < 3600) dwell = Math.floor(secs/60) + 'm ' + (secs%60) + 's';
+        else dwell = Math.floor(secs/3600) + 'h ' + Math.floor((secs%3600)/60) + 'm';
+    }
+    return '<b>' + marker._ssid + '</b><br>' + marker._auth + ' ' + marker._rssi + 'dBm'
+        + (dwell ? '<br><span style="color:#00aaff;">Visible: ' + dwell + '</span>' : '');
+}
+
+// ========== COVERAGE HEATMAP ==========
+
+function toggleHeatmap() {
+    heatVisible = !heatVisible;
+    var btn = document.getElementById('heatBtn');
+    if (heatVisible) {
+        btn.style.background = '#664400';
+        btn.textContent = 'Heat ON';
+        if (!heatLayer) {
+            heatLayer = L.heatLayer(heatPoints, { radius: 20, blur: 15, maxZoom: 18, gradient: {0.2: '#004400', 0.5: '#00aa00', 0.8: '#00ff00', 1: '#aaffaa'} }).addTo(map);
+        } else {
+            heatLayer.addTo(map);
+        }
+    } else {
+        btn.style.background = '#333';
+        btn.textContent = 'Heat';
+        if (heatLayer) map.removeLayer(heatLayer);
+    }
+}
+
+// ========== END COVERAGE HEATMAP ==========
+
+function startGpsPoll() {
+    if (gpsTimer) return;
+    gpsTimer = setInterval(async function() {
+        if (scanning) return; // SSE handles it during scan
+        try {
+            var r = await fetch('/api/wardrive/live/gps');
+            var gps = await r.json();
+            if (!gps.connected) {
+                document.getElementById('gpsFix').textContent = 'No GPS';
+                document.getElementById('gpsFix').style.color = '#ff4444';
+            } else if (gps.fix) {
+                updateGps(gps, false);
+            } else {
+                document.getElementById('gpsFix').textContent = 'No Fix';
+                document.getElementById('gpsFix').style.color = '#ff4444';
+                document.getElementById('gpsSats').textContent = gps.satellites || 0;
+            }
+        } catch(e) {}
+    }, 1500);
+}
+
+function toggleNav() {
+    navMode = !navMode;
+    var btn = document.getElementById('navBtn');
+    if (navMode) {
+        btn.classList.add('active');
+        btn.textContent = 'Nav ON';
+        if (map.hasLayer(gpsMarker)) map.setView(gpsMarker.getLatLng(), Math.max(map.getZoom(), 17));
+    } else {
+        btn.classList.remove('active');
+        btn.textContent = 'Nav';
+        var m = document.getElementById('map');
+        m.style.transform = '';
+        var c = m.querySelector('.leaflet-control-container');
+        if (c) c.style.transform = '';
+    }
+    // Sync nav state to server so laptop mirrors it
+    fetch('/api/wardrive/live/nav', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: navMode })
+    }).catch(function() {});
+}
+
+document.addEventListener('fullscreenchange', function() {
+    setTimeout(function() { map.invalidateSize(); }, 300);
+});
+
+function updateElapsed() {
+    if (!startTime) return;
+    var s = Math.floor((Date.now() - startTime) / 1000);
+    var m = Math.floor(s / 60); s = s % 60;
+    document.getElementById('elapsed').textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+function toggleFeed() {
+    document.getElementById('feedPanel').classList.toggle('open');
+}
+
+function addFeed(text, color) {
+    var panel = document.getElementById('feedPanel');
+    var d = document.createElement('div');
+    d.style.color = color || '#aaa';
+    d.style.borderBottom = '1px solid #1a1a1a';
+    d.style.padding = '3px 0';
+    var now = new Date();
+    d.textContent = now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}) + ' ' + text;
+    panel.insertBefore(d, panel.firstChild);
+    while (panel.children.length > 100) panel.removeChild(panel.lastChild);
+}
+
+// Keep phone screen awake
+async function requestWakeLock() {
+    try {
+        if ('wakeLock' in navigator) {
+            wakeLock = await navigator.wakeLock.request('screen');
+            wakeLock.addEventListener('release', function() { wakeLock = null; });
+        }
+    } catch(e) {}
+}
+requestWakeLock();
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible' && !wakeLock) requestWakeLock();
+});
+
+// Poll laptop battery level
+function pollBattery() {
+    fetch('/api/system/battery')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.percent >= 0) {
+                document.getElementById('batLevel').textContent = d.percent;
+                var icon = document.getElementById('batIcon');
+                if (d.plugged_in) {
+                    icon.textContent = '\u26A1';
+                    document.getElementById('batLevel').style.color = '#00ff00';
+                } else if (d.percent <= 15) {
+                    icon.textContent = '\uD83E\uDEAB';
+                    document.getElementById('batLevel').style.color = '#ff4444';
+                } else if (d.percent <= 30) {
+                    document.getElementById('batLevel').style.color = '#ff8800';
+                } else {
+                    document.getElementById('batLevel').style.color = '#ddd';
+                }
+            }
+        })
+        .catch(function() {});
+}
+pollBattery();
+setInterval(pollBattery, 30000);
+
+// Prevent map from adding padding for bars — invalidate after a moment
+setTimeout(function() { map.invalidateSize(); }, 500);
+</script>
+</body>
+</html>

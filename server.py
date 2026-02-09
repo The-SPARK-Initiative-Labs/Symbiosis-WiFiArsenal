@@ -230,7 +230,8 @@ import sys
 sys.path.insert(0, '/home/ov3rr1d3/wifi_arsenal/wardrive_system/wardrive')
 wardrive_live_state = {
     'session': None,
-    'running': False
+    'running': False,
+    'nav_mode': False
 }
 
 # Global state for live attack streaming
@@ -3358,9 +3359,11 @@ def wardrive_live_status():
     global wardrive_live_state
 
     if not wardrive_live_state['running'] or not wardrive_live_state['session']:
-        return jsonify({'running': False})
+        return jsonify({'running': False, 'nav_mode': wardrive_live_state['nav_mode']})
 
-    return jsonify(wardrive_live_state['session'].get_status())
+    status = wardrive_live_state['session'].get_status()
+    status['nav_mode'] = wardrive_live_state['nav_mode']
+    return jsonify(status)
 
 
 @app.route('/api/wardrive/live/stream', methods=['GET'])
@@ -3390,7 +3393,201 @@ def wardrive_live_stream():
     )
 
 
+@app.route('/api/wardrive/live/nav', methods=['POST'])
+def wardrive_live_nav():
+    """Set nav mode state (synced across all clients)"""
+    global wardrive_live_state
+    data = request.get_json() or {}
+    wardrive_live_state['nav_mode'] = bool(data.get('enabled', False))
+    return jsonify({'success': True, 'nav_mode': wardrive_live_state['nav_mode']})
+
+
 # ========== END WARDRIVING ENDPOINTS ==========
+
+
+# ========== HOTSPOT ENDPOINTS ==========
+
+@app.route('/api/hotspot/status', methods=['GET'])
+def hotspot_status():
+    """Check if the Arsenal hotspot is active"""
+    try:
+        result = subprocess.run(['nmcli', '-t', '-f', 'NAME,DEVICE', 'connection', 'show', '--active'],
+                              capture_output=True, text=True, timeout=5)
+        active = any('Hotspot' in line and 'wlan0' in line for line in result.stdout.strip().split('\n'))
+
+        info = {'active': active}
+
+        if active:
+            info['ssid'] = 'Arsenal-Control'
+            # Get IP address
+            ip_result = subprocess.run(['nmcli', '-t', '-f', 'IP4.ADDRESS', 'device', 'show', 'wlan0'],
+                                      capture_output=True, text=True, timeout=5)
+            ip = '10.42.0.1'
+            for line in ip_result.stdout.split('\n'):
+                if 'IP4.ADDRESS' in line:
+                    val = line.split(':', 1)[-1].strip().split('/')[0]
+                    if val:
+                        ip = val
+                    break
+            info['ip'] = ip
+            info['url'] = 'http://' + ip + ':5000'
+
+            # Connected clients via ARP
+            clients = 0
+            try:
+                arp_result = subprocess.run(['arp', '-n'],
+                                          capture_output=True, text=True, timeout=5)
+                for line in arp_result.stdout.split('\n')[1:]:
+                    parts = line.split()
+                    if len(parts) >= 5 and parts[4] == 'wlan0':
+                        clients += 1
+            except:
+                pass
+            info['clients'] = clients
+
+        return jsonify(info)
+    except Exception as e:
+        return jsonify({'active': False, 'error': str(e)})
+
+
+@app.route('/api/hotspot/start', methods=['POST'])
+def hotspot_start():
+    """Start the Arsenal WiFi hotspot on wlan0"""
+    try:
+        # Check if already active
+        check = subprocess.run(['nmcli', '-t', '-f', 'NAME,DEVICE', 'connection', 'show', '--active'],
+                              capture_output=True, text=True, timeout=5)
+        if any('Hotspot' in line and 'wlan0' in line for line in check.stdout.split('\n')):
+            return jsonify({'success': True, 'message': 'Hotspot already running',
+                          'ssid': 'Arsenal-Control', 'password': 'ars3nal!',
+                          'ip': '10.42.0.1', 'url': 'http://10.42.0.1:5000'})
+
+        # Start hotspot — 2.4GHz for phone compatibility and range
+        result = subprocess.run([
+            'nmcli', 'device', 'wifi', 'hotspot',
+            'ifname', 'wlan0',
+            'ssid', 'Arsenal-Control',
+            'password', 'ars3nal!',
+            'band', 'bg'
+        ], capture_output=True, text=True, timeout=15)
+
+        if result.returncode == 0:
+            time.sleep(2)  # Wait for IP assignment
+            ip_result = subprocess.run(['nmcli', '-t', '-f', 'IP4.ADDRESS', 'device', 'show', 'wlan0'],
+                                      capture_output=True, text=True, timeout=5)
+            ip = '10.42.0.1'
+            for line in ip_result.stdout.split('\n'):
+                if 'IP4.ADDRESS' in line:
+                    val = line.split(':', 1)[-1].strip().split('/')[0]
+                    if val:
+                        ip = val
+                    break
+
+            return jsonify({
+                'success': True,
+                'ssid': 'Arsenal-Control',
+                'password': 'ars3nal!',
+                'ip': ip,
+                'url': 'http://' + ip + ':5000',
+                'mobile_url': 'http://' + ip + ':5000/mobile.html'
+            })
+        else:
+            return jsonify({'success': False, 'error': result.stderr.strip() or 'Failed to start hotspot'})
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/hotspot/stop', methods=['POST'])
+def hotspot_stop():
+    """Stop the Arsenal WiFi hotspot and reconnect to previous network"""
+    try:
+        result = subprocess.run(['nmcli', 'connection', 'down', 'Hotspot'],
+                              capture_output=True, text=True, timeout=10)
+        if result.returncode != 0 and 'not an active connection' not in result.stderr:
+            return jsonify({'success': False, 'error': result.stderr.strip()})
+
+        return jsonify({'success': True, 'message': 'Hotspot stopped'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+# ========== END HOTSPOT ENDPOINTS ==========
+
+
+@app.route('/api/wardrive/waypoints', methods=['GET'])
+def get_waypoints():
+    """Get all field waypoints"""
+    import sqlite3
+    db_path = '/home/ov3rr1d3/wifi_arsenal/wardrive_system/wardrive/wardrive_data.db'
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute('CREATE TABLE IF NOT EXISTS field_waypoints (id INTEGER PRIMARY KEY AUTOINCREMENT, latitude REAL NOT NULL, longitude REAL NOT NULL, category TEXT NOT NULL, note TEXT DEFAULT \'\', created_at TEXT NOT NULL)')
+        cursor.execute('SELECT id, latitude, longitude, category, note, created_at FROM field_waypoints ORDER BY created_at DESC')
+        rows = cursor.fetchall()
+        conn.close()
+        return jsonify([{'id': r[0], 'latitude': r[1], 'longitude': r[2], 'category': r[3], 'note': r[4], 'created_at': r[5]} for r in rows])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/wardrive/waypoint', methods=['POST'])
+def create_waypoint():
+    """Drop a field waypoint at current GPS position"""
+    import sqlite3
+    db_path = '/home/ov3rr1d3/wifi_arsenal/wardrive_system/wardrive/wardrive_data.db'
+    data = request.json or {}
+    lat = data.get('latitude')
+    lon = data.get('longitude')
+    category = data.get('category', 'note')
+    note = data.get('note', '')
+    if not lat or not lon:
+        return jsonify({'error': 'latitude and longitude required'}), 400
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute('CREATE TABLE IF NOT EXISTS field_waypoints (id INTEGER PRIMARY KEY AUTOINCREMENT, latitude REAL NOT NULL, longitude REAL NOT NULL, category TEXT NOT NULL, note TEXT DEFAULT \'\', created_at TEXT NOT NULL)')
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        cursor.execute('INSERT INTO field_waypoints (latitude, longitude, category, note, created_at) VALUES (?, ?, ?, ?, ?)',
+                      (lat, lon, category, note, now))
+        conn.commit()
+        wid = cursor.lastrowid
+        conn.close()
+        return jsonify({'success': True, 'id': wid, 'created_at': now})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/wardrive/waypoint/<int:waypoint_id>', methods=['DELETE'])
+def delete_waypoint(waypoint_id):
+    """Delete a field waypoint"""
+    import sqlite3
+    db_path = '/home/ov3rr1d3/wifi_arsenal/wardrive_system/wardrive/wardrive_data.db'
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.execute('DELETE FROM field_waypoints WHERE id = ?', (waypoint_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/system/battery', methods=['GET'])
+def system_battery():
+    """Get laptop battery level and charging status"""
+    info = {'percent': -1, 'status': 'Unknown', 'plugged_in': False}
+    try:
+        with open('/sys/class/power_supply/BAT1/capacity') as f:
+            info['percent'] = int(f.read().strip())
+        with open('/sys/class/power_supply/BAT1/status') as f:
+            info['status'] = f.read().strip()
+        with open('/sys/class/power_supply/ADP1/online') as f:
+            info['plugged_in'] = f.read().strip() == '1'
+    except:
+        pass
+    return jsonify(info)
+
 
 @app.route('/api/reveal_hidden', methods=['POST'])
 def reveal_hidden():
