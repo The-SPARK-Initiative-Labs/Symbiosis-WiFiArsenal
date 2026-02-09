@@ -422,12 +422,17 @@ class ReportGenerator:
 
         analysis: List[dict] = []
 
-        if open_nets:
+        # Separate guest/visitor networks from truly unprotected ones
+        guest_patterns = ('guest', 'visitor', 'public', 'free wifi', 'free-wifi', 'customer')
+        guest_nets = [n for n in open_nets if any(p in (n.get('ssid') or '').lower() for p in guest_patterns)]
+        non_guest_open = [n for n in open_nets if n not in guest_nets]
+
+        if non_guest_open:
             analysis.append({
                 'name': 'Unencrypted Networks',
                 'severity': 'CRITICAL',
                 'severity_color': '#e74c3c',
-                'count': len(open_nets),
+                'count': len(non_guest_open),
                 'description': (
                     'Networks transmitting all data in plaintext. Any device within '
                     'range can passively intercept all traffic including credentials, '
@@ -441,7 +446,30 @@ class ReportGenerator:
                 'remediation': 'Enable WPA2-PSK or WPA3-SAE encryption',
                 'remediation_cost': '$0 (configuration change)',
                 'remediation_time': '30-60 minutes per access point',
-                'networks': open_nets,
+                'networks': non_guest_open,
+            })
+
+        if guest_nets:
+            analysis.append({
+                'name': 'Open Guest / Visitor Networks',
+                'severity': 'CRITICAL',
+                'severity_color': '#e74c3c',
+                'count': len(guest_nets),
+                'description': (
+                    'Open guest networks detected. While providing passwordless guest '
+                    'access is a common business practice, improper network isolation '
+                    'can allow guests to reach internal systems, file shares, and '
+                    'point-of-sale devices.'
+                ),
+                'plain_description': 'These appear to be intentional guest or visitor networks. Open guest WiFi is standard practice, but it must be properly isolated from your internal network. Without VLAN segmentation, a guest could potentially access employee computers, printers, security cameras, and payment systems. Proper isolation should be verified during an on-site assessment.',
+                'attack_method': 'Connect to guest network, probe for internal network access',
+                'attack_time': 'Immediate (connection) + minutes (lateral probing)',
+                'tools': 'Any WiFi-capable device, network scanner',
+                'skill_level': 'Low',
+                'remediation': 'Verify VLAN segmentation isolates guest traffic from internal resources; enable client isolation to prevent guest-to-guest attacks',
+                'remediation_cost': '$0 (configuration change)',
+                'remediation_time': '1-2 hours (verification + configuration)',
+                'networks': guest_nets,
             })
 
         if wep_nets:
@@ -560,17 +588,37 @@ class ReportGenerator:
         roadmap: List[dict] = []
         priority = 0
 
-        if open_count > 0:
+        # Split open networks into guest vs non-guest for roadmap
+        guest_patterns = ('guest', 'visitor', 'public', 'free wifi', 'free-wifi', 'customer')
+        guest_open_count = sum(1 for n in networks
+                               if ('OPEN' in (n.get('auth_mode') or '').upper() or not (n.get('auth_mode') or '').strip('[] '))
+                               and any(p in (n.get('ssid') or '').lower() for p in guest_patterns))
+        non_guest_open_count = open_count - guest_open_count
+
+        if non_guest_open_count > 0:
             priority += 1
             roadmap.append({
                 'priority': priority,
                 'action': 'Secure unencrypted networks',
-                'description': 'Enable WPA2-PSK or WPA3 on all open access points',
+                'description': 'Enable WPA2-PSK or WPA3 on all open access points that are not intended guest networks',
                 'risk_reduction': 'Eliminates immediate unauthorized access',
                 'cost': '$0 (configuration change)',
                 'time': '30-60 minutes per access point',
-                'affected_count': open_count,
+                'affected_count': non_guest_open_count,
                 'compliance': 'PCI-DSS Req. 4.1, HIPAA \u00a7164.312(e)(1)',
+            })
+
+        if guest_open_count > 0:
+            priority += 1
+            roadmap.append({
+                'priority': priority,
+                'action': 'Verify guest network isolation',
+                'description': 'Confirm VLAN segmentation prevents guest WiFi users from reaching internal systems; enable client isolation',
+                'risk_reduction': 'Prevents lateral movement from guest to internal network',
+                'cost': '$0 (configuration verification)',
+                'time': '1-2 hours (on-site verification)',
+                'affected_count': guest_open_count,
+                'compliance': 'PCI-DSS Req. 1.3, NIST SP 800-153',
             })
 
         if wep_count > 0:

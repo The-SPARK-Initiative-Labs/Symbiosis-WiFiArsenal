@@ -3344,6 +3344,7 @@ def wardrive_live_gps():
             'latitude': pos.get('latitude', 0.0),
             'longitude': pos.get('longitude', 0.0),
             'speed': pos.get('speed_mph', 0.0),
+            'heading': pos.get('heading', 0.0),
             'reader_running': True
         })
     # No scan running — use persistent reader

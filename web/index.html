@@ -1010,16 +1010,20 @@
                     <div style="display: flex; gap: 10px; margin-bottom: 8px; align-items: center;">
                         <button id="liveStartBtn" class="button" onclick="startLiveWardrive()" style="padding: 5px 15px; background: #004400;" title="Start live WiFi scanning with GPS tracking">▶ Start Scan</button>
                         <button id="liveStopBtn" class="button" onclick="stopLiveWardrive()" style="padding: 5px 15px; background: #440000; display: none;" title="Stop scanning and save session to database">⬛ Stop Scan</button>
+                        <button id="navModeBtn" class="button" onclick="toggleNavMode()" style="padding: 5px 15px; background: #333;" title="Auto-center map on GPS position and show heading direction">🧭 Nav</button>
                         <div style="flex: 1; display: flex; gap: 15px; font-size: 11px; color: #888; align-items: center;">
                             <span>GPS: <span id="gpsFixStatus" style="color: #ff4444;">No Fix</span> (<span id="gpsSatCount">0</span> sats)</span>
                             <span>Speed: <span id="gpsSpeed">0</span> mph</span>
+                            <span>Hdg: <span id="gpsHeading" style="color: #00aaff;">---</span></span>
                             <span>Networks: <span id="liveNetworkCount" style="color: #00ff00; font-weight: bold;">0</span></span>
                             <span>New: <span id="liveNewCount" style="color: #ff6600; font-weight: bold;">0</span></span>
                             <span>Time: <span id="liveElapsed" style="color: #00aaff;">00:00</span></span>
                         </div>
                     </div>
                     <div style="display: flex; flex: 1; gap: 8px; min-height: 0; overflow: hidden;">
-                        <div id="liveMapContainer" style="flex: 3; border: 1px solid #00ff00; background: #111;"></div>
+                        <div id="liveMapClip" style="flex: 3; overflow: hidden; position: relative; border: 1px solid #00ff00; background: #111;">
+                            <div id="liveMapContainer" style="width: 100%; height: 100%;"></div>
+                        </div>
                         <div id="liveNetworkFeed" style="flex: 1; min-width: 220px; max-width: 300px; overflow-y: auto; font-size: 10px; font-family: monospace; background: #0a0a0a; border: 1px solid #333; padding: 5px;">
                             <div style="color: #666;">Start a scan to see live network discoveries...</div>
                         </div>
@@ -5554,6 +5558,31 @@ function monitorClients() {
         var liveNewNetworks = 0;
         var gpsPollingTimer = null;
         var gpsFirstFix = false;
+        var navMode = false;
+        var lastHeading = 0;
+
+        function toggleNavMode() {
+            navMode = !navMode;
+            var btn = document.getElementById('navModeBtn');
+            if (navMode) {
+                btn.style.background = '#004488';
+                btn.textContent = '🧭 Nav ON';
+                // Immediately center on current position if we have a fix
+                if (liveMap && liveGpsMarker && liveMap.hasLayer(liveGpsMarker)) {
+                    liveMap.setView(liveGpsMarker.getLatLng(), Math.max(liveMap.getZoom(), 17));
+                }
+            } else {
+                btn.style.background = '#333';
+                btn.textContent = '🧭 Nav';
+                // Clear map rotation
+                var container = document.getElementById('liveMapContainer');
+                if (container) {
+                    container.style.transform = '';
+                    var controls = container.querySelector('.leaflet-control-container');
+                    if (controls) controls.style.transform = '';
+                }
+            }
+        }
 
         function toggleLiveMode() {
             liveMode = !liveMode;
@@ -5609,9 +5638,50 @@ function monitorClients() {
                     fixEl.textContent = 'Fix OK';
                     fixEl.style.color = '#00ff00';
                     satEl.textContent = gps.satellites;
-                    if (liveMap && !gpsFirstFix) {
-                        liveMap.setView([gps.latitude, gps.longitude], 16);
-                        gpsFirstFix = true;
+                    if (liveMap && gps.latitude && gps.longitude) {
+                        // Update marker position
+                        liveGpsMarker.setLatLng([gps.latitude, gps.longitude]);
+                        if (!liveMap.hasLayer(liveGpsMarker)) {
+                            liveGpsMarker.addTo(liveMap);
+                        }
+                        if (!gpsFirstFix) {
+                            liveMap.setView([gps.latitude, gps.longitude], 17);
+                            gpsFirstFix = true;
+                        }
+                        // Update heading arrow
+                        if (gps.speed > 1.5 && gps.heading !== undefined) {
+                            lastHeading = gps.heading;
+                        }
+                        var arrow = document.getElementById('navArrow');
+                        var container = document.getElementById('liveMapContainer');
+                        if (navMode) {
+                            if (container) {
+                                container.style.transform = 'rotate(' + (-lastHeading) + 'deg) scale(1.2)';
+                                container.style.transformOrigin = 'center center';
+                                container.style.transition = 'transform 0.5s ease';
+                            }
+                            var controls = container ? container.querySelector('.leaflet-control-container') : null;
+                            if (controls) {
+                                controls.style.transform = 'rotate(' + lastHeading + 'deg)';
+                                controls.style.transformOrigin = 'top left';
+                                controls.style.transition = 'transform 0.5s ease';
+                            }
+                            if (arrow) arrow.style.transform = 'rotate(' + lastHeading + 'deg)';
+                            liveMap.panTo([gps.latitude, gps.longitude], {animate: true, duration: 0.5});
+                        } else {
+                            if (container) container.style.transform = '';
+                            var controls2 = container ? container.querySelector('.leaflet-control-container') : null;
+                            if (controls2) controls2.style.transform = '';
+                            if (arrow) arrow.style.transform = 'rotate(' + lastHeading + 'deg)';
+                        }
+                        // Update speed + heading display
+                        document.getElementById('gpsSpeed').textContent = (gps.speed || 0).toFixed(1);
+                        var headingEl = document.getElementById('gpsHeading');
+                        if (headingEl) {
+                            var dirs = ['N','NE','E','SE','S','SW','W','NW'];
+                            var dir = dirs[Math.round(lastHeading / 45) % 8];
+                            headingEl.textContent = Math.round(lastHeading) + '\u00b0 ' + dir;
+                        }
                     }
                 } else {
                     fixEl.textContent = 'No Fix';
@@ -5635,13 +5705,43 @@ function monitorClients() {
                 maxZoom: 20,
                 errorTileUrl: ''
             }).addTo(liveMap);
-            liveGpsMarker = L.circleMarker([0, 0], {
-                radius: 8, color: '#0088ff', fillColor: '#0088ff',
-                fillOpacity: 0.8, weight: 2
+            liveGpsMarker = L.marker([0, 0], {
+                icon: L.divIcon({
+                    className: 'nav-arrow-icon',
+                    html: '<div id="navArrowOuter" style="position:relative; width:40px; height:40px;">'
+                        + '<div style="position:absolute; inset:0; border-radius:50%; background:rgba(0,136,255,0.15); border:2px solid rgba(0,136,255,0.4);"></div>'
+                        + '<div id="navArrow" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; transition:transform 0.5s ease;">'
+                        + '<svg width="24" height="24" viewBox="0 0 24 24"><polygon points="12,2 5,20 12,15 19,20" fill="#0088ff" stroke="#fff" stroke-width="1.5"/></svg>'
+                        + '</div>'
+                        + '</div>',
+                    iconSize: [40, 40],
+                    iconAnchor: [20, 20]
+                }),
+                zIndexOffset: 9999
             });
             liveTrackLine = L.polyline([], {
                 color: '#00aaff', weight: 3, opacity: 0.7
             }).addTo(liveMap);
+            // Re-fit map when entering/exiting fullscreen
+            document.addEventListener('fullscreenchange', function() {
+                if (liveMap) setTimeout(function() { liveMap.invalidateSize(); }, 200);
+            });
+            // Disable nav mode if user manually drags the map
+            liveMap.on('dragstart', function() {
+                if (navMode) {
+                    navMode = false;
+                    var btn = document.getElementById('navModeBtn');
+                    btn.style.background = '#333';
+                    btn.textContent = '🧭 Nav';
+                    // Clear map rotation
+                    var container = document.getElementById('liveMapContainer');
+                    if (container) {
+                        container.style.transform = '';
+                        var controls = container.querySelector('.leaflet-control-container');
+                        if (controls) controls.style.transform = '';
+                    }
+                }
+            });
             // Fix map size after container becomes visible
             setTimeout(function() { liveMap.invalidateSize(); }, 100);
         }
@@ -5751,9 +5851,40 @@ function monitorClients() {
                     if (!liveMap.hasLayer(liveGpsMarker)) {
                         liveGpsMarker.addTo(liveMap);
                         if (!gpsFirstFix) {
-                            liveMap.setView([pos.latitude, pos.longitude], 16);
+                            liveMap.setView([pos.latitude, pos.longitude], 17);
                             gpsFirstFix = true;
                         }
+                    }
+                    // Rotate heading arrow when moving (avoid jitter when stationary)
+                    if (pos.speed_mph > 1.5 && pos.heading !== undefined) {
+                        lastHeading = pos.heading;
+                    }
+                    var arrow = document.getElementById('navArrow');
+                    var container = document.getElementById('liveMapContainer');
+                    if (navMode) {
+                        // Rotate entire map so heading = UP
+                        if (container) {
+                            container.style.transform = 'rotate(' + (-lastHeading) + 'deg) scale(1.2)';
+                            container.style.transformOrigin = 'center center';
+                            container.style.transition = 'transform 0.5s ease';
+                        }
+                        // Counter-rotate controls so they stay upright
+                        var controls = container ? container.querySelector('.leaflet-control-container') : null;
+                        if (controls) {
+                            controls.style.transform = 'rotate(' + lastHeading + 'deg)';
+                            controls.style.transformOrigin = 'top left';
+                            controls.style.transition = 'transform 0.5s ease';
+                        }
+                        // Arrow points UP in nav mode (map rotation cancels arrow rotation)
+                        if (arrow) arrow.style.transform = 'rotate(' + lastHeading + 'deg)';
+                        // Auto-center
+                        liveMap.panTo([pos.latitude, pos.longitude], {animate: true, duration: 0.5});
+                    } else {
+                        // No rotation, just show heading on arrow
+                        if (container) container.style.transform = '';
+                        var controls2 = container ? container.querySelector('.leaflet-control-container') : null;
+                        if (controls2) controls2.style.transform = '';
+                        if (arrow) arrow.style.transform = 'rotate(' + lastHeading + 'deg)';
                     }
                     // Only add track points when moving (speed > 2 mph) to filter GPS jitter
                     if (pos.speed_mph > 2) {
@@ -5764,6 +5895,13 @@ function monitorClients() {
                     document.getElementById('gpsFixStatus').style.color = '#00ff00';
                     document.getElementById('gpsSatCount').textContent = pos.satellites || 0;
                     document.getElementById('gpsSpeed').textContent = (pos.speed_mph || 0).toFixed(1);
+                    // Show heading in status bar
+                    var headingEl = document.getElementById('gpsHeading');
+                    if (headingEl) {
+                        var dirs = ['N','NE','E','SE','S','SW','W','NW'];
+                        var dir = dirs[Math.round(lastHeading / 45) % 8];
+                        headingEl.textContent = Math.round(lastHeading) + '\u00b0 ' + dir;
+                    }
                 }
             }
         }
@@ -5947,7 +6085,20 @@ function monitorClients() {
         });
 
         function openMapFullscreen() {
-            window.open('/wardrive_system/wardrive_master_map.html', '_blank');
+            if (liveMode && liveMap) {
+                // Fullscreen the clip wrapper (keeps rotation contained)
+                var clip = document.getElementById('liveMapClip');
+                if (clip.requestFullscreen) {
+                    clip.requestFullscreen().then(function() {
+                        setTimeout(function() { liveMap.invalidateSize(); }, 200);
+                    });
+                } else if (clip.webkitRequestFullscreen) {
+                    clip.webkitRequestFullscreen();
+                    setTimeout(function() { liveMap.invalidateSize(); }, 200);
+                }
+            } else {
+                window.open('/wardrive_system/wardrive_master_map.html', '_blank');
+            }
         }
         
         async function checkFlipperStatus() {

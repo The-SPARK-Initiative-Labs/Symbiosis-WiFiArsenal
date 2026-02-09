@@ -1,8 +1,0 @@
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=Wardrive Mapper
-Exec=bash -c 'cd "$(dirname "$(readlink -f "$0")")/wardrive" && ./RUN_WARDRIVE.sh' %k
-Icon=folder-network
-Terminal=true
-Categories=Utility;
