@@ -15,6 +15,8 @@ import os
 import math
 import requests
 import html  # For XSS protection - escape user-controlled SSID content
+import re
+from vehicle_filter import is_vehicle_ssid
 
 # Get script directory for relative paths
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -2889,16 +2891,6 @@ def create_map(conn):
     networks = []          # Regular named networks
     hidden_networks = []   # Blank/hidden SSIDs
 
-    # Vehicle SSID patterns to EXCLUDE from map entirely
-    vehicle_patterns = [
-        'chevy', 'chevrolet', 'ford', 'gmc', 'dodge', 'ram', 'jeep', 'chrysler',
-        'toyota', 'honda', 'nissan', 'hyundai', 'kia', 'mazda', 'subaru',
-        'bmw', 'mercedes', 'audi', 'volkswagen', 'vw', 'lexus', 'acura',
-        'infiniti', 'cadillac', 'buick', 'lincoln', 'tesla', 'rivian',
-        'mylink', 'uconnect', 'sync', 'entune', 'bluelink', 'carplay',
-        'onstar', 'wifi hotspot', 'car wifi', 'vehicle', 'truck'
-    ]
-
     vehicles_skipped = 0
     for network in all_networks:
         mac = network[0]
@@ -2909,8 +2901,8 @@ def create_map(conn):
         if rssi is None:
             continue
 
-        # Skip vehicle networks entirely - don't add to map
-        if ssid and any(pattern in ssid.lower() for pattern in vehicle_patterns):
+        # Skip vehicle networks entirely - regex-based matching
+        if is_vehicle_ssid(ssid):
             vehicles_skipped += 1
             continue
 

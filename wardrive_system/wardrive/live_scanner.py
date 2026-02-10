@@ -481,7 +481,7 @@ class LiveWardriveSession:
 
     DB_PATH = '/home/ov3rr1d3/wifi_arsenal/wardrive_system/wardrive/wardrive_data.db'
 
-    def __init__(self):
+    def __init__(self, session_name=None):
         self.gps = GPSReader()
         self.scanner = None
         self.session_id = None
@@ -491,12 +491,13 @@ class LiveWardriveSession:
         self.new_networks = 0
         self.db_writer_thread = None
         self.event_queue = queue.Queue()
+        self._session_name = session_name
 
     def start(self):
         """Start a new live wardrive session."""
         # Create session in DB
         now = datetime.utcnow().isoformat()
-        filename = f"live_wardrive_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+        filename = self._session_name if self._session_name else f"live_wardrive_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
         conn = sqlite3.connect(self.DB_PATH)
         cur = conn.cursor()
         cur.execute(

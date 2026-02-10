@@ -8,8 +8,8 @@ LOG_FILE="$SCRIPT_DIR/flipper_sync.log"
 # Wait a moment for device to stabilize
 sleep 2
 
-# Check if Flipper is actually connected
-if [ ! -e "/dev/ttyACM0" ]; then
+# Check if any ACM device exists (Flipper detection handled by sync script)
+if ! ls /dev/ttyACM* &>/dev/null; then
     exit 0
 fi
 
@@ -21,17 +21,20 @@ if zenity --question \
     --ok-label="Import" \
     --cancel-label="Skip"; then
     
-    # User clicked Import
-    # Run sync in a terminal so user can see progress
-    gnome-terminal -- bash -c "
-        echo '🔄 Starting Flipper Sync...'
-        echo ''
-        cd '$SCRIPT_DIR'
-        python3 '$PYTHON_SCRIPT' 2>&1 | tee '$LOG_FILE'
-        echo ''
-        echo 'Press Enter to close...'
-        read
-    "
+    # User clicked Import — run sync in a terminal so user can see progress
+    SYNC_CMD="echo '🔄 Starting Flipper Sync...'; echo ''; cd '$SCRIPT_DIR'; python3 '$PYTHON_SCRIPT' 2>&1 | tee '$LOG_FILE'; echo ''; echo 'Press Enter to close...'; read"
+
+    if command -v xfce4-terminal &>/dev/null; then
+        xfce4-terminal --title="Flipper Sync" -e "bash -c \"$SYNC_CMD\""
+    elif command -v gnome-terminal &>/dev/null; then
+        gnome-terminal --title="Flipper Sync" -- bash -c "$SYNC_CMD"
+    elif command -v xterm &>/dev/null; then
+        xterm -title "Flipper Sync" -e bash -c "$SYNC_CMD"
+    else
+        # No GUI terminal — run headless and notify
+        bash -c "cd '$SCRIPT_DIR'; python3 '$PYTHON_SCRIPT' 2>&1 | tee '$LOG_FILE'"
+        notify-send "Flipper Sync" "Sync completed (check $LOG_FILE)" --icon=dialog-information
+    fi
 else
     # User clicked Skip
     notify-send "Flipper Zero" "Skipped wardrive import" --icon=dialog-information

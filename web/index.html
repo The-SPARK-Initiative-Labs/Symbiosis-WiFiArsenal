@@ -1009,11 +1009,12 @@
                 <!-- Live Mode: Leaflet map + controls (hidden by default) -->
                 <div id="liveWardriveContainer" style="display: none; flex: 1; flex-direction: column; min-height: 0; overflow: hidden;">
                     <div style="display: flex; gap: 10px; margin-bottom: 8px; align-items: center;">
-                        <button id="liveStartBtn" class="button" onclick="startLiveWardrive()" style="padding: 5px 15px; background: #004400;" title="Start live WiFi scanning with GPS tracking">▶ Start Scan</button>
+                        <button id="liveStartBtn" class="button" onclick="showScanNamePrompt()" style="padding: 5px 15px; background: #004400;" title="Start live WiFi scanning with GPS tracking">▶ Start Scan</button>
                         <button id="liveStopBtn" class="button" onclick="stopLiveWardrive()" style="padding: 5px 15px; background: #440000; display: none;" title="Stop scanning and save session to database">⬛ Stop Scan</button>
                         <button id="navModeBtn" class="button" onclick="toggleNavMode()" style="padding: 5px 15px; background: #333;" title="Auto-center map on GPS position and show heading direction">🧭 Nav</button>
+                        <span id="batteryIndicator" style="font-size: 11px; color: #888; padding: 2px 6px; border: 1px solid #333; border-radius: 3px; cursor: default;" title="Laptop battery status">--</span>
                         <div style="flex: 1; display: flex; gap: 15px; font-size: 11px; color: #888; align-items: center;">
-                            <span>GPS: <span id="gpsFixStatus" style="color: #ff4444;">No Fix</span> (<span id="gpsSatCount">0</span> sats)</span>
+                            <span>GPS: <span id="gpsFixStatus" style="color: #ff4444;">No Fix</span> (<span id="gpsSatCount">0</span> sats) <span id="gpsHdop" style="color: #888;" title="Estimated GPS accuracy based on satellite geometry"></span></span>
                             <span>Speed: <span id="gpsSpeed">0</span> mph</span>
                             <span>Hdg: <span id="gpsHeading" style="color: #00aaff;">---</span></span>
                             <span>Networks: <span id="liveNetworkCount" style="color: #00ff00; font-weight: bold;">0</span></span>
@@ -1038,11 +1039,13 @@
                 <!-- Flipper Status -->
                 <div class="panel" style="padding: 15px;">
                     <h3 style="margin: 0 0 10px 0; font-size: 14px;">📡 Flipper Status</h3>
-                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
                         <span id="flipperStatusDot" style="width: 12px; height: 12px; border-radius: 50%; background: #333;"></span>
                         <span id="flipperStatusText" style="color: #888;">Checking...</span>
                     </div>
-                    <button class="button" onclick="syncFlipper()" style="width: 100%; padding: 10px;" title="Pull wardrive data from Flipper Zero and update database/map">🔄 Sync Now</button>
+                    <div id="flipperPortInfo" style="color: #555; font-size: 10px; margin-bottom: 8px; font-family: monospace;"></div>
+                    <button id="flipperSyncBtn" class="button" onclick="syncFlipper()" style="width: 100%; padding: 10px; opacity: 0.4; cursor: not-allowed;" disabled title="Pull wardrive data from Flipper Zero and update database/map">🔄 Sync Now</button>
+                    <div id="flipperSyncProgress" style="display: none; margin-top: 6px; padding: 6px; background: #0a0a1a; border: 1px solid #333; font-size: 10px; font-family: monospace; color: #888; max-height: 60px; overflow-y: auto;"></div>
                     <div id="lastSyncTime" style="color: #666; font-size: 11px; margin-top: 5px; text-align: center;">Last sync: Never</div>
                 </div>
                 
@@ -1096,8 +1099,11 @@
 
         <!-- Sync Log -->
         <div class="panel" style="margin-top: 15px;">
-            <h3 style="margin: 0 0 10px 0; font-size: 14px;">📜 Sync Log</h3>
-            <div id="wardriveSyncLog" class="output" style="max-height: 100px; font-size: 11px;">Ready to sync...</div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 style="margin: 0; font-size: 14px;">📜 Sync Log</h3>
+                <span onclick="document.getElementById('wardriveSyncLog').innerHTML=''" style="color: #666; font-size: 11px; cursor: pointer;" title="Clear the sync log">Clear</span>
+            </div>
+            <div id="wardriveSyncLog" class="output" style="max-height: 200px; font-size: 11px;">Ready to sync...</div>
         </div>
         
         </div><!-- End page-wardriving -->
@@ -1847,10 +1853,10 @@
                 const status = await response.json();
                 const led = document.getElementById('dashFlipperLed');
                 const text = document.getElementById('dashFlipperStatus');
-                
-                if (status.connected) {
+
+                if (status.connected && status.device === 'flipper') {
                     led.style.background = '#00ff00';
-                    text.innerHTML = '<span style="color: #00ff00;">Connected</span>';
+                    text.innerHTML = '<span style="color: #00ff00;">Connected</span> <span style="color:#555; font-size:10px;">' + (status.port || '') + '</span>';
                 } else {
                     led.style.background = '#333';
                     text.innerHTML = '<span style="color: #666;">Not connected</span>';
@@ -5546,8 +5552,33 @@ function monitorClients() {
         
         function refreshWardriveMap() {
             const frame = document.getElementById('wardriveMapFrame');
+            const btn = document.getElementById('historyRefreshBtn');
+
+            // Show overlay
+            var overlay = document.getElementById('mapRefreshOverlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'mapRefreshOverlay';
+                overlay.style.cssText = 'position:absolute; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; color:#00ff00; font-size:16px; z-index:100; pointer-events:none;';
+                overlay.textContent = 'Regenerating map...';
+                frame.parentElement.style.position = 'relative';
+                frame.parentElement.appendChild(overlay);
+            }
+            overlay.style.display = 'flex';
+
+            // Disable button
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Loading...'; }
+
+            // Reload iframe
             frame.src = frame.src;
-            logWardriveSync('🗺️ Map refreshed');
+            logWardriveSync('🗺️ Refreshing map...');
+
+            // Listen for load
+            frame.onload = function() {
+                overlay.style.display = 'none';
+                if (btn) { btn.disabled = false; btn.textContent = 'Refresh Map'; }
+                logWardriveSync('🗺️ Map loaded');
+            };
         }
 
         // ========== LIVE WARDRIVE FUNCTIONS ==========
@@ -5716,14 +5747,24 @@ function monitorClients() {
                 var gps = await resp.json();
                 var fixEl = document.getElementById('gpsFixStatus');
                 var satEl = document.getElementById('gpsSatCount');
+                var hdopEl = document.getElementById('gpsHdop');
                 if (!gps.connected) {
                     fixEl.textContent = 'Disconnected';
                     fixEl.style.color = '#ff4444';
                     satEl.textContent = '0';
+                    if (hdopEl) hdopEl.textContent = '';
                 } else if (gps.fix) {
                     fixEl.textContent = 'Fix OK';
                     fixEl.style.color = '#00ff00';
                     satEl.textContent = gps.satellites;
+                    if (hdopEl && gps.hdop !== undefined) {
+                        var h = parseFloat(gps.hdop);
+                        if (h > 0) {
+                            var accFt = Math.round(h * 2.5 * 3.281);
+                            hdopEl.textContent = '\u00b1' + accFt + 'ft';
+                            hdopEl.style.color = accFt <= 16 ? '#00ff00' : accFt <= 40 ? '#ffaa00' : '#ff4444';
+                        } else { hdopEl.textContent = ''; }
+                    }
                     if (liveMap && gps.latitude && gps.longitude) {
                         // Update marker position
                         liveGpsMarker.setLatLng([gps.latitude, gps.longitude]);
@@ -5773,6 +5814,7 @@ function monitorClients() {
                     fixEl.textContent = 'No Fix';
                     fixEl.style.color = '#ffaa00';
                     satEl.textContent = gps.satellites;
+                    if (hdopEl) hdopEl.textContent = '';
                 }
             } catch(e) {
                 // ignore polling errors
@@ -5837,10 +5879,22 @@ function monitorClients() {
             setTimeout(function() { liveMap.invalidateSize(); }, 100);
         }
 
-        async function startLiveWardrive() {
+        function showScanNamePrompt() {
             initLiveMap();
+            var name = prompt('Session name (leave blank for auto):', '');
+            if (name === null) return; // cancelled
+            startLiveWardrive(name.trim());
+        }
+
+        async function startLiveWardrive(sessionName) {
             try {
-                var response = await fetch('/api/wardrive/live/start', {method: 'POST'});
+                var body = {};
+                if (sessionName) body.session_name = sessionName;
+                var response = await fetch('/api/wardrive/live/start', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(body)
+                });
                 var result = await response.json();
                 if (!result.success) {
                     alert('Failed to start: ' + result.error);
@@ -5891,6 +5945,9 @@ function monitorClients() {
                     addToFeed(msg, '#00ff00');
                     logWardriveSync('📡 ' + msg);
                     addToFeed('Map regenerating in background...', '#888');
+                    // Auto-refresh stats and sessions after scan ends
+                    refreshWardriveStats();
+                    loadSessions();
                 }
                 setStatus('IDLE', false);
             } catch(e) {
@@ -5988,6 +6045,16 @@ function monitorClients() {
                     document.getElementById('gpsFixStatus').style.color = '#00ff00';
                     document.getElementById('gpsSatCount').textContent = pos.satellites || 0;
                     document.getElementById('gpsSpeed').textContent = (pos.speed_mph || 0).toFixed(1);
+                    // Show GPS accuracy estimate
+                    var hdopEl2 = document.getElementById('gpsHdop');
+                    if (hdopEl2 && pos.hdop !== undefined) {
+                        var h2 = parseFloat(pos.hdop);
+                        if (h2 > 0) {
+                            var accFt2 = Math.round(h2 * 2.5 * 3.281);
+                            hdopEl2.textContent = '\u00b1' + accFt2 + 'ft';
+                            hdopEl2.style.color = accFt2 <= 16 ? '#00ff00' : accFt2 <= 40 ? '#ffaa00' : '#ff4444';
+                        } else { hdopEl2.textContent = ''; }
+                    }
                     // Show heading in status bar
                     var headingEl = document.getElementById('gpsHeading');
                     if (headingEl) {
@@ -6284,58 +6351,93 @@ function monitorClients() {
         async function checkFlipperStatus() {
             const dot = document.getElementById('flipperStatusDot');
             const text = document.getElementById('flipperStatusText');
-            
+            const portInfo = document.getElementById('flipperPortInfo');
+            const syncBtn = document.getElementById('flipperSyncBtn');
+
             try {
                 const response = await fetch('/api/flipper/status');
                 const result = await response.json();
-                
-                if (result.connected) {
+
+                if (result.connected && result.device === 'flipper') {
                     dot.style.background = '#00ff00';
                     text.textContent = 'Connected';
                     text.style.color = '#00ff00';
+                    portInfo.textContent = result.port || '';
+                    portInfo.style.color = '#00ff00';
+                    syncBtn.disabled = false;
+                    syncBtn.style.opacity = '1';
+                    syncBtn.style.cursor = 'pointer';
                 } else {
                     dot.style.background = '#ff0000';
                     text.textContent = 'Not connected';
                     text.style.color = '#ff0000';
+                    portInfo.textContent = '';
+                    syncBtn.disabled = true;
+                    syncBtn.style.opacity = '0.4';
+                    syncBtn.style.cursor = 'not-allowed';
                 }
             } catch (error) {
                 dot.style.background = '#333';
                 text.textContent = 'Error checking';
                 text.style.color = '#888';
+                portInfo.textContent = '';
+                syncBtn.disabled = true;
+                syncBtn.style.opacity = '0.4';
+                syncBtn.style.cursor = 'not-allowed';
             }
         }
-        
+
         async function syncFlipper() {
             const text = document.getElementById('flipperStatusText');
+            const syncBtn = document.getElementById('flipperSyncBtn');
+            const progress = document.getElementById('flipperSyncProgress');
+
             text.textContent = 'Syncing...';
             text.style.color = '#ffff00';
-            
+            syncBtn.disabled = true;
+            syncBtn.style.opacity = '0.4';
+            syncBtn.textContent = '⏳ Syncing...';
+            progress.style.display = 'block';
+            progress.textContent = 'Connecting to Flipper...';
+
             logWardriveSync('🔄 Starting Flipper sync...');
-            
+
             try {
                 const response = await fetch('/api/flipper/sync', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({})
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (result.success) {
-                    logWardriveSync('✓ Sync complete: ' + result.files_synced + ' file(s)');
-                    document.getElementById('lastSyncTime').textContent = 'Last sync: Just now';
-                    
+                    var msg = '✓ Sync complete: ' + result.files_synced + ' file(s)';
+                    if (result.mapper_errors > 0) {
+                        msg += ' (' + result.mapper_errors + ' mapper error' + (result.mapper_errors > 1 ? 's' : '') + ')';
+                    }
+                    logWardriveSync(msg);
+                    progress.textContent = msg;
+                    progress.style.color = result.mapper_errors > 0 ? '#ffaa00' : '#00ff00';
+                    document.getElementById('lastSyncTime').textContent = 'Last sync: Just now (' + result.files_synced + ' files)';
+
                     // Refresh stats and map
                     refreshWardriveStats();
                     setTimeout(refreshWardriveMap, 2000);
                     loadSessions();
                 } else {
                     logWardriveSync('✗ Sync failed: ' + result.output);
+                    progress.textContent = 'Sync failed';
+                    progress.style.color = '#ff4444';
                 }
-                
+
+                syncBtn.textContent = '🔄 Sync Now';
                 checkFlipperStatus();
             } catch (error) {
                 logWardriveSync('✗ Error: ' + error.message);
+                progress.textContent = 'Error: ' + error.message;
+                progress.style.color = '#ff4444';
+                syncBtn.textContent = '🔄 Sync Now';
                 checkFlipperStatus();
             }
         }
@@ -6356,23 +6458,78 @@ function monitorClients() {
         
         async function loadSessions() {
             const listEl = document.getElementById('sessionList');
-            
+
             try {
                 const response = await fetch('/api/wardrive/sessions');
                 const result = await response.json();
-                
+
                 if (result.sessions && result.sessions.length > 0) {
-                    listEl.innerHTML = result.sessions.map(s =>
-                        '<div onclick="filterMapBySession(' + s.id + ')" style="padding: 8px; margin-bottom: 5px; background: #001a00; border: 1px solid #003300; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor=\'#00ff00\'" onmouseout="this.style.borderColor=\'#003300\'">' +
-                        '<div style="color: #00ff00;">' + escapeHtml(s.name) + '</div>' +
-                        '<div style="color: #666; font-size: 10px;">' + escapeHtml(s.date) + ' • ' + s.networks + ' networks</div>' +
-                        '</div>'
-                    ).join('');
+                    listEl.innerHTML = result.sessions.map(s => {
+                        // Format date human-readable
+                        var dateStr = s.date;
+                        try {
+                            var d = new Date(s.date);
+                            if (!isNaN(d)) dateStr = d.toLocaleDateString('en-US', {month:'short',day:'numeric'}) + ', ' + d.toLocaleTimeString('en-US', {hour:'numeric',minute:'2-digit'});
+                        } catch(e) {}
+                        var netInfo = (s.networks || 0) + ' networks';
+                        if (s.new_networks) netInfo += ' (' + s.new_networks + ' new)';
+                        return '<div style="padding: 8px; margin-bottom: 5px; background: #001a00; border: 1px solid #003300; transition: all 0.2s;" onmouseover="this.style.borderColor=\'#00ff00\'" onmouseout="this.style.borderColor=\'#003300\'">' +
+                            '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+                                '<span class="session-name" onclick="filterMapBySession(' + s.id + ')" style="color: #00ff00; cursor:pointer; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="Click to filter map for this session">' + escapeHtml(s.name) + '</span>' +
+                                '<span style="display:flex; gap:4px; flex-shrink:0; margin-left:6px;">' +
+                                    '<button onclick="event.stopPropagation(); renameSession(' + s.id + ', this)" style="background:none; border:none; color:#888; cursor:pointer; padding:2px; font-size:12px;" title="Rename this session">✏️</button>' +
+                                    '<button onclick="event.stopPropagation(); deleteSession(' + s.id + ')" style="background:none; border:none; color:#888; cursor:pointer; padding:2px; font-size:12px;" title="Delete this session and its observations">🗑️</button>' +
+                                '</span>' +
+                            '</div>' +
+                            '<div onclick="filterMapBySession(' + s.id + ')" style="color: #666; font-size: 10px; cursor:pointer;">' + escapeHtml(dateStr) + ' · ' + netInfo + '</div>' +
+                        '</div>';
+                    }).join('');
                 } else {
                     listEl.innerHTML = '<div style="color: #666;">No sessions yet</div>';
                 }
             } catch (error) {
                 listEl.innerHTML = '<div style="color: #ff0000;">Error loading sessions</div>';
+            }
+        }
+
+        async function deleteSession(sessionId) {
+            if (!confirm('Delete session #' + sessionId + ' and all its observations? Networks will be kept.')) return;
+            try {
+                const response = await fetch('/api/wardrive/session/' + sessionId, {method: 'DELETE'});
+                const result = await response.json();
+                if (result.success) {
+                    logWardriveSync('🗑️ Deleted session #' + sessionId + ' (' + result.deleted_observations + ' observations)');
+                    loadSessions();
+                    refreshWardriveStats();
+                } else {
+                    logWardriveSync('✗ Delete failed: ' + result.error);
+                }
+            } catch (error) {
+                logWardriveSync('✗ Delete error: ' + error.message);
+            }
+        }
+
+        async function renameSession(sessionId, btn) {
+            var row = btn.closest('div[style*="padding: 8px"]');
+            var nameEl = row.querySelector('.session-name');
+            var oldName = nameEl.textContent;
+            var newName = prompt('Rename session:', oldName);
+            if (!newName || newName === oldName) return;
+            try {
+                const response = await fetch('/api/wardrive/session/' + sessionId + '/rename', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name: newName})
+                });
+                const result = await response.json();
+                if (result.success) {
+                    nameEl.textContent = newName;
+                    logWardriveSync('✏️ Renamed session #' + sessionId + ' → ' + newName);
+                } else {
+                    logWardriveSync('✗ Rename failed: ' + result.error);
+                }
+            } catch (error) {
+                logWardriveSync('✗ Rename error: ' + error.message);
             }
         }
         
@@ -6406,7 +6563,8 @@ function monitorClients() {
         function logWardriveSync(message) {
             const logEl = document.getElementById('wardriveSyncLog');
             const time = new Date().toLocaleTimeString();
-            logEl.innerHTML = '[' + time + '] ' + message + '\n' + logEl.innerHTML;
+            logEl.innerHTML += '[' + time + '] ' + message + '\n';
+            logEl.scrollTop = logEl.scrollHeight;
         }
 
         // ========== REPORT GENERATION FUNCTIONS ==========
@@ -6615,6 +6773,37 @@ function monitorClients() {
 
         // Check Flipper status periodically
         setInterval(checkFlipperStatus, 10000);
+
+        // Battery indicator
+        async function updateBatteryIndicator() {
+            var el = document.getElementById('batteryIndicator');
+            if (!el) return;
+            try {
+                var resp = await fetch('/api/system/battery');
+                var bat = await resp.json();
+                if (bat.percent < 0) { el.textContent = '--'; return; }
+                var icon = bat.percent <= 15 ? '\uD83E\uDEAB' : '\uD83D\uDD0B';
+                var pct = bat.percent + '%';
+                if (bat.plugged_in) pct += '\u26A1';
+                el.textContent = icon + ' ' + pct;
+                if (bat.percent <= 20) {
+                    el.style.color = '#ff4444';
+                    el.style.borderColor = '#ff4444';
+                } else if (bat.percent <= 40) {
+                    el.style.color = '#ffaa00';
+                    el.style.borderColor = '#555';
+                } else {
+                    el.style.color = '#00ff00';
+                    el.style.borderColor = '#333';
+                }
+                el.title = 'Battery: ' + bat.percent + '% ' + (bat.plugged_in ? '(Charging)' : '(' + bat.status + ')');
+            } catch (e) {
+                el.textContent = '--';
+                el.style.color = '#888';
+            }
+        }
+        updateBatteryIndicator();
+        setInterval(updateBatteryIndicator, 60000);
 
         // ========== END WARDRIVING FUNCTIONS ==========
 

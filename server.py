@@ -228,6 +228,7 @@ orchestrator_state = {
 # Global state for live wardrive scanning
 import sys
 sys.path.insert(0, '/home/ov3rr1d3/wifi_arsenal/wardrive_system/wardrive')
+from vehicle_filter import is_vehicle_ssid
 wardrive_live_state = {
     'session': None,
     'running': False,
@@ -2279,12 +2280,66 @@ def glass_start_file():
 
 # ========== WARDRIVING ENDPOINTS ==========
 
+_flipper_cache = {'result': None, 'time': 0}
+
+def _detect_flipper():
+    """Detect Flipper Zero on serial ports. Returns {connected, port, device} or cached result."""
+    import time as _t
+    now = _t.time()
+    if _flipper_cache['result'] and now - _flipper_cache['time'] < 5:
+        return _flipper_cache['result']
+
+    import glob, serial
+    result = {'connected': False, 'port': None, 'device': 'unknown'}
+
+    for port in sorted(glob.glob('/dev/ttyACM*')):
+        try:
+            ser = serial.Serial(port, 115200, timeout=2)
+            _t.sleep(0.5)
+            ser.reset_input_buffer()
+            ser.reset_output_buffer()
+
+            # Check for NMEA (GPS) data first
+            initial = ser.read(ser.in_waiting or 1).decode('ascii', errors='ignore')
+            if '$G' in initial:
+                ser.close()
+                continue  # GPS device, not Flipper
+
+            # Send Flipper CLI command
+            ser.write(b'storage list /ext\r\n')
+            _t.sleep(1.5)
+
+            response = b''
+            while ser.in_waiting:
+                response += ser.read(ser.in_waiting)
+                _t.sleep(0.1)
+
+            text = response.decode('utf-8', errors='ignore')
+            ser.close()
+
+            if 'apps_data' in text or '[D]' in text or '[F]' in text:
+                result = {'connected': True, 'port': port, 'device': 'flipper'}
+                break
+
+            # Got NMEA back — GPS, skip
+            if '$G' in text:
+                continue
+
+        except Exception:
+            try:
+                ser.close()
+            except Exception:
+                pass
+            continue
+
+    _flipper_cache['result'] = result
+    _flipper_cache['time'] = now
+    return result
+
 @app.route('/api/flipper/status', methods=['GET'])
 def flipper_status():
-    """Check if Flipper is connected"""
-    import os
-    connected = os.path.exists('/dev/ttyACM0')
-    return jsonify({'connected': connected})
+    """Check if Flipper is connected (real serial detection, cached 5s)"""
+    return jsonify(_detect_flipper())
 
 @app.route('/api/flipper/sync', methods=['POST'])
 def flipper_sync():
@@ -2303,7 +2358,8 @@ def flipper_sync():
     
     output_log = []
     files_synced = 0
-    
+    mapper_errors = 0
+
     try:
         # Step 1: Run flipper sync to pull files
         output_log.append("=== Step 1: Syncing from Flipper ===")
@@ -2317,11 +2373,19 @@ def flipper_sync():
         output_log.append(result.stdout)
         if result.stderr:
             output_log.append(result.stderr)
-        
+
+        if result.returncode != 0:
+            return jsonify({
+                'success': False,
+                'output': '\n'.join(output_log),
+                'files_synced': 0,
+                'mapper_errors': 0
+            })
+
         # Extract synced filenames from output
         synced_files = re.findall(r'Saved to: .*/(.+\.txt)', result.stdout)
         files_synced = len(synced_files)
-        
+
         # Step 2: Run mapper on each synced file
         if synced_files and os.path.exists(mapper_script):
             output_log.append("\n=== Step 2: Updating database and map ===")
@@ -2339,17 +2403,19 @@ def flipper_sync():
                     if map_result.returncode == 0:
                         output_log.append(f"✓ Mapped {filename}")
                     else:
+                        mapper_errors += 1
                         output_log.append(f"✗ Failed to map {filename}: {map_result.stderr}")
-        
+
         return jsonify({
-            'success': result.returncode == 0,
+            'success': True,
             'output': '\n'.join(output_log),
-            'files_synced': files_synced
+            'files_synced': files_synced,
+            'mapper_errors': mapper_errors
         })
     except subprocess.TimeoutExpired:
-        return jsonify({'success': False, 'output': 'Sync timed out'})
+        return jsonify({'success': False, 'output': 'Sync timed out', 'files_synced': 0, 'mapper_errors': 0})
     except Exception as e:
-        return jsonify({'success': False, 'output': str(e)})
+        return jsonify({'success': False, 'output': str(e), 'files_synced': 0, 'mapper_errors': 0})
 
 @app.route('/api/wardrive/stats', methods=['GET'])
 def wardrive_stats():
@@ -2366,14 +2432,20 @@ def wardrive_stats():
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
-        # Total networks
-        cursor.execute('SELECT COUNT(*) FROM networks')
-        total = cursor.fetchone()[0]
-        
-        # Open networks
-        cursor.execute("SELECT COUNT(*) FROM networks WHERE auth_mode LIKE '%OPEN%'")
-        open_count = cursor.fetchone()[0]
-        
+        # Count networks excluding vehicles and null RSSI (matches mapper filtering)
+        cursor.execute('SELECT ssid, rssi, auth_mode FROM networks')
+        all_nets = cursor.fetchall()
+        total = 0
+        open_count = 0
+        for ssid, rssi, auth_mode in all_nets:
+            if rssi is None:
+                continue
+            if is_vehicle_ssid(ssid):
+                continue
+            total += 1
+            if auth_mode and 'OPEN' in auth_mode:
+                open_count += 1
+
         # Secured networks
         secured = total - open_count
         
@@ -2413,9 +2485,14 @@ def wardrive_sessions():
         # Try to get sessions from sessions table first
         try:
             cursor.execute("""
-                SELECT id, filename, imported_at, network_count, new_networks
-                FROM sessions
-                ORDER BY imported_at DESC
+                SELECT s.id, s.filename, s.imported_at, s.new_networks,
+                       COUNT(DISTINCT o.mac) as net_count
+                FROM sessions s
+                LEFT JOIN observations o ON o.session_id = s.id
+                    AND o.mac != '__GPS_TRACK__'
+                    AND o.latitude IS NOT NULL
+                GROUP BY s.id
+                ORDER BY s.imported_at DESC
                 LIMIT 50
             """)
             rows = cursor.fetchall()
@@ -2426,9 +2503,9 @@ def wardrive_sessions():
                     sessions.append({
                         'id': row[0],
                         'name': row[1],
-                        'date': row[2],  # Full datetime
-                        'networks': row[3],
-                        'new_networks': row[4]
+                        'date': row[2],
+                        'networks': row[4],  # from COUNT(DISTINCT mac)
+                        'new_networks': row[3]
                     })
                 conn.close()
                 return jsonify({'sessions': sessions})
@@ -2462,6 +2539,54 @@ def wardrive_sessions():
     except Exception as e:
         return jsonify({'sessions': [], 'error': str(e)})
 
+@app.route('/api/wardrive/session/<int:session_id>', methods=['DELETE'])
+def wardrive_session_delete(session_id):
+    """Delete a wardrive session and its observations"""
+    import sqlite3
+    import os
+
+    db_path = '/home/ov3rr1d3/wifi_arsenal/wardrive_system/wardrive/wardrive_data.db'
+
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        # Count observations to report
+        cursor.execute("SELECT COUNT(*) FROM observations WHERE session_id = ?", (session_id,))
+        obs_count = cursor.fetchone()[0]
+
+        # Delete observations first (FK), then session
+        cursor.execute("DELETE FROM observations WHERE session_id = ?", (session_id,))
+        cursor.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+        conn.commit()
+        conn.close()
+
+        return jsonify({'success': True, 'deleted_observations': obs_count})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/wardrive/session/<int:session_id>/rename', methods=['PUT'])
+def wardrive_session_rename(session_id):
+    """Rename a wardrive session"""
+    import sqlite3
+
+    db_path = '/home/ov3rr1d3/wifi_arsenal/wardrive_system/wardrive/wardrive_data.db'
+    data = request.json or {}
+    new_name = data.get('name', '').strip()
+
+    if not new_name:
+        return jsonify({'success': False, 'error': 'Name is required'})
+
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE sessions SET filename = ? WHERE id = ?", (new_name, session_id))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/wardrive/filter', methods=['POST'])
 def wardrive_filter():
     """Generate filtered map for a specific session (by session_id or date)"""
@@ -2487,13 +2612,18 @@ def wardrive_filter():
         session_name = ""
 
         if session_id:
-            # Get networks from observations for this session
+            # Get networks from observations for this session (GROUP BY mac to avoid duplication)
             cursor.execute("""
-                SELECT DISTINCT n.ssid, n.mac, n.auth_mode, n.channel, o.rssi, o.latitude, o.longitude
+                SELECT n.ssid, n.mac, n.auth_mode, n.channel,
+                       MAX(o.rssi) as rssi,
+                       AVG(o.latitude) as latitude,
+                       AVG(o.longitude) as longitude
                 FROM observations o
                 JOIN networks n ON o.mac = n.mac
                 WHERE o.session_id = ?
                 AND o.latitude IS NOT NULL AND o.longitude IS NOT NULL
+                AND o.mac != '__GPS_TRACK__'
+                GROUP BY n.mac
             """, (session_id,))
             networks = cursor.fetchall()
 
@@ -2540,8 +2670,8 @@ def wardrive_filter():
             attr='Google', name='Google Streets', overlay=False, control=True
         ).add_to(m)
         
-        # Add heat map layer
-        heat_data = [[n[5], n[6]] for n in networks if n[5] and n[6]]
+        # Add heat map layer (exclude vehicle networks)
+        heat_data = [[n[5], n[6]] for n in networks if n[5] and n[6] and not is_vehicle_ssid(n[0])]
         plugins.HeatMap(
             heat_data,
             name='WiFi Density',
@@ -2566,11 +2696,17 @@ def wardrive_filter():
         )
         
         # Add markers to clusters
+        vehicle_count = 0
         for net in networks:
             ssid, mac, auth, ch, rssi, lat, lon = net
             if not lat or not lon:
                 continue
-            
+
+            # Skip vehicle networks (match main map behavior)
+            if is_vehicle_ssid(ssid):
+                vehicle_count += 1
+                continue
+
             # Color by signal strength
             if rssi and rssi > -50:
                 color = 'green'
@@ -2607,18 +2743,19 @@ def wardrive_filter():
         folium.LayerControl().add_to(m)
         
         # Add title
+        display_count = len(networks) - vehicle_count
         title_html = f"""
         <div style="position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
                     background: white; padding: 10px 20px; border-radius: 5px;
                     border: 2px solid #333; z-index: 9999; font-size: 16px;">
-            <b>Session:</b> {session_name} ({len(networks)} networks)
+            <b>Session:</b> {session_name} ({display_count} networks)
         </div>
         """
         m.get_root().html.add_child(folium.Element(title_html))
-        
+
         m.save(output_path)
-        
-        return jsonify({'success': True, 'map': '/wardrive_system/wardrive_filtered.html', 'count': len(networks)})
+
+        return jsonify({'success': True, 'map': '/wardrive_system/wardrive_filtered.html', 'count': display_count})
     
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -3182,8 +3319,11 @@ def wardrive_live_start():
         import time as _time
         _time.sleep(0.5)  # Let serial port release
 
+        data = request.json or {}
+        session_name = data.get('session_name', '').strip() or None
+
         from live_scanner import LiveWardriveSession
-        session = LiveWardriveSession()
+        session = LiveWardriveSession(session_name=session_name)
         session.start()
         wardrive_live_state['session'] = session
         wardrive_live_state['running'] = True
@@ -3247,6 +3387,7 @@ import threading
 _gps_state = {
     'connected': False, 'fix': False, 'satellites': 0,
     'latitude': 0.0, 'longitude': 0.0, 'speed': 0.0,
+    'hdop': 0.0, 'heading': 0.0,
     'reader_running': False
 }
 _gps_lock = threading.Lock()
@@ -3289,10 +3430,11 @@ def _gps_reader_thread():
                     continue
                 if line.startswith('$GNGGA') or line.startswith('$GPGGA'):
                     parts = line.split(',')
-                    if len(parts) >= 8:
+                    if len(parts) >= 9:
                         with _gps_lock:
                             fix_quality = int(parts[6]) if parts[6] else 0
                             _gps_state['satellites'] = int(parts[7]) if parts[7] else 0
+                            _gps_state['hdop'] = float(parts[8]) if parts[8] else 0.0
                             if fix_quality > 0 and parts[2] and parts[4]:
                                 _gps_state['fix'] = True
                                 raw_lat = float(parts[2])
@@ -3307,10 +3449,13 @@ def _gps_reader_thread():
                                 _gps_state['fix'] = False
                 elif line.startswith('$GNRMC') or line.startswith('$GPRMC'):
                     parts = line.split(',')
-                    if len(parts) >= 8 and parts[7]:
+                    if len(parts) >= 9:
                         try:
                             with _gps_lock:
-                                _gps_state['speed'] = float(parts[7]) * 1.151  # knots to mph
+                                if parts[7]:
+                                    _gps_state['speed'] = float(parts[7]) * 1.151  # knots to mph
+                                if parts[8]:
+                                    _gps_state['heading'] = float(parts[8])
                         except ValueError:
                             pass
             ser.close()
@@ -3346,6 +3491,7 @@ def wardrive_live_gps():
             'longitude': pos.get('longitude', 0.0),
             'speed': pos.get('speed_mph', 0.0),
             'heading': pos.get('heading', 0.0),
+            'hdop': pos.get('hdop', 0.0),
             'reader_running': True
         })
     # No scan running — use persistent reader

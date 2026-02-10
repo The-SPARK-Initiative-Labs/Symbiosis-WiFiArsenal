@@ -263,6 +263,56 @@ Tell the user:
 
 ---
 
+## Compaction Rules
+
+When compacting (auto or manual), always preserve:
+- Files modified
+- Bugs found
+- Current task and next steps
+- Decisions made
+- GitHub issue numbers discussed
+- Architecture decisions
+- Where work left off
+- Anything actually important to our work
+
+Drop raw code output. Keep substance.
+
+---
+
+## Opus 4.6 Features
+
+- **`/fast`** — Use for simple, straightforward tasks. These are available — use them.
+
+### Agent Teaming — MANDATORY
+
+**Always use agent teaming (TeamCreate) for any non-trivial implementation.** This is not optional. Never ship code without a team reviewing it first.
+
+**When to use teaming:**
+- Any task touching 2+ files
+- Any plan before implementation
+- Any bug fix that isn't a one-liner
+- When in doubt, use a team
+
+**How to use teaming:**
+1. Create a team with `TeamCreate`
+2. Spawn adversarial reviewer agents that CHECK YOUR WORK
+3. Reviewers must read the actual code, not just the plan
+4. Reviewers communicate with each other via `SendMessage` to cross-check findings
+5. Incorporate their feedback before shipping anything
+6. Shut down team when done
+
+**Adversarial reviewers should look for:**
+- False positives / false negatives
+- Import side effects
+- Performance issues
+- Edge cases the lead missed
+- Substring collisions, off-by-one errors, wrong field indices
+- Anything stupid
+
+**Do NOT use plain subagents (Task without team_name) for review work.** Subagents can't talk to each other. Use real teams.
+
+---
+
 ## Git & GitHub Workflow
 
 **Repository:** `The-SPARK-Initiative-Labs/Symbiosis-WiFiArsenal` (private)

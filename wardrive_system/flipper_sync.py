@@ -10,10 +10,66 @@ import time
 import os
 import sys
 
-FLIPPER_PORT = '/dev/ttyACM0'
 FLIPPER_BAUD = 115200
 DUMPS_PATH = '/ext/apps_data/marauder/dumps'  # NO TRAILING SLASH!
 LOCAL_WARDRIVE_DIR = '/home/ov3rr1d3/wifi_arsenal/wardrive_system/wardrive/'
+
+
+def find_flipper_port():
+    """Scan /dev/ttyACM* devices and identify which one is a Flipper Zero.
+
+    Opens each at 115200 baud (Flipper's rate) and sends 'storage list /ext'.
+    If response contains 'apps_data' → confirmed Flipper.
+    If response contains NMEA data ($G) → that's the GPS, skip it.
+    Returns (port_string, None) or (None, None).
+    """
+    import glob as g
+    ports = sorted(g.glob('/dev/ttyACM*'))
+    if not ports:
+        return None
+
+    for port in ports:
+        try:
+            ser = serial.Serial(port, FLIPPER_BAUD, timeout=2)
+            time.sleep(0.5)
+
+            # Flush any pending data
+            ser.reset_input_buffer()
+            ser.reset_output_buffer()
+
+            # Check if it's spitting out NMEA (GPS device)
+            initial = ser.read(ser.in_waiting or 1).decode('ascii', errors='ignore')
+            if '$G' in initial:
+                ser.close()
+                continue  # That's GPS, not Flipper
+
+            # Try Flipper CLI command
+            ser.write(b'storage list /ext\r\n')
+            time.sleep(1.5)
+
+            response = b''
+            while ser.in_waiting:
+                response += ser.read(ser.in_waiting)
+                time.sleep(0.1)
+
+            text = response.decode('utf-8', errors='ignore')
+            ser.close()
+
+            if 'apps_data' in text or '[D]' in text or '[F]' in text:
+                return port
+
+            # If we got NMEA back, it's GPS
+            if '$G' in text:
+                continue
+
+        except Exception:
+            try:
+                ser.close()
+            except Exception:
+                pass
+            continue
+
+    return None
 
 def send_command(ser, cmd, wait_time=1.5):
     """Send command to Flipper and read response"""
@@ -93,16 +149,18 @@ def main():
     print("🔄 FLIPPER WARDRIVE SYNC")
     print("=" * 60)
     
-    # Check if Flipper is connected
-    if not os.path.exists(FLIPPER_PORT):
-        print(f"\n❌ Error: Flipper not found at {FLIPPER_PORT}")
+    # Find Flipper port (smart detection — skips GPS devices)
+    print("\n🔍 Scanning for Flipper Zero...")
+    flipper_port = find_flipper_port()
+    if not flipper_port:
+        print("❌ Error: Flipper not found on any /dev/ttyACM* port")
         print("   Make sure Br34ch3r is plugged in and not in USB mass storage mode")
         sys.exit(1)
-    
+
     # Open serial connection
-    print(f"\n🔌 Connecting to Flipper at {FLIPPER_PORT}...")
+    print(f"\n🔌 Connecting to Flipper at {flipper_port}...")
     try:
-        ser = serial.Serial(FLIPPER_PORT, FLIPPER_BAUD, timeout=2)
+        ser = serial.Serial(flipper_port, FLIPPER_BAUD, timeout=2)
         time.sleep(1.5)  # Wait for connection to stabilize
         print("✅ Connected")
     except Exception as e:

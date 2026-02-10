@@ -205,8 +205,16 @@ function toggleScan() {
 }
 
 async function startScan() {
+    var sessionName = prompt('Session name (leave blank for auto):', '');
+    if (sessionName === null) return; // cancelled
     try {
-        var r = await fetch('/api/wardrive/live/start', { method: 'POST' });
+        var body = {};
+        if (sessionName && sessionName.trim()) body.session_name = sessionName.trim();
+        var r = await fetch('/api/wardrive/live/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        });
         var d = await r.json();
         if (!d.success) { alert('Start failed: ' + d.error); return; }
         scanning = true;
