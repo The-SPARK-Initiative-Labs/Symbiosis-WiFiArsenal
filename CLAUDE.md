@@ -263,12 +263,50 @@ Tell the user:
 
 ---
 
-## Git
+## Git & GitHub Workflow
 
 **Repository:** `The-SPARK-Initiative-Labs/Symbiosis-WiFiArsenal` (private)
 ```bash
 git add . && git commit -m "message" && git push origin main
 ```
+
+### Session Start
+1. Check open GitHub Issues: `gh issue list`
+2. Bring them up with Ben — discuss what's there, what to work on, any new bugs or ideas
+3. Do NOT start working on issues automatically. Talk first.
+
+### During Work
+- **Commit messages in plain English.** Write them so Ben can read the git log on his phone and understand what changed. No jargon.
+  - Bad: `refactor SSE endpoint handler for wardrive live stream`
+  - Good: `Fixed live wardriving stream so it doesn't drop connection`
+- **Create GitHub Issues for anything found during work.** If you find a bug, spot something that needs follow-up, or think of an improvement — create an issue with `gh issue create` instead of just mentioning it in conversation. Conversations disappear. Issues don't.
+- **Label issues** with `bug`, `feature`, `improvement`, or `priority` so Ben can scan them quickly from the GitHub app.
+
+### Session End
+- Summarize everything that was done in plain English
+- Make sure all changes are committed and pushed
+- Confirm Ben can see it all from the GitHub app
+
+### Versioning
+WiFi Arsenal uses semantic versioning: **vMAJOR.MINOR.PATCH**
+- **MAJOR** = fundamental platform changes (new architecture, breaking changes)
+- **MINOR** = new features, new pages, significant capabilities (nav mode, phone dashboard, etc.)
+- **PATCH** = bug fixes, tweaks, calibration, wording changes
+
+Tag releases at milestones with `gh release create`:
+```bash
+gh release create v1.5.0 --title "v1.5.0 - Title" --notes "Description"
+```
+
+Current version: **v1.5.0** (as of 2026-02-08 — all 8 pages working, live wardriving, reports, tags, markers, field tested with 10K+ networks)
+
+Previous milestones (retroactive reference, not tagged):
+- v1.0.0 — Base platform: 8 UI pages, Flask backend, all attack scripts
+- v1.1.0 — Wardriving system with Flipper sync and map generation
+- v1.2.0 — Map filters (6 categories, property-based filtering)
+- v1.3.0 — Live wardriving (real-time scanning, GPS, SSE streaming)
+- v1.4.0 — Report generator (WeasyPrint PDF, gauge, redesign)
+- v1.5.0 — Tags, custom markers, RSSI calibration, sleep inhibit, DB race condition fix
 
 ---
 
@@ -286,4 +324,4 @@ Ben is building a WiFi security auditing business through S.P.A.R.K. Initiative 
 
 ---
 
-*Last updated: 2026-02-08 by Claude (Opus 4.6) via Claude Code CLI*
+*Last updated: 2026-02-09 by Claude (Opus 4.6) via Claude Code CLI*
