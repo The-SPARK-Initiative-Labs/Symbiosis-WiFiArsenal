@@ -315,7 +315,7 @@ Drop raw code output. Keep substance.
 
 ## Git & GitHub Workflow
 
-**Repository:** `The-SPARK-Initiative-Labs/Symbiosis-WiFiArsenal` (private)
+**Repository:** `The-SPARK-Initiative-Labs/Symbiosis-WiFiArsenal` (public, AGPL-3.0)
 ```bash
 git add . && git commit -m "message" && git push origin main
 ```
