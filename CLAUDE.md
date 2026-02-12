@@ -357,8 +357,9 @@ Drop raw code output. Keep substance.
 
 **Repository:** `The-SPARK-Initiative-Labs/Symbiosis-WiFiArsenal` (public, AGPL-3.0)
 ```bash
-git add . && git commit -m "message" && git push origin main
+git add CLAUDE.md server.py web/index.html && git commit -m "message" && git push origin main
 ```
+**Always stage specific files by name.** Never use `git add .` or `git add -A` — these can stage deletions or unwanted files and have wiped out work in the past.
 
 ### Session Start
 1. Check open GitHub Issues: `gh issue list`
