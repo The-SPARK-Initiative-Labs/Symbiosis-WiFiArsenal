@@ -264,7 +264,10 @@ Tell the user:
 3. If browser refresh needed: Ctrl+Shift+R
 4. Wait for confirmation
 
-### 5. No Custom Slash Commands
+### 5. NEVER git pull
+Local files are the source of truth. GitHub may have an older version. Running `git pull` has wiped out hours of work in the past by overwriting local files with stale remote versions. Always push, never pull. Also never `git reset --hard`, `git checkout .`, or `git restore .`.
+
+### 6. No Custom Slash Commands
 Custom slash commands were removed (Issue #8). Natural language is more flexible — just tell Claude what to do.
 Do not recreate `.claude/commands/` files.
 
