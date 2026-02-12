@@ -22,7 +22,7 @@ You must:
 
 ---
 
-## Current Status (as of 2026-02-08)
+## Current Status (as of 2026-02-11)
 
 ### DONE
 - **V1 Map Filters** (2026-02-05) - all 6 categories working. **DO NOT touch filter code.**
@@ -33,19 +33,22 @@ You must:
 - **DB Race Condition** (2026-02-08) - join(timeout=10) on db_writer_thread before final save
 - **Sleep Inhibit** (2026-02-08) - systemd-inhibit in start_with_browser.sh, lid close safe while Arsenal runs
 - **RSSI Calibration** (2026-02-08) - thresholds shifted for Alfa gain, floor filter at -85 dBm in scanner
+- **Nav Mode** (2026-02-08) - auto-center GPS, heading arrow, map rotation, drag-to-escape
+- **Fullscreen Live Map** (2026-02-08) - Browser Fullscreen API on liveMapClip wrapper
+- **Phone Dashboard** (2026-02-08) - mobile.html, hotspot config, scan/nav sync between phone and laptop
+- **Guest Report Language** (2026-02-08) - softer wording for open guest WiFi in reports
+- **Hibernate USB Fix** (2026-02-08) - xhci_hcd unbind/rebind on hibernate
+- **Vehicle Filter** (2026-02-10) - 138 regex patterns in `vehicle_filter.py`, prefix-anchored
+- **License + Tags** (2026-02-11) - AGPL-3.0 license file, v1.2.0 and v1.5.0 git tags (Issue #3)
+- **Claude Code Setup** (2026-02-11) - 10 plugins, MCP server, hooks, settings (Issue #5 Parts 1-5)
 
 ### Current Priorities
-See `~/.claude/projects/-home-ov3rr1d3/memory/next-todo-details.md` for detailed descriptions:
-1. **Nav mode** - auto-center GPS + heading rotation on live map
-2. **Phone dashboard** - laptop hotspot to view Arsenal from phone
-3. **Guest network report language** - softer wording for open guest WiFi
-4. **Operator → Claude Max** - research OpenClaw, use Max sub instead of API key
-5. **Project cleanup** - remove junk files, organize. BE CAREFUL
-6. **Full Arsenal audit** - test every page, every function
-7. **Glass SSH docs** - document SSH access in project directory
-8. **Audit workflow** - build out Internal Network page for on-site assessments
-
-Also see `~/.claude/projects/-home-ov3rr1d3/memory/improvement-ideas.md` for full feature/bug analysis from previous agent audits.
+See `roadmap.md` for the full development roadmap.
+Location: `~/.claude/projects/-home-ov3rr1d3-wifi-arsenal/memory/roadmap.md`
+- **v1.6.0 — Field Ready** — full Arsenal audit (all 8 pages), fix all bugs, map performance, auto-tag by SSID
+- **v1.7.0 — Business Intelligence** — vulnerability density map, client evidence export, historical comparison
+- **v2.0.0 — Full Audit Platform** — Internal Network page, 5-phase post-exploitation (Issue #7)
+- **Issue #9** — Switch Operator from API key to Claude Max (embed Claude Code in Page 8 via xterm.js)
 
 ### V2 Is Abandoned
 `wardrive_system_v2/` was a ground-up rebuild that reached 60%. We're NOT using it. V2 files are reference only.
@@ -261,6 +264,10 @@ Tell the user:
 3. If browser refresh needed: Ctrl+Shift+R
 4. Wait for confirmation
 
+### 5. No Custom Slash Commands
+Custom slash commands were removed (Issue #8). Natural language is more flexible — just tell Claude what to do.
+Do not recreate `.claude/commands/` files.
+
 ---
 
 ## Compaction Rules
@@ -309,7 +316,37 @@ Drop raw code output. Keep substance.
 - Substring collisions, off-by-one errors, wrong field indices
 - Anything stupid
 
-**Do NOT use plain subagents (Task without team_name) for review work.** Subagents can't talk to each other. Use real teams.
+**Do NOT use plain subagents (Task without team_name) for non-trivial work.** Subagents can't talk to each other. Use real teams.
+
+---
+
+## Claude Code Tooling
+
+### Plugins (10 installed)
+- **github** — direct GitHub integration (issues, PRs, releases)
+- **pyright-lsp** — Python type checking and error detection (requires `pyright` via pip)
+- **typescript-lsp** — JavaScript error detection (requires `typescript-language-server` via npm)
+- **frontend-design** — activates during UI/CSS work for better design decisions
+- **security-guidance** — auto-warns about injection, XSS, SQLi in code edits
+- **claude-md-management** — `/revise-claude-md` and `/claude-md-improver` for CLAUDE.md maintenance
+- **hookify** — create hooks from plain English (e.g. `/hookify Don't modify vehicle_filter.py`)
+- **commit-commands** — `/commit`, `/commit-push-pr`, `/clean_gone`
+- **feature-dev** — `/feature-dev` for guided feature building with agent teams
+- **code-review** — `/code-review` for multi-agent code review
+
+### MCP Server
+- **GitHub MCP** via stdio transport + Personal Access Token
+- Config in `~/.claude.json`
+
+### Hooks (in `~/.claude/settings.json`)
+- **PreCompact** (manual + auto) — `~/.claude/hooks/pre-compact.sh`
+  - Enforces compaction rules (what to preserve vs drop)
+  - Forces frustration detection before compacting
+- **SessionStart** (startup + resume + compact) — `~/.claude/hooks/session-start.sh`
+  - Loads open GitHub issues as context
+  - Shows git status and dead branches
+  - Warns if started from wrong directory
+  - Reminds about critical rules
 
 ---
 
@@ -348,7 +385,7 @@ Tag releases at milestones with `gh release create`:
 gh release create v1.5.0 --title "v1.5.0 - Title" --notes "Description"
 ```
 
-Current version: **v1.5.0** (as of 2026-02-08 — all 8 pages working, live wardriving, reports, tags, markers, field tested with 10K+ networks)
+Current version: **v1.5.0** (all 8 pages working, live wardriving, reports, tags, markers, vehicle filter, nav mode, phone dashboard, field tested with 10K+ networks)
 
 Previous milestones (retroactive reference, not tagged):
 - v1.0.0 — Base platform: 8 UI pages, Flask backend, all attack scripts
@@ -374,4 +411,4 @@ Ben is building a WiFi security auditing business through S.P.A.R.K. Initiative 
 
 ---
 
-*Last updated: 2026-02-09 by Claude (Opus 4.6) via Claude Code CLI*
+*Last updated: 2026-02-11 by Claude (Opus 4.6) via Claude Code CLI*
