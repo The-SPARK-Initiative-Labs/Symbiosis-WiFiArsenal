@@ -117,18 +117,18 @@ WiFi Arsenal is a comprehensive WiFi penetration testing platform on Kali Linux.
 
 ## The 8 UI Pages
 
-| # | Page | Purpose | Key Functions |
-|---|------|---------|---------------|
-| 1 | **Network Ops** | Scanner, target selection, attacks | `scanNetworks()`, `selectTarget()`, `capturePMKID()`, `captureHandshake()` |
-| 2 | **Evil Portal** | Fake AP + credential capture (21 templates) | `startPortal()`, `stopPortal()`, `refreshCredentials()` |
-| 3 | **MITM** | Man-in-the-middle DNS monitoring | `refreshMitm()`, `clearDnsLog()`, `exportMitm()` |
-| 4 | **Internal Network** | Post-exploitation (nmap, responder, SMB) | `startDiscovery()`, `startResponder()`, `psexecShell()` |
-| 5 | **Captures** | View/manage handshakes, convert formats | `loadCaptures()`, `convertSelected()`, `importCapture()` |
-| 6 | **Cracking** | Local hashcat + send to Glass | `startCracking()`, `sendToGlass()`, `autoEscalateGlass()` |
-| 7 | **Wardriving** | Map iframe + sidebar (stats, sessions, reports) | `refreshWardriveMap()`, `filterMapBySession()`, `syncFlipper()` |
-| 8 | **Operator** | J4Rv15 AI assistant (Claude via MCP) | `sendToOperatorMain()`, `loadConversations()` |
+| # | Nav Button | Page ID | Purpose | Key Functions |
+|---|------------|---------|---------|---------------|
+| 1 | 📡 Network Ops | `network-ops` | Scanner, target selection, attacks | `scanNetworks()`, `selectTarget()`, `capturePMKID()`, `captureHandshake()` |
+| 2 | 🔓 Cracking | `cracking` | Local hashcat + send to Glass | `startCracking()`, `sendToGlass()`, `autoEscalateGlass()` |
+| 3 | 🗺️ Wardriving | `wardriving` | Map iframe + sidebar (stats, sessions, reports) | `refreshWardriveMap()`, `filterMapBySession()`, `syncFlipper()` |
+| 4 | 👹 Evil Portal | `evil-portal` | Fake AP + credential capture (21 templates) | `startPortal()`, `stopPortal()`, `refreshCredentials()` |
+| 5 | 🕵️ MITM | `mitm` | Man-in-the-middle DNS monitoring | `refreshMitm()`, `clearDnsLog()`, `exportMitm()` |
+| 6 | 💀 Internal | `internal` | Post-exploitation (nmap, responder, SMB) | `startDiscovery()`, `startResponder()`, `psexecShell()` |
+| 7 | 📊 Dashboard | `dashboard` | System overview and quick stats | (coming soon) |
+| 8 | 🤖 Operator | `operator` | J4Rv15 AI assistant (Claude via MCP) | `sendToOperatorMain()`, `loadConversations()` |
 
-**Navigation:** `showPage(pageName)` toggles page divs. Dashboard is the landing page.
+**Navigation:** `showPage(pageName)` toggles page divs. Dashboard is the landing page. Order above matches the actual nav bar in `index.html` (lines 415-422).
 
 ---
 
