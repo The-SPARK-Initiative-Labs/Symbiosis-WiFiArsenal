@@ -1225,6 +1225,14 @@
                                 <button onclick="clearDiscovery()" class="button" style="padding: 5px 10px; font-size: 11px;" title="Clear results">🗑️</button>
                             </div>
                         </div>
+                        <!-- Nmap Scan -->
+                        <div style="display: flex; gap: 5px; align-items: center; margin-bottom: 10px;">
+                            <input type="text" id="nmapSubnet" placeholder="192.168.1.0/24" value="192.168.1.0/24" style="flex: 1; padding: 5px; background: #001a00; border: 1px solid #003300; color: #0f0; font-family: monospace; font-size: 11px;" title="Subnet to scan with Nmap">
+                            <button id="nmapScanBtn" onclick="nmapScan()" class="button" style="padding: 5px 12px; font-size: 11px;" title="Run Nmap port scan on subnet (takes 1-5 minutes)">🔎 Nmap Scan</button>
+                            <button onclick="refreshIntel()" class="button" style="padding: 5px 10px; font-size: 11px;" title="Get actionable intelligence summary">🧠 Intel</button>
+                        </div>
+                        <!-- Intel Summary -->
+                        <div id="intelSummary" style="display: none; margin-bottom: 10px; padding: 8px; background: #0a0a0a; border: 1px solid #333; font-size: 11px;"></div>
                         <div id="discoveryResults" style="height: 200px; overflow-y: auto; background: #0a0a0a; border: 1px solid #222; padding: 10px; font-size: 12px;">
                             <div style="color: #666;">Start discovery to monitor network traffic for vulnerabilities...</div>
                         </div>
@@ -1304,7 +1312,8 @@
                             <label style="color: #f00; font-size: 11px; display: block; margin-bottom: 5px;">💥 Exploitation (no creds needed):</label>
                             <div style="display: flex; gap: 5px;">
                                 <button onclick="launchEternalBlue()" class="button" style="flex: 1; padding: 8px; font-size: 10px; background: linear-gradient(180deg, #440000, #220000); border-color: #660000;" title="MS17-010 EternalBlue - requires SMBv1">🔥 EternalBlue</button>
-                                <button onclick="startRelay()" class="button" style="flex: 1; padding: 8px; font-size: 10px;" title="Relay captured auth to target">🔄 NTLM Relay</button>
+                                <button onclick="startRelay()" class="button" style="flex: 1; padding: 8px; font-size: 10px;" title="Relay captured auth to target">🔄 Relay</button>
+                                <button onclick="stopRelay()" class="button danger" style="padding: 8px; font-size: 10px;" title="Stop NTLM relay attack">⏹️</button>
                             </div>
                         </div>
                         
@@ -3374,7 +3383,12 @@
         }
         
         // ============== INTERNAL ATTACK FUNCTIONS ==============
-        
+
+        function esc(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        }
+
         let discoveryInterval = null;
         let responderInterval = null;
         
@@ -3450,10 +3464,10 @@
                         results.vulnerabilities.forEach(v => {
                             const color = v.severity === 'critical' ? '#f00' : v.severity === 'high' ? '#ff0' : '#888';
                             html += '<div style="padding: 5px; margin-bottom: 5px; border-left: 3px solid ' + color + '; background: #111;">';
-                            html += '<span style="color: ' + color + ';">[' + v.type + ']</span> ';
-                            html += '<span style="color: #0f0;">' + v.target + '</span><br>';
-                            html += '<span style="color: #888; font-size: 10px;">' + v.details + '</span>';
-                            if (v.attack && v.attack !== 'info' && v.attack !== 'captured') {
+                            html += '<span style="color: ' + color + ';">[' + esc(v.type) + ']</span> ';
+                            html += '<span style="color: #0f0;">' + esc(v.target) + '</span><br>';
+                            html += '<span style="color: #888; font-size: 10px;">' + esc(v.details) + '</span>';
+                            if (v.attack && v.attack !== 'info' && v.attack !== 'captured' && /^[a-z]+$/.test(v.attack) && /^[0-9a-fA-F.:]+$/.test(v.target)) {
                                 html += ' <button onclick="autoAttack(\'' + v.attack + '\', \'' + v.target + '\')" style="padding: 2px 6px; font-size: 9px; background: #440000; border: 1px solid #660000; color: #f00; cursor: pointer;">Attack</button>';
                             }
                             html += '</div>';
@@ -3471,7 +3485,7 @@
                         html += '<div style="color: #ff0; margin: 10px 0 5px 0;">🔑 CLEARTEXT CREDENTIALS</div>';
                         results.cleartext.forEach(c => {
                             html += '<div style="padding: 3px; color: #ff0; font-family: monospace;">';
-                            html += c.type + ': ' + (c.credentials || c.data);
+                            html += esc(c.type) + ': ' + esc(c.credentials || c.data);
                             html += '</div>';
                         });
                     }
@@ -3549,12 +3563,12 @@
                             const statusColor = h.cracked_password ? '#0f0' : '#ff0';
                             html += '<div style="padding: 5px; margin-bottom: 5px; border: 1px solid #333; background: #111;">';
                             html += '<div style="display: flex; justify-content: space-between;">';
-                            html += '<span style="color: #0f0;">' + (h.domain || '') + '\\' + h.user + '</span>';
+                            html += '<span style="color: #0f0;">' + esc(h.domain || '') + '\\' + esc(h.user) + '</span>';
                             html += '<span style="color: ' + statusColor + '; font-size: 10px;">' + status + '</span>';
                             html += '</div>';
                             if (h.cracked_password) {
-                                html += '<div style="color: #ff0; font-family: monospace; font-size: 11px; margin-top: 3px;">Password: ' + h.cracked_password + '</div>';
-                                html += '<button onclick="useCredentials(\'' + h.user + '\', \'' + h.cracked_password + '\', \'' + (h.domain || 'WORKGROUP') + '\')" style="padding: 3px 8px; font-size: 9px; margin-top: 3px; background: #003300; border: 1px solid #006600; color: #0f0; cursor: pointer;">Use These</button>';
+                                html += '<div style="color: #ff0; font-family: monospace; font-size: 11px; margin-top: 3px;">Password: ' + esc(h.cracked_password) + '</div>';
+                                html += '<button data-user="' + esc(h.user) + '" data-pass="' + esc(h.cracked_password) + '" data-domain="' + esc(h.domain || 'WORKGROUP') + '" onclick="useCredentials(this.dataset.user, this.dataset.pass, this.dataset.domain)" style="padding: 3px 8px; font-size: 9px; margin-top: 3px; background: #003300; border: 1px solid #006600; color: #0f0; cursor: pointer;">Use These</button>';
                             } else {
                                 html += '<button onclick="sendHashToGlass(' + i + ')" style="padding: 3px 8px; font-size: 9px; margin-top: 3px; background: #330033; border: 1px solid #660066; color: #f0f; cursor: pointer;">Send to Glass</button>';
                             }
@@ -3599,7 +3613,11 @@
                     const sendData = await sendRes.json();
                     
                     if (sendData.success) {
-                        appendInternalOutput('[+] Hash sent to Glass for cracking');
+                        if (sendData.glass_uploaded) {
+                            appendInternalOutput('[+] Hash uploaded to Glass for cracking');
+                        } else {
+                            appendInternalOutput('[!] ' + sendData.message);
+                        }
                     } else {
                         appendInternalOutput('[-] Failed to send hash: ' + sendData.error);
                     }
@@ -3824,13 +3842,13 @@
                     let html = '';
                     for (const [target, files] of Object.entries(data.evidence)) {
                         html += '<div style="margin-bottom: 10px;">';
-                        html += '<div style="color: #0f0; font-weight: bold;">📁 ' + target + '</div>';
+                        html += '<div style="color: #0f0; font-weight: bold;">📁 ' + esc(target) + '</div>';
                         files.forEach(f => {
-                            const icon = f.name.includes('screenshot') ? '📸' : 
-                                        f.name.includes('webcam') ? '📷' : 
+                            const icon = f.name.includes('screenshot') ? '📸' :
+                                        f.name.includes('webcam') ? '📷' :
                                         f.name.includes('secret') ? '🔐' : '📄';
                             html += '<div style="padding: 2px 0 2px 15px;">';
-                            html += icon + ' <a href="/api/internal/evidence/' + target + '/' + f.name + '" download style="color: #888;">' + f.name + '</a>';
+                            html += icon + ' <a href="/api/internal/evidence/' + encodeURIComponent(target) + '/' + encodeURIComponent(f.name) + '" download style="color: #888;">' + esc(f.name) + '</a>';
                             html += '</div>';
                         });
                         html += '</div>';
@@ -3851,9 +3869,184 @@
             window.location.href = '/api/internal/evidence/export';
         }
         
+        let nmapPollInterval = null;
+
+        async function nmapScan() {
+            const subnet = document.getElementById('nmapSubnet').value.trim();
+            if (!subnet) {
+                appendInternalOutput('[-] No subnet specified');
+                return;
+            }
+            if (!/^[0-9./]+$/.test(subnet)) {
+                appendInternalOutput('[-] Invalid subnet format');
+                return;
+            }
+
+            const btn = document.getElementById('nmapScanBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Scanning...';
+            appendInternalOutput('[*] Nmap scan started on ' + subnet + ' (this takes 1-5 minutes)...');
+
+            try {
+                const response = await fetch('/api/internal/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ subnet })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    // Poll for completion
+                    if (nmapPollInterval) clearInterval(nmapPollInterval);
+                    nmapPollInterval = setInterval(pollNmapStatus, 3000);
+                } else {
+                    appendInternalOutput('[-] ' + (data.error || 'Failed to start scan'));
+                    btn.disabled = false;
+                    btn.textContent = '🔎 Nmap Scan';
+                }
+            } catch (err) {
+                appendInternalOutput('[-] Error: ' + err.message);
+                btn.disabled = false;
+                btn.textContent = '🔎 Nmap Scan';
+            }
+        }
+
+        async function pollNmapStatus() {
+            try {
+                const statusRes = await fetch('/api/internal/scan/status');
+                const status = await statusRes.json();
+
+                if (status.running) {
+                    document.getElementById('nmapScanBtn').textContent = '⏳ ' + status.elapsed_seconds + 's...';
+                    return;
+                }
+
+                // Scan finished — stop polling
+                clearInterval(nmapPollInterval);
+                nmapPollInterval = null;
+                document.getElementById('nmapScanBtn').disabled = false;
+                document.getElementById('nmapScanBtn').textContent = '🔎 Nmap Scan';
+
+                if (status.error) {
+                    appendInternalOutput('[-] Scan error: ' + status.error);
+                    return;
+                }
+
+                // Fetch results
+                const resultsRes = await fetch('/api/internal/scan/results');
+                const data = await resultsRes.json();
+
+                if (data.success && data.results) {
+                    displayNmapResults(data.results);
+                } else {
+                    appendInternalOutput('[-] ' + (data.error || 'No results'));
+                }
+            } catch (err) {
+                console.error('Nmap poll error:', err);
+            }
+        }
+
+        function displayNmapResults(results) {
+            let html = '<div style="color: #0f0; margin-bottom: 8px; font-weight: bold;">🔎 Nmap Scan Results</div>';
+            html += '<table style="width: 100%; border-collapse: collapse; font-size: 11px;">';
+            html += '<tr style="color: #888; border-bottom: 1px solid #333;"><th style="text-align: left; padding: 4px;">IP</th><th style="text-align: left; padding: 4px;">Hostname</th><th style="text-align: left; padding: 4px;">Ports</th><th style="text-align: left; padding: 4px;">State</th></tr>';
+
+            const hosts = results.hosts || results.scan || {};
+            if (typeof hosts === 'object') {
+                for (const [ip, info] of Object.entries(hosts)) {
+                    const hostname = info.hostname || info.hostnames || '-';
+                    const ports = info.ports || info.open_ports || [];
+                    const portStr = Array.isArray(ports) ? ports.map(p => typeof p === 'object' ? (p.port + '/' + (p.service || '')) : p).join(', ') : String(ports);
+                    const state = info.state || 'up';
+                    html += '<tr style="border-bottom: 1px solid #222;">';
+                    html += '<td style="padding: 4px; color: #0f0; cursor: pointer;" onclick="document.getElementById(\'attackTarget\').value=\'' + esc(ip) + '\'" title="Click to set as attack target">' + esc(ip) + '</td>';
+                    html += '<td style="padding: 4px; color: #888;">' + esc(hostname) + '</td>';
+                    html += '<td style="padding: 4px; color: #ff0;">' + esc(portStr || 'none') + '</td>';
+                    html += '<td style="padding: 4px; color: ' + (state === 'up' ? '#0f0' : '#666') + ';">' + esc(state) + '</td>';
+                    html += '</tr>';
+                }
+            }
+            html += '</table>';
+
+            document.getElementById('discoveryResults').innerHTML = html;
+            appendInternalOutput('[+] Nmap scan complete — ' + Object.keys(hosts).length + ' host(s) found');
+        }
+
+        async function refreshIntel() {
+            appendInternalOutput('[*] Fetching intelligence summary...');
+            try {
+                const response = await fetch('/api/internal/intel');
+                const data = await response.json();
+
+                if (data.success) {
+                    const el = document.getElementById('intelSummary');
+                    el.style.display = 'block';
+
+                    let html = '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">';
+                    html += '<span style="color: #0f0; font-weight: bold;">🧠 Intelligence Summary</span>';
+                    html += '<span style="color: ' + (data.attack_ready ? '#0f0' : '#666') + '; font-size: 10px;">' + (data.attack_ready ? '🟢 ATTACK READY' : '⚪ Gathering...') + '</span>';
+                    html += '</div>';
+                    html += '<div style="color: #888; margin-bottom: 6px;">' + esc(data.summary) + '</div>';
+
+                    if (data.recommendations && data.recommendations.length > 0) {
+                        html += '<div style="color: #ff0; margin-bottom: 4px; font-size: 10px;">Recommendations:</div>';
+                        data.recommendations.forEach(r => {
+                            html += '<div style="color: #ccc; padding-left: 8px; font-size: 10px;">→ ' + esc(r) + '</div>';
+                        });
+                    }
+
+                    if (data.targets && data.targets.length > 0) {
+                        html += '<div style="color: #f00; margin-top: 6px; font-size: 10px;">Targets (' + data.targets.length + '):</div>';
+                        data.targets.forEach(t => {
+                            const sevColor = t.severity === 'critical' ? '#f00' : t.severity === 'high' ? '#ff0' : '#888';
+                            html += '<div style="padding: 2px 0 2px 8px; font-size: 10px;">';
+                            html += '<span style="color: ' + sevColor + ';">[' + esc(t.severity).toUpperCase() + ']</span> ';
+                            if (/^[0-9a-fA-F.:]+$/.test(t.ip)) {
+                                html += '<span style="color: #0f0; cursor: pointer;" onclick="document.getElementById(\'attackTarget\').value=\'' + t.ip + '\'">' + esc(t.ip) + '</span> — ';
+                            } else {
+                                html += '<span style="color: #0f0;">' + esc(t.ip) + '</span> — ';
+                            }
+                            html += '<span style="color: #888;">' + esc(t.description) + '</span>';
+                            html += '</div>';
+                        });
+                    }
+
+                    if (data.cracked_credentials && data.cracked_credentials.length > 0) {
+                        html += '<div style="color: #0f0; margin-top: 6px; font-size: 10px;">🔑 Cracked Credentials:</div>';
+                        data.cracked_credentials.forEach(c => {
+                            html += '<div style="padding-left: 8px; font-size: 10px;">';
+                            html += '<span style="color: #ff0; cursor: pointer;" data-user="' + esc(c.user) + '" data-pass="' + esc(c.password) + '" data-domain="' + esc(c.domain || 'WORKGROUP') + '" onclick="useCredentials(this.dataset.user, this.dataset.pass, this.dataset.domain)">';
+                            html += esc(c.domain || '') + '\\' + esc(c.user) + ' → ' + esc(c.password) + ' (click to use)</span>';
+                            html += '</div>';
+                        });
+                    }
+
+                    el.innerHTML = html;
+                    appendInternalOutput('[+] Intel loaded — ' + (data.attack_ready ? 'ATTACK READY' : 'still gathering'));
+                }
+            } catch (err) {
+                appendInternalOutput('[-] Error: ' + err.message);
+            }
+        }
+
+        async function stopRelay() {
+            appendInternalOutput('[*] Stopping NTLM relay...');
+            try {
+                const response = await fetch('/api/internal/exploit/relay/stop', { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    appendInternalOutput('[+] NTLM relay stopped');
+                } else {
+                    appendInternalOutput('[-] ' + (data.error || 'Failed to stop relay'));
+                }
+            } catch (err) {
+                appendInternalOutput('[-] Error: ' + err.message);
+            }
+        }
+
         function autoAttack(attackType, target) {
             document.getElementById('attackTarget').value = target;
-            
+
             if (attackType === 'responder') {
                 appendInternalOutput('[*] Target is vulnerable to Responder poisoning');
                 appendInternalOutput('[*] Start Responder to capture hashes');
@@ -3862,7 +4055,7 @@
                 appendInternalOutput('[*] Use EternalBlue button to attempt exploit');
             }
         }
-        
+
         function appendInternalOutput(text) {
             const output = document.getElementById('internalOutput');
             const timestamp = new Date().toLocaleTimeString();
