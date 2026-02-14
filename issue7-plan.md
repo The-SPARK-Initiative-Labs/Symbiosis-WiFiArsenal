@@ -39,9 +39,9 @@ The Internal Network page (Page 6 in the UI, `showPage('internal')`) needs to be
 
 This is a multi-session build. Each step is a working increment.
 
-### STEP 0: Quick Fixes (1 session, do first)
+### STEP 0: Quick Fixes — DONE (2026-02-14)
 
-Small fixes that close gaps in what already exists. No new features — just finishing what's started.
+All 6 fixes implemented, reviewed by security + frontend agents, committed and pushed.
 
 **Files to modify:** `server.py`, `web/index.html`
 
@@ -78,6 +78,8 @@ Enhance Phase 1 from Issue #7. Build on existing passive discovery + nmap scan.
 
 **Files to modify:** `server.py`, `web/index.html`, `scripts/internal/nmap_scan.sh`
 **Files to create:** `scripts/internal/enum_smb.sh`, `scripts/internal/enum_snmp.sh`, `scripts/internal/banner_grab.sh`
+
+0. **Adapter Mode Control on Internal Network Page** — The Network Ops page (Page 1) has mode switching for alfa0/alfa1 (monitor/managed). The Internal Network page needs this too so you don't have to leave the page to set up your connection. Add a compact adapter status + mode toggle to the top of the page (or the top bar in the 5-panel layout). Look at the Network Ops page for the existing pattern — same endpoints, just a simpler UI since internal pentesting mostly needs managed mode on one adapter. The discovery interface dropdown (alfa0/eth0/wlan0 etc.) should reflect which adapter is actually connected to the target network.
 
 1. **Enhanced Nmap Scan** — Upgrade nmap_scan.sh from quick top-20 scan to full service + OS detection
    - Add `-sV` (version detection) and `-O` (OS fingerprinting) flags
