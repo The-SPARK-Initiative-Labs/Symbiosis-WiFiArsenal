@@ -41,13 +41,14 @@ You must:
 - **Vehicle Filter** (2026-02-10) - 138 regex patterns in `vehicle_filter.py`, prefix-anchored
 - **License + Tags** (2026-02-11) - AGPL-3.0 license file, v1.2.0 and v1.5.0 git tags (Issue #3)
 - **Claude Code Setup** (2026-02-11) - 10 plugins, MCP server, hooks, settings (Issue #5 Parts 1-5)
+- **Issue #7 Step 0** (2026-02-14) - security fixes, nmap button, relay stop, intel panel, Glass upload
 
 ### Current Priorities
 See `roadmap.md` for the full development roadmap.
 Location: `~/.claude/projects/-home-ov3rr1d3-wifi-arsenal/memory/roadmap.md`
+- **Issue #7 — Internal Network page** — Step 0 DONE (security + UI gaps), Step 1 next (5-panel layout redesign)
 - **v1.6.0 — Field Ready** — full Arsenal audit (all 8 pages), fix all bugs, map performance, auto-tag by SSID
 - **v1.7.0 — Business Intelligence** — vulnerability density map, client evidence export, historical comparison
-- **v2.0.0 — Full Audit Platform** — Internal Network page, 5-phase post-exploitation (Issue #7)
 - **Issue #9** — Switch Operator from API key to Claude Max (embed Claude Code in Page 8 via xterm.js)
 
 ### V2 Is Abandoned
@@ -209,6 +210,17 @@ WiFi Arsenal is a comprehensive WiFi penetration testing platform on Kali Linux.
 - HIGH: WPA (no 2/3), hidden SSIDs with weak auth
 - MEDIUM: WPA2
 - LOW: WPA3
+
+---
+
+## Internal Network Security Patterns
+
+- **Path traversal:** `os.path.realpath(path).startswith(base + os.sep)` — the `+ os.sep` prevents prefix collision (`/captures` vs `/captures_evil`)
+- **IP validation:** `re.match(r'^[0-9.]+$', ip)` on all endpoints accepting target IPs
+- **Interface allowlist:** `VALID_INTERFACES = {'alfa0', 'alfa1', 'eth0', 'wlan0', 'wlan1'}` on all endpoints accepting interface names
+- **Port validation:** `int(lport)` + `if not (1 <= lport <= 65535)`
+- **Do NOT use `shlex.quote()` with list-form subprocess** — it adds literal quote characters that corrupt values. List-form is already safe from injection.
+- **Full plan:** `issue7-plan.md` in repo root — re-read each step
 
 ---
 
