@@ -1225,6 +1225,17 @@
                                 <button onclick="clearDiscovery()" class="button" style="padding: 5px 10px; font-size: 11px;" title="Clear results">🗑️</button>
                             </div>
                         </div>
+                        <div style="display: flex; gap: 5px; align-items: center; margin-bottom: 8px;">
+                            <input type="text" id="nmapSubnet" placeholder="192.168.1.0/24" value="192.168.1.0/24" style="width: 160px; padding: 5px; background: #001a00; border: 1px solid #003300; color: #0f0; font-family: monospace; font-size: 11px;" title="Subnet to scan with nmap">
+                            <button id="nmapScanBtn" onclick="nmapScan()" class="button" style="padding: 5px 10px; font-size: 11px;" title="Run nmap host discovery and port scan on subnet">🔎 Nmap Scan</button>
+                        </div>
+                        <div id="intelBar" style="display: none; margin-bottom: 8px; padding: 8px; background: #0a0a0a; border: 1px solid #333; border-radius: 4px; font-size: 11px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span id="intelSummary" style="color: #888;">Loading intel...</span>
+                                <span id="intelBadge" style="padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: bold;"></span>
+                            </div>
+                            <div id="intelRecommendations" style="color: #ff0; margin-top: 5px;"></div>
+                        </div>
                         <div id="discoveryResults" style="height: 200px; overflow-y: auto; background: #0a0a0a; border: 1px solid #222; padding: 10px; font-size: 12px;">
                             <div style="color: #666;">Start discovery to monitor network traffic for vulnerabilities...</div>
                         </div>
@@ -1305,6 +1316,7 @@
                             <div style="display: flex; gap: 5px;">
                                 <button onclick="launchEternalBlue()" class="button" style="flex: 1; padding: 8px; font-size: 10px; background: linear-gradient(180deg, #440000, #220000); border-color: #660000;" title="MS17-010 EternalBlue - requires SMBv1">🔥 EternalBlue</button>
                                 <button onclick="startRelay()" class="button" style="flex: 1; padding: 8px; font-size: 10px;" title="Relay captured auth to target">🔄 NTLM Relay</button>
+                                <button onclick="stopRelay()" class="button danger" style="flex: 1; padding: 8px; font-size: 10px;" title="Stop NTLM relay attack">⏹️ Stop Relay</button>
                             </div>
                         </div>
                         
@@ -1737,6 +1749,7 @@
                 refreshHashes();
                 refreshEvidence();
                 refreshDiscoveryResults();
+                refreshIntel();
             } else if (pageName === 'dashboard') {
                 stopMitmPolling();
                 refreshDashboard();
@@ -3434,7 +3447,106 @@
                 appendInternalOutput('[-] Error: ' + err.message);
             }
         }
-        
+
+        async function nmapScan() {
+            const subnet = document.getElementById('nmapSubnet').value.trim();
+            if (!subnet) {
+                appendInternalOutput('[-] No subnet specified');
+                return;
+            }
+            const btn = document.getElementById('nmapScanBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Scanning...';
+            appendInternalOutput('[*] Running nmap scan on ' + subnet + ' (may take up to 5 min)...');
+
+            try {
+                const response = await fetch('/api/internal/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ subnet })
+                });
+                const data = await response.json();
+
+                if (data.success && data.results) {
+                    displayNmapResults(data.results);
+                    appendInternalOutput('[+] Nmap scan complete — ' + (data.results.hosts || []).length + ' host(s) found');
+                } else {
+                    appendInternalOutput('[-] Nmap scan failed: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                appendInternalOutput('[-] Nmap error: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔎 Nmap Scan';
+            }
+        }
+
+        function displayNmapResults(results) {
+            const hosts = results.hosts || [];
+            if (hosts.length === 0) {
+                document.getElementById('discoveryResults').innerHTML = '<div style="color: #666;">No hosts found in scan.</div>';
+                return;
+            }
+            const esc = function(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+            let html = '<div style="color: #0f0; margin-bottom: 8px; font-weight: bold;">🔎 Nmap Results — ' + hosts.length + ' host(s)</div>';
+            html += '<table style="width: 100%; border-collapse: collapse; font-size: 11px;">';
+            html += '<tr style="color: #0f0; border-bottom: 1px solid #333;"><th style="text-align: left; padding: 3px;">IP</th><th style="text-align: left; padding: 3px;">Hostname</th><th style="text-align: left; padding: 3px;">OS</th><th style="text-align: left; padding: 3px;">Ports</th><th style="text-align: left; padding: 3px;">Status</th></tr>';
+            hosts.forEach(function(h) {
+                const ip = esc(h.ip);
+                const hostname = esc(h.hostname || '-');
+                const os = esc(h.os || '-');
+                const status = esc(h.status || 'up');
+                let ports = '-';
+                if (h.ports && h.ports.length > 0) {
+                    ports = h.ports.map(function(p) { return '<span style="color: #ff0;">' + esc(p.port) + '</span>/' + esc(p.service); }).join(', ');
+                }
+                html += '<tr style="border-bottom: 1px solid #1a1a1a;"><td style="padding: 3px; color: #0f0;">' + ip + '</td><td style="padding: 3px; color: #888;">' + hostname + '</td><td style="padding: 3px; color: #888;">' + os + '</td><td style="padding: 3px;">' + ports + '</td><td style="padding: 3px; color: ' + (status === 'up' ? '#0f0' : '#f00') + ';">' + status + '</td></tr>';
+            });
+            html += '</table>';
+            document.getElementById('discoveryResults').innerHTML = html;
+        }
+
+        async function refreshIntel() {
+            try {
+                const response = await fetch('/api/internal/intel');
+                const data = await response.json();
+                if (!data.success) return;
+
+                const bar = document.getElementById('intelBar');
+                const summary = document.getElementById('intelSummary');
+                const badge = document.getElementById('intelBadge');
+                const recs = document.getElementById('intelRecommendations');
+
+                const esc = function(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+
+                summary.textContent = data.summary || 'No intel available';
+
+                if (data.attack_ready) {
+                    badge.textContent = 'ATTACK READY';
+                    badge.style.background = '#440000';
+                    badge.style.color = '#f00';
+                } else if (data.host_count > 0) {
+                    badge.textContent = data.host_count + ' hosts';
+                    badge.style.background = '#003300';
+                    badge.style.color = '#0f0';
+                } else {
+                    badge.textContent = 'NO DATA';
+                    badge.style.background = '#222';
+                    badge.style.color = '#666';
+                }
+
+                if (data.recommendations && data.recommendations.length > 0) {
+                    recs.innerHTML = data.recommendations.map(function(r) { return '→ ' + esc(r); }).join('<br>');
+                } else {
+                    recs.innerHTML = '';
+                }
+
+                bar.style.display = 'block';
+            } catch (err) {
+                console.error('Intel refresh error:', err);
+            }
+        }
+
         async function refreshDiscoveryResults() {
             try {
                 const response = await fetch('/api/internal/discover/results');
@@ -3482,11 +3594,12 @@
                     
                     document.getElementById('discoveryResults').innerHTML = html;
                 }
+                refreshIntel();
             } catch (err) {
                 console.error('Discovery refresh error:', err);
             }
         }
-        
+
         async function startResponder() {
             const iface = document.getElementById('discoverInterface').value;
             appendInternalOutput('[*] Starting Responder on ' + iface + '...');
@@ -3776,7 +3889,22 @@
                 appendInternalOutput('[-] Error: ' + err.message);
             }
         }
-        
+
+        async function stopRelay() {
+            appendInternalOutput('[*] Stopping NTLM relay...');
+            try {
+                const response = await fetch('/api/internal/exploit/relay/stop', { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    appendInternalOutput('[+] NTLM relay stopped');
+                } else {
+                    appendInternalOutput('[-] ' + (data.error || 'Failed to stop relay'));
+                }
+            } catch (err) {
+                appendInternalOutput('[-] Error: ' + err.message);
+            }
+        }
+
         async function startListener() {
             const lhost = document.getElementById('lhostInput').value || '0.0.0.0';
             const lport = document.getElementById('lportInput').value || '4444';

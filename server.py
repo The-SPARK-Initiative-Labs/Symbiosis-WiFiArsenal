@@ -2042,6 +2042,9 @@ def glass_upload():
     
     # Find the file
     filepath = os.path.join(CAPTURE_DIR, filename)
+    # Path traversal protection
+    if not os.path.realpath(filepath).startswith(os.path.realpath(CAPTURE_DIR) + os.sep):
+        return jsonify({'success': False, 'output': 'Invalid filename'}), 403
     if not os.path.exists(filepath):
         return jsonify({'success': False, 'output': f'File not found: {filename}'})
     
@@ -6029,7 +6032,11 @@ def internal_discover_start():
     """Start passive network discovery"""
     data = request.json or {}
     interface = data.get('interface', 'alfa0')
-    
+
+    VALID_INTERFACES = {'alfa0', 'alfa1', 'eth0', 'wlan0', 'wlan1'}
+    if interface not in VALID_INTERFACES:
+        return jsonify({'success': False, 'error': f'Invalid interface: {interface}'}), 400
+
     script = os.path.join(SCRIPT_DIR, 'internal', 'start_discover.sh')
     try:
         result = subprocess.run(['bash', script, interface], 
@@ -6128,7 +6135,6 @@ def internal_scan():
     subnet = data.get('subnet', '192.168.1.0/24')
     
     # Sanitize input
-    import re
     if not re.match(r'^[0-9./]+$', subnet):
         return jsonify({'success': False, 'error': 'Invalid subnet format'})
     
@@ -6305,7 +6311,11 @@ def internal_responder_start():
     """Start Responder for hash capture"""
     data = request.json or {}
     interface = data.get('interface', 'alfa0')
-    
+
+    VALID_INTERFACES = {'alfa0', 'alfa1', 'eth0', 'wlan0', 'wlan1'}
+    if interface not in VALID_INTERFACES:
+        return jsonify({'success': False, 'error': f'Invalid interface: {interface}'}), 400
+
     script = os.path.join(SCRIPT_DIR, 'internal', 'start_responder.sh')
     try:
         result = subprocess.run(['bash', script, interface], 
@@ -6404,13 +6414,24 @@ def internal_send_hash_to_glass():
     try:
         with open(hash_file, 'w') as f:
             f.write(hash_string)
-        
-        # TODO: Trigger Glass cracking via SSH or API
-        # For now just save the file
-        
+
+        # Upload to Glass for cracking
+        glass_msg = ''
+        try:
+            with open(hash_file, 'rb') as f:
+                file_data = f.read()
+            files = {'file': (os.path.basename(hash_file), file_data, 'application/octet-stream')}
+            response = try_glass_request('post', '/upload', files=files)
+            if response.status_code == 200:
+                glass_msg = 'Hash uploaded to Glass for cracking'
+            else:
+                glass_msg = f'Hash saved locally (Glass upload failed: {response.status_code})'
+        except Exception:
+            glass_msg = 'Hash saved locally (Glass unreachable)'
+
         return jsonify({
             'success': True,
-            'message': f'Hash saved to {hash_file}',
+            'message': glass_msg,
             'file': hash_file
         })
     except Exception as e:
@@ -6428,10 +6449,13 @@ def internal_psexec():
     user = data.get('user')
     password = data.get('password')
     domain = data.get('domain', 'WORKGROUP')
-    
+
     if not all([target, user, password]):
         return jsonify({'success': False, 'error': 'Missing target, user, or password'})
-    
+
+    if not re.match(r'^[0-9.]+$', target):
+        return jsonify({'success': False, 'error': 'Invalid target IP'}), 400
+
     script = os.path.join(SCRIPT_DIR, 'internal', 'psexec_shell.sh')
     try:
         # Run in background, return immediately
@@ -6453,10 +6477,13 @@ def internal_wmiexec():
     user = data.get('user')
     password = data.get('password')
     domain = data.get('domain', 'WORKGROUP')
-    
+
     if not all([target, user, password]):
         return jsonify({'success': False, 'error': 'Missing target, user, or password'})
-    
+
+    if not re.match(r'^[0-9.]+$', target):
+        return jsonify({'success': False, 'error': 'Invalid target IP'}), 400
+
     script = os.path.join(SCRIPT_DIR, 'internal', 'wmiexec_shell.sh')
     try:
         subprocess.Popen(['bash', script, target, user, password, domain],
@@ -6477,10 +6504,13 @@ def internal_secretsdump():
     user = data.get('user')
     password = data.get('password')
     domain = data.get('domain', 'WORKGROUP')
-    
+
     if not all([target, user, password]):
         return jsonify({'success': False, 'error': 'Missing target, user, or password'})
-    
+
+    if not re.match(r'^[0-9.]+$', target):
+        return jsonify({'success': False, 'error': 'Invalid target IP'}), 400
+
     script = os.path.join(SCRIPT_DIR, 'internal', 'secretsdump.sh')
     try:
         result = subprocess.run(['bash', script, target, user, password, domain],
@@ -6502,10 +6532,21 @@ def internal_eternalblue():
     target = data.get('target')
     lhost = data.get('lhost', '10.0.0.1')
     lport = data.get('lport', '4444')
-    
+
     if not target:
         return jsonify({'success': False, 'error': 'Missing target'})
-    
+
+    if not re.match(r'^[0-9.]+$', target):
+        return jsonify({'success': False, 'error': 'Invalid target IP'}), 400
+    if not re.match(r'^[0-9.]+$', lhost):
+        return jsonify({'success': False, 'error': 'Invalid lhost IP'}), 400
+    try:
+        lport = int(lport)
+        if not (1 <= lport <= 65535):
+            raise ValueError
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'Invalid port number'}), 400
+
     script = os.path.join(SCRIPT_DIR, 'internal', 'start_eternalblue.sh')
     try:
         subprocess.Popen(['bash', script, target, lhost, str(lport)],
@@ -6524,10 +6565,16 @@ def internal_relay_start():
     data = request.json or {}
     target = data.get('target')
     interface = data.get('interface', 'alfa0')
-    
+
     if not target:
         return jsonify({'success': False, 'error': 'Missing relay target'})
-    
+
+    if not re.match(r'^[0-9.]+$', target):
+        return jsonify({'success': False, 'error': 'Invalid target IP'}), 400
+    VALID_INTERFACES = {'alfa0', 'alfa1', 'eth0', 'wlan0', 'wlan1'}
+    if interface not in VALID_INTERFACES:
+        return jsonify({'success': False, 'error': f'Invalid interface: {interface}'}), 400
+
     script = os.path.join(SCRIPT_DIR, 'internal', 'ntlmrelay.sh')
     try:
         result = subprocess.run(['bash', script, target, interface],
@@ -6565,7 +6612,16 @@ def internal_listener_start():
     lhost = data.get('lhost', '0.0.0.0')
     lport = data.get('lport', '4444')
     payload = data.get('payload', 'windows/x64/meterpreter/reverse_tcp')
-    
+
+    if not re.match(r'^[0-9.]+$', lhost):
+        return jsonify({'success': False, 'error': 'Invalid lhost IP'}), 400
+    try:
+        lport = int(lport)
+        if not (1 <= lport <= 65535):
+            raise ValueError
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'Invalid port number'}), 400
+
     script = os.path.join(SCRIPT_DIR, 'internal', 'start_listener.sh')
     try:
         result = subprocess.run(['bash', script, lhost, str(lport), payload],
@@ -6602,10 +6658,13 @@ def internal_smb_list():
     user = data.get('user', '')
     password = data.get('password', '')
     domain = data.get('domain', 'WORKGROUP')
-    
+
     if not target:
         return jsonify({'success': False, 'error': 'Missing target'})
-    
+
+    if not re.match(r'^[0-9.]+$', target):
+        return jsonify({'success': False, 'error': 'Invalid target IP'}), 400
+
     script = os.path.join(SCRIPT_DIR, 'internal', 'smb_list.sh')
     try:
         result = subprocess.run(['bash', script, target, user, password, domain],
@@ -6628,10 +6687,13 @@ def internal_smb_download():
     user = data.get('user', '')
     password = data.get('password', '')
     domain = data.get('domain', 'WORKGROUP')
-    
+
     if not all([target, share, path]):
         return jsonify({'success': False, 'error': 'Missing target, share, or path'})
-    
+
+    if not re.match(r'^[0-9.]+$', target):
+        return jsonify({'success': False, 'error': 'Invalid target IP'}), 400
+
     script = os.path.join(SCRIPT_DIR, 'internal', 'smb_download.sh')
     try:
         result = subprocess.run(['bash', script, target, share, path, user, password, domain],
@@ -6678,7 +6740,11 @@ def internal_evidence_download(target, filename):
     """Download evidence file"""
     evidence_dir = os.path.join(CAPTURE_DIR, 'evidence', target)
     file_path = os.path.join(evidence_dir, filename)
-    
+    # Path traversal protection
+    safe_base = os.path.realpath(os.path.join(CAPTURE_DIR, 'evidence'))
+    if not os.path.realpath(file_path).startswith(safe_base + os.sep):
+        return jsonify({'success': False, 'error': 'Invalid path'}), 403
+
     if os.path.exists(file_path):
         return send_file(file_path, as_attachment=True)
     else:
@@ -6691,11 +6757,11 @@ def internal_evidence_export():
     import zipfile
     from io import BytesIO
     
-    evidence_dir = os.path.join(CAPTURE_DIR, 'evidence')
-    
+    evidence_dir = os.path.realpath(os.path.join(CAPTURE_DIR, 'evidence'))
+
     if not os.path.exists(evidence_dir):
         return jsonify({'success': False, 'error': 'No evidence collected'})
-    
+
     # Create ZIP in memory
     memory_file = BytesIO()
     with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
