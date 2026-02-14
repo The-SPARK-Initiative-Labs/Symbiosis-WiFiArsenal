@@ -35,6 +35,35 @@ The Internal Network page (Page 6 in the UI, `showPage('internal')`) needs to be
 
 ---
 
+## Test Lab Setup (needed before Step 2)
+
+Ben has a spare Windows laptop for this. Set up VMs before building credential harvesting and exploitation — can't test those features without targets.
+
+**Realistic target (what you'd find at a small business in 2026):**
+- Windows 10 or 11 VM, joined to a small Active Directory domain
+- LLMNR and NBT-NS left ON (Windows default — this is what Responder exploits)
+- A shared folder with some dummy files
+- A network printer or print server (can simulate with a VM)
+- A consumer router/AP with default admin creds (or simulate with a VM running a web panel)
+- A user account with a weak password (Welcome1, Summer2026, etc.)
+- SMB signing NOT required (Windows default for workstations)
+
+**Deliberately vulnerable target (for testing edge-case tools):**
+- Windows 7 or Server 2008 VM with SMBv1 enabled (EternalBlue testing)
+- A Linux VM with Telnet enabled and default creds
+- An old NAS image or IoT simulator with anonymous shares
+
+**What this enables testing for:**
+- Step 1: Discovery finds all the VMs, classifies them correctly
+- Step 2: Responder captures NTLMv2 hashes from LLMNR, default cred checks find the router
+- Step 3: Cracked password gets PsExec/WMIExec shells, secretsdump pulls more creds
+- Step 4: Screenshots, file access proof, printer access
+- Step 5: Full report generation with real evidence
+
+**Setup:** Ben handles the VM installation, Claude handles configuring Arsenal to work with it. The spare laptop just needs VirtualBox or Hyper-V with 2-3 VMs on an isolated network segment.
+
+---
+
 ## Build Order
 
 This is a multi-session build. Each step is a working increment.
