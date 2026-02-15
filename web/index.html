@@ -3884,7 +3884,7 @@
 
             var meta = [];
             if (hostData.hostname) meta.push(esc(hostData.hostname));
-            if (hostData.os) meta.push(esc(hostData.os));
+            if (hostData.os && hostData.os.indexOf(' or ') === -1) meta.push(esc(hostData.os));
             if (hostData.vendor) meta.push(esc(hostData.vendor));
             if (hostData.device_type && hostData.device_type !== 'unknown') {
                 meta.push('<span style="color:#4af;font-weight:bold;">' + esc(hostData.device_type).toUpperCase().replace(/_/g, ' ') + '</span>');
@@ -4142,6 +4142,8 @@
             }
         }
 
+        var _lastNmapHostCount = 0;
+
         async function pollNmapStatus() {
             try {
                 const response = await fetch('/api/internal/scan/status');
@@ -4151,9 +4153,24 @@
                     const mins = Math.floor(data.elapsed / 60);
                     const secs = String(data.elapsed % 60).padStart(2, '0');
                     document.getElementById('nmapScanBtn').textContent = '⏳ ' + mins + ':' + secs;
+
+                    // Fetch and display results while scanning (hosts appear as found)
+                    const resultsResp = await fetch('/api/internal/scan/results');
+                    const resultsData = await resultsResp.json();
+                    if (resultsData.success && resultsData.results) {
+                        var hostCount = (resultsData.results.hosts || []).length;
+                        if (hostCount !== _lastNmapHostCount) {
+                            displayNmapResults(resultsData.results);
+                            if (hostCount > _lastNmapHostCount && _lastNmapHostCount > 0) {
+                                appendInternalOutput('[+] New host discovered — ' + hostCount + ' total');
+                            }
+                            _lastNmapHostCount = hostCount;
+                        }
+                    }
                 } else {
                     clearInterval(nmapPollInterval);
                     nmapPollInterval = null;
+                    _lastNmapHostCount = 0;
                     document.getElementById('nmapScanBtn').disabled = false;
                     document.getElementById('nmapScanBtn').textContent = '🔎 Nmap Scan';
                     document.getElementById('nmapCancelBtn').style.display = 'none';
@@ -4163,10 +4180,10 @@
                     const resultsData = await resultsResp.json();
                     if (resultsData.success && resultsData.results) {
                         displayNmapResults(resultsData.results);
-                        appendInternalOutput('[+] Nmap scan complete — ' + (resultsData.results.hosts || []).length + ' host(s) found');
+                        appendInternalOutput('[*] Scan stopped — ' + (resultsData.results.hosts || []).length + ' host(s) found');
                         refreshIntel();
                     } else {
-                        appendInternalOutput('[-] Scan finished but no results available');
+                        appendInternalOutput('[-] Scan stopped but no results available');
                     }
                 }
             } catch (err) {
@@ -4234,11 +4251,11 @@
                 html += '<div class="host-item-info">';
                 html += '<div class="host-item-ip">' + ip + '</div>';
 
-                // Meta line — show hostname, OS, vendor
+                // Meta line — show hostname, OS (skip ambiguous "X or Y" guesses), vendor
                 var vendor = esc(h.vendor || '');
                 var meta = [];
                 if (hostname) meta.push(hostname);
-                if (os) meta.push(os);
+                if (os && os.indexOf(' or ') === -1) meta.push(os);
                 if (vendor && vendor !== 'Unknown') meta.push(vendor);
                 if (meta.length > 0) {
                     html += '<div class="host-item-meta">' + meta.join(' · ') + '</div>';

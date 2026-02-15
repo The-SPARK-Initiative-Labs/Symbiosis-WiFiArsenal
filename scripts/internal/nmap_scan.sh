@@ -1,5 +1,7 @@
 #!/bin/bash
 # Enhanced network scan — version detection, OS fingerprinting, SMB scripts
+# Two-phase: ping sweep to find alive hosts, then detailed scan
+# Handles AP/client isolation (common on business routers) by pinging each IP individually
 # Runs async — UI polls for completion
 
 TARGET="${1:-192.168.1.0/24}"
@@ -7,25 +9,64 @@ INTERFACE="${2:-}"
 OUTPUT_DIR="/home/ov3rr1d3/wifi_arsenal/captures"
 OUTPUT_FILE="$OUTPUT_DIR/nmap_results.json"
 XML_FILE="$OUTPUT_DIR/nmap_results.xml"
+PING_XML="$OUTPUT_DIR/nmap_ping.xml"
 
 IFACE_OPT=""
 if [ -n "$INTERFACE" ]; then
     IFACE_OPT="-e $INTERFACE"
 fi
 
-echo "[*] Enhanced scan: $TARGET"
+echo "[*] Phase 1: Host discovery on $TARGET"
 
-# Enhanced scan:
+# Phase 1: Ping sweep with multiple methods to beat AP isolation
+# -sn = no port scan, just host discovery
+# -PE = ICMP echo (ping)
+# -PP = ICMP timestamp
+# -PA80,443 = TCP ACK to common ports (gets through some firewalls)
+# --disable-arp-ping = skip ARP broadcast (broken by AP isolation)
+sudo nmap -sn -PE -PP -PA80,443 --disable-arp-ping \
+    $IFACE_OPT -oX "$PING_XML" "$TARGET" 2>/dev/null
+
+# Extract alive IPs from ping sweep
+ALIVE_IPS=$(python3 << 'PYEOF'
+import xml.etree.ElementTree as ET
+try:
+    tree = ET.parse("/home/ov3rr1d3/wifi_arsenal/captures/nmap_ping.xml")
+    root = tree.getroot()
+    ips = []
+    for host in root.findall('.//host'):
+        status = host.find('status')
+        if status is not None and status.get('state') == 'up':
+            for addr in host.findall('address'):
+                if addr.get('addrtype') == 'ipv4':
+                    ips.append(addr.get('addr', ''))
+    print(' '.join(ips))
+except:
+    print('')
+PYEOF
+)
+
+if [ -z "$ALIVE_IPS" ]; then
+    echo "[-] No hosts found in ping sweep"
+    # Write empty results
+    python3 -c "import json; json.dump({'hosts':[], 'scan_time':'', 'targets_scanned':'$TARGET'}, open('$OUTPUT_FILE','w'), indent=2)"
+    exit 0
+fi
+
+echo "[+] Found alive hosts: $ALIVE_IPS"
+echo "[*] Phase 2: Detailed scan on alive hosts"
+
+# Phase 2: Full scan on discovered hosts only
 # -sS = SYN scan (fast, stealthy)
-# -sV = Version detection (shows service versions)
+# -sV = Version detection
 # -O  = OS fingerprinting
-# --top-ports 100 = top 100 ports (catches SMB, RDP, telnet, SNMP, etc.)
+# --top-ports 100 = catches SMB, RDP, telnet, SNMP, etc.
 # -T4 = aggressive timing
 # --open = only show open ports
-# --script=smb-os-discovery,smb-security-mode = SMB enumeration
-sudo nmap -sS -sV -O --top-ports 100 -T4 --open \
+# -Pn = skip host discovery (already done in phase 1)
+sudo nmap -sS -sV -O --top-ports 100 -T4 --open -Pn \
     --script=smb-os-discovery,smb-security-mode \
-    $IFACE_OPT -oX "$XML_FILE" "$TARGET" 2>/dev/null
+    $IFACE_OPT -oX "$XML_FILE" $ALIVE_IPS 2>/dev/null
 
 # Convert XML to enhanced JSON
 TARGET_EXPORT="$TARGET" python3 << 'PYEOF'
@@ -136,6 +177,7 @@ try:
                 if m:
                     host_info["smb_info"]["auth_level"] = m.group(1)
 
+        # Include all hosts that are up (even with no open ports)
         if host_info["status"] == "up" and host_info["ip"]:
             results["hosts"].append(host_info)
 

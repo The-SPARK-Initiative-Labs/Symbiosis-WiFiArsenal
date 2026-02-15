@@ -46,6 +46,7 @@ You must:
 - **Issue #7 Step 0** (2026-02-14) - security fixes, nmap button, relay stop, intel panel, Glass upload
 - **Issue #7 Step 1 Part A** (2026-02-15) - async nmap, adapter bar, polling fix, status timer
 - **Issue #7 Step 1 Part B** (2026-02-15) - 5-panel pentest workstation layout, bug fixes, visual polish
+- **Issue #7 Step 1C** (2026-02-15) - auto-detect interfaces, device classification (classify_device with 6-tier cascade), interface auto-fill
 
 ### Current Priorities
 See `roadmap.md` for the full development roadmap.
@@ -243,6 +244,10 @@ WiFi Arsenal is a comprehensive WiFi penetration testing platform on Kali Linux.
 - **NEVER hardcode credentials** — not test passwords, not default cred lists inline. Discovered creds and default-check lists must come from config files or runtime input, never source code.
 - **Full plan:** `issue7-plan.md` in repo root — re-read each step
 
+### Nmap Gotchas
+- **Ambiguous OS fingerprints:** nmap often returns "Device A or Device B" (e.g., "Canon printer or Mercusys WAP"). The `" or "` pattern means nmap isn't sure. Don't trust these blindly — cross-reference with port product strings, which are definitive (nmap confirmed the service).
+- **classify_device() in server.py** uses a priority cascade: product strings > ports > OS fingerprint > hostname > SMB > MAC vendor > fallback. Product strings are most reliable; OS fingerprints are skipped if ambiguous.
+
 ### Test Lab (hackme network)
 - TP-Link router, SSID "hackme", subnet 192.168.0.0/24
 - Windows 11 target laptop on the network (Intel NIC, ports 135/139/445 open). IPs are DHCP — scan to find it, don't assume a specific address.
@@ -275,8 +280,9 @@ WiFi Arsenal is a comprehensive WiFi penetration testing platform on Kali Linux.
 
 ## Hardware
 
-- **Alfa 0 (alfa0):** Monitor mode scanning, attacks
-- **Alfa 1 (alfa1):** Managed mode, portal AP creation
+- **Alfa 0 (alfa0):** Monitor mode — sniffing, scanning, packet capture. NOT for internal network work.
+- **Alfa 1 (alfa1):** Managed mode — internal network attacks, MITM, portal AP. Connects to target WiFi. Better signal than wlan0, sometimes used for internet.
+- **wlan0:** Built-in WiFi — primary internet connection (home network). Should NOT be involved in Internal Network page operations.
 - **u-blox 8 GPS:** `/dev/ttyACM0`, 10 Hz, NMEA output
 - **Flipper Zero:** ESP32 Marauder + GPS + CC1101 (Sacred Labs FlipMods Combo)
 - **Glass GPU:** AMD RX 7900 XT (remote hashcat)
@@ -309,6 +315,9 @@ Local files are the source of truth. GitHub may have an older version. Running `
 ### 6. No Custom Slash Commands
 Custom slash commands were removed (Issue #8). Natural language is more flexible — just tell Claude what to do.
 Do not recreate `.claude/commands/` files.
+
+### 7. Verify Before Fixing
+Look at actual behavior before writing code. If Ben reports a bug, check the endpoint, read the UI, run the tool yourself. Don't assume you know what's wrong and start changing things — you might fix the wrong problem or over-engineer a solution for something the UI already handles.
 
 ---
 
@@ -410,6 +419,7 @@ git add CLAUDE.md server.py web/index.html && git commit -m "message" && git pus
   - Bad: `refactor SSE endpoint handler for wardrive live stream`
   - Good: `Fixed live wardriving stream so it doesn't drop connection`
 - **Create GitHub Issues for anything found during work.** If you find a bug, spot something that needs follow-up, or think of an improvement — create an issue with `gh issue create` instead of just mentioning it in conversation. Conversations disappear. Issues don't.
+- **Bugs you find but don't fix → file verbose issues.** Include: steps to reproduce, expected vs actual, root cause (suspected), files to investigate, and any context that would help a future Claude instance fix it without re-discovering everything. Err on the side of too much detail.
 - **Label issues** with `bug`, `feature`, `improvement`, or `priority` so Ben can scan them quickly from the GitHub app.
 
 ### Session End

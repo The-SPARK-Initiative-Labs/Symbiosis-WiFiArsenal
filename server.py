@@ -91,9 +91,10 @@ def lookup_vendor(mac):
     return vendor
 
 def classify_device(host):
-    """Classify a host by device type using OS, ports, hostname, SMB, and MAC vendor.
-    Returns (device_type, vendor) tuple. Priority: OS fingerprint > ports > hostname > SMB > MAC vendor > fallback."""
-    ports = [str(p.get('port', '')) for p in host.get('ports', [])]
+    """Classify a host by device type using product strings, ports, OS, hostname, SMB, and MAC vendor.
+    Returns (device_type, vendor) tuple. Priority: product strings > ports > OS fingerprint > hostname > SMB > MAC vendor > fallback."""
+    port_data = host.get('ports', [])
+    ports = [str(p.get('port', '')) for p in port_data]
     port_set = set(ports)
     os_str = (host.get('os') or '').lower()
     hostname = (host.get('hostname') or '').lower()
@@ -102,23 +103,37 @@ def classify_device(host):
     mac = host.get('mac') or ''
     vendor = lookup_vendor(mac) if mac else (host.get('device_type') or 'Unknown')
 
-    # 1. OS fingerprint keywords (most reliable)
-    for kw in ('printer', 'print server'):
-        if kw in os_str:
-            return ('printer', vendor)
-    for kw in ('wap', 'access point', 'wireless ap'):
-        if kw in os_str:
-            return ('access_point', vendor)
-    for kw in ('camera', 'dvr', 'nvr'):
-        if kw in os_str:
-            return ('camera', vendor)
-    for kw in ('switch', 'cisco ios'):
-        if kw in os_str:
-            return ('switch', vendor)
-    if 'router' in os_str:
-        return ('router', vendor)
+    # Collect all product/service strings from nmap (these are definitive — nmap identified the service)
+    products = ' '.join((p.get('product') or '') for p in port_data).lower()
 
-    # 2. Port combinations (very reliable)
+    # 1. Port product strings (most reliable — nmap confirmed what the service is)
+    if 'router' in products or 'upnpd' in products:
+        return ('router', vendor)
+    if 'printer' in products or 'jetdirect' in products:
+        return ('printer', vendor)
+    for kw in ('wap', 'access point'):
+        if kw in products:
+            return ('access_point', vendor)
+
+    # 2. OS fingerprint keywords (reliable when unambiguous — skip if nmap says "X or Y")
+    os_ambiguous = ' or ' in os_str
+    if not os_ambiguous:
+        for kw in ('printer', 'print server'):
+            if kw in os_str:
+                return ('printer', vendor)
+        for kw in ('wap', 'access point', 'wireless ap'):
+            if kw in os_str:
+                return ('access_point', vendor)
+        for kw in ('camera', 'dvr', 'nvr'):
+            if kw in os_str:
+                return ('camera', vendor)
+        for kw in ('switch', 'cisco ios'):
+            if kw in os_str:
+                return ('switch', vendor)
+        if 'router' in os_str:
+            return ('router', vendor)
+
+    # 3. Port combinations (very reliable)
     if port_set & {'9100', '631', '515'}:
         return ('printer', vendor)
     if '88' in port_set and '389' in port_set:
@@ -182,6 +197,9 @@ def classify_device(host):
         return ('workstation', vendor)
     if 'linux' in os_str:
         return ('server', vendor)
+    for kw in ('apple', 'macos', 'ios', 'iphone', 'ipad'):
+        if kw in os_str:
+            return ('phone', vendor)
 
     return ('unknown', vendor)
 
@@ -6259,19 +6277,48 @@ def internal_scan():
 
     def run_nmap():
         global nmap_scan_state
+        results_file = os.path.join(CAPTURE_DIR, 'nmap_results.json')
+        accumulated_hosts = {}  # keyed by IP for merging across passes
         try:
-            cmd = ['bash', script, subnet]
-            if interface:
-                cmd.append(interface)
-            process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True
-            )
-            with nmap_scan_lock:
-                nmap_scan_state['process'] = process
-            process.wait()
+            while True:
+                with nmap_scan_lock:
+                    if not nmap_scan_state['running']:
+                        break
+                cmd = ['bash', script, subnet]
+                if interface:
+                    cmd.append(interface)
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True
+                )
+                with nmap_scan_lock:
+                    nmap_scan_state['process'] = process
+                process.wait()
+                with nmap_scan_lock:
+                    if not nmap_scan_state['running']:
+                        break
+                # Merge this pass into accumulated results
+                try:
+                    with open(results_file, 'r') as f:
+                        pass_data = json.load(f)
+                    for host in pass_data.get('hosts', []):
+                        ip = host.get('ip', '')
+                        if ip:
+                            accumulated_hosts[ip] = host  # latest data wins
+                    # Write merged results back
+                    merged = {
+                        'hosts': list(accumulated_hosts.values()),
+                        'scan_time': pass_data.get('scan_time', ''),
+                        'targets_scanned': subnet
+                    }
+                    with open(results_file, 'w') as f:
+                        json.dump(merged, f, indent=2)
+                except (json.JSONDecodeError, FileNotFoundError):
+                    pass
+                # Brief pause before next pass
+                time.sleep(5)
         finally:
             with nmap_scan_lock:
                 nmap_scan_state['running'] = False
@@ -6362,6 +6409,10 @@ def internal_interfaces():
                     })
                 except (ValueError, TypeError):
                     pass
+    # Sort: alfa1 first (managed mode — the one connected to target networks),
+    # then eth0, wlan0, alfa0 last (monitor mode, not useful for internal scans)
+    iface_priority = {'alfa1': 0, 'eth0': 1, 'wlan0': 2, 'wlan1': 3, 'alfa0': 4}
+    interfaces.sort(key=lambda x: iface_priority.get(x['name'], 99))
     return jsonify({'success': True, 'interfaces': interfaces})
 
 
