@@ -19,6 +19,8 @@ import logging
 
 import json
 import queue
+import psutil
+import ipaddress
 from datetime import datetime
 
 app = Flask(__name__, static_folder='web', static_url_path='')
@@ -87,6 +89,102 @@ def lookup_vendor(mac):
     if len(vendor) > 20:
         return vendor[:20] + '...'
     return vendor
+
+def classify_device(host):
+    """Classify a host by device type using OS, ports, hostname, SMB, and MAC vendor.
+    Returns (device_type, vendor) tuple. Priority: OS fingerprint > ports > hostname > SMB > MAC vendor > fallback."""
+    ports = [str(p.get('port', '')) for p in host.get('ports', [])]
+    port_set = set(ports)
+    os_str = (host.get('os') or '').lower()
+    hostname = (host.get('hostname') or '').lower()
+    smb_info = host.get('smb_info') or {}
+    smb_os = (smb_info.get('os') or '').lower()
+    mac = host.get('mac') or ''
+    vendor = lookup_vendor(mac) if mac else (host.get('device_type') or 'Unknown')
+
+    # 1. OS fingerprint keywords (most reliable)
+    for kw in ('printer', 'print server'):
+        if kw in os_str:
+            return ('printer', vendor)
+    for kw in ('wap', 'access point', 'wireless ap'):
+        if kw in os_str:
+            return ('access_point', vendor)
+    for kw in ('camera', 'dvr', 'nvr'):
+        if kw in os_str:
+            return ('camera', vendor)
+    for kw in ('switch', 'cisco ios'):
+        if kw in os_str:
+            return ('switch', vendor)
+    if 'router' in os_str:
+        return ('router', vendor)
+
+    # 2. Port combinations (very reliable)
+    if port_set & {'9100', '631', '515'}:
+        return ('printer', vendor)
+    if '88' in port_set and '389' in port_set:
+        return ('domain_controller', vendor)
+    if '53' in port_set and '80' in port_set and len(ports) <= 5:
+        return ('router', vendor)
+    if '554' in port_set:
+        return ('camera', vendor)
+    if '3389' in port_set and '445' in port_set:
+        return ('workstation', vendor)
+    if '445' in port_set and '135' in port_set and port_set & {'80', '3306', '1433', '8080', '443'}:
+        return ('server', vendor)
+    if '445' in port_set and '135' in port_set:
+        return ('workstation', vendor)
+
+    # 3. Hostname patterns
+    for prefix in ('npi', 'hp', 'epson', 'brother', 'canon'):
+        if hostname.startswith(prefix):
+            return ('printer', vendor)
+    for pattern in ('dc-', 'dc0'):
+        if hostname.startswith(pattern):
+            return ('domain_controller', vendor)
+    if hostname.endswith('-dc'):
+        return ('domain_controller', vendor)
+    for prefix in ('desktop-', 'laptop-'):
+        if hostname.startswith(prefix):
+            return ('workstation', vendor)
+    for prefix in ('srv-', 'server'):
+        if hostname.startswith(prefix):
+            return ('server', vendor)
+
+    # 4. SMB info (confirms Windows type)
+    if 'server' in smb_os:
+        return ('server', vendor)
+    if 'windows' in smb_os:
+        return ('workstation', vendor)
+
+    # 5. MAC vendor (least specific)
+    v_lower = vendor.lower()
+    for v in ('canon', 'epson', 'brother', 'lexmark', 'xerox', 'ricoh'):
+        if v in v_lower:
+            return ('printer', vendor)
+    for v in ('hikvision', 'dahua', 'axis', 'amcrest'):
+        if v in v_lower:
+            return ('camera', vendor)
+    for v in ('synology', 'qnap'):
+        if v in v_lower:
+            return ('nas', vendor)
+    for v in ('espressif', 'tuya'):
+        if v in v_lower:
+            return ('iot', vendor)
+    for v in ('apple', 'samsung', 'google', 'oneplus', 'huawei', 'sony', 'lg'):
+        if v in v_lower:
+            return ('phone', vendor)
+    for v in ('tp-link', 'netgear', 'cisco', 'ubiquiti', 'arris', 'ruckus', 'asus'):
+        if v in v_lower:
+            return ('router', vendor)
+
+    # 6. OS fallback
+    if 'windows' in os_str:
+        return ('workstation', vendor)
+    if 'linux' in os_str:
+        return ('server', vendor)
+
+    return ('unknown', vendor)
+
 
 def signal_quality(dbm):
     """Convert dBm to quality label"""
@@ -6148,17 +6246,25 @@ def internal_scan():
 
     data = request.json or {}
     subnet = data.get('subnet', '192.168.1.0/24')
+    interface = data.get('interface', '')
 
     if not re.match(r'^[0-9./]+$', subnet):
         return jsonify({'success': False, 'error': 'Invalid subnet format'})
+
+    VALID_INTERFACES = {'alfa0', 'alfa1', 'eth0', 'wlan0', 'wlan1'}
+    if interface and interface not in VALID_INTERFACES:
+        return jsonify({'success': False, 'error': 'Invalid interface'})
 
     script = os.path.join(SCRIPT_DIR, 'internal', 'nmap_scan.sh')
 
     def run_nmap():
         global nmap_scan_state
         try:
+            cmd = ['bash', script, subnet]
+            if interface:
+                cmd.append(interface)
             process = subprocess.Popen(
-                ['bash', script, subnet],
+                cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True
@@ -6202,11 +6308,16 @@ def internal_scan_status():
 
 @app.route('/api/internal/scan/results', methods=['GET'])
 def internal_scan_results():
-    """Get nmap scan results from JSON file"""
+    """Get nmap scan results from JSON file, enriched with device classification"""
     results_file = os.path.join(CAPTURE_DIR, 'nmap_results.json')
     if os.path.exists(results_file):
         with open(results_file, 'r') as f:
-            return jsonify({'success': True, 'results': json.load(f)})
+            results = json.load(f)
+        for host in results.get('hosts', []):
+            device_type, vendor = classify_device(host)
+            host['device_type'] = device_type
+            host['vendor'] = vendor
+        return jsonify({'success': True, 'results': results})
     return jsonify({'success': False, 'error': 'No results available'})
 
 
@@ -6227,6 +6338,31 @@ def internal_scan_stop():
             nmap_scan_state['process'] = None
         return jsonify({'success': True, 'message': 'Scan cancelled'})
     return jsonify({'success': False, 'error': 'No scan running'})
+
+
+@app.route('/api/internal/interfaces', methods=['GET'])
+def internal_interfaces():
+    """Return network interfaces with IPs and subnets for auto-detect"""
+    VALID_INTERFACES = {'alfa0', 'alfa1', 'eth0', 'wlan0', 'wlan1'}
+    interfaces = []
+    for iface, addrs in psutil.net_if_addrs().items():
+        if iface == 'lo' or iface not in VALID_INTERFACES:
+            continue
+        for addr in addrs:
+            if addr.family == 2:  # AF_INET (IPv4)
+                try:
+                    network = ipaddress.IPv4Network(
+                        f"{addr.address}/{addr.netmask}", strict=False
+                    )
+                    interfaces.append({
+                        'name': iface,
+                        'ip': addr.address,
+                        'netmask': addr.netmask,
+                        'subnet': str(network)
+                    })
+                except (ValueError, TypeError):
+                    pass
+    return jsonify({'success': True, 'interfaces': interfaces})
 
 
 @app.route('/api/internal/intel', methods=['GET'])

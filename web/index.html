@@ -1614,7 +1614,7 @@
                     <!-- Row 2: Discovery + Nmap + Responder controls -->
                     <div class="internal-topbar-row">
                         <span class="topbar-label">Discovery</span>
-                        <select id="discoverInterface" style="padding: 3px 6px; background: #0a0a0a; border: 1px solid #333; color: #0f0; font-size: 11px;" title="Network interface to monitor">
+                        <select id="discoverInterface" onchange="onInterfaceChange()" style="padding: 3px 6px; background: #0a0a0a; border: 1px solid #333; color: #0f0; font-size: 11px;" title="Network interface to monitor — auto-fills subnet and LHOST">
                             <option value="alfa0">alfa0</option>
                             <option value="alfa1">alfa1</option>
                             <option value="eth0">eth0</option>
@@ -2164,6 +2164,7 @@
                 refreshDiscoveryResults();
                 refreshIntel();
                 refreshInternalModes();
+                loadInternalInterfaces();
                 checkInternalPolling();
             } else if (pageName === 'dashboard') {
                 stopMitmPolling();
@@ -3823,12 +3824,16 @@
         let selectedHost = null;
 
         function getHostIcon(deviceType, os) {
+            const iconMap = {
+                'printer': '🖨️', 'router': '🔌', 'switch': '🔌',
+                'access_point': '📶', 'phone': '📱', 'camera': '📷',
+                'iot': '🔧', 'nas': '💾', 'domain_controller': '🏛️',
+                'server': '🖥️', 'workstation': '💻'
+            };
             const dt = (deviceType || '').toLowerCase();
+            if (iconMap[dt]) return iconMap[dt];
+            // OS fallback for unclassified hosts
             const o = (os || '').toLowerCase();
-            if (dt.indexOf('printer') >= 0) return '🖨️';
-            if (dt.indexOf('router') >= 0 || dt.indexOf('switch') >= 0 || dt.indexOf('firewall') >= 0) return '🔌';
-            if (dt.indexOf('phone') >= 0 || dt.indexOf('mobile') >= 0) return '📱';
-            if (dt.indexOf('server') >= 0 || o.indexOf('server') >= 0) return '🖥️';
             if (o.indexOf('windows') >= 0) return '💻';
             if (o.indexOf('linux') >= 0) return '🐧';
             if (o.indexOf('mac') >= 0 || o.indexOf('apple') >= 0 || o.indexOf('ios') >= 0) return '🍎';
@@ -3880,7 +3885,10 @@
             var meta = [];
             if (hostData.hostname) meta.push(esc(hostData.hostname));
             if (hostData.os) meta.push(esc(hostData.os));
-            if (hostData.device_type) meta.push(esc(hostData.device_type));
+            if (hostData.vendor) meta.push(esc(hostData.vendor));
+            if (hostData.device_type && hostData.device_type !== 'unknown') {
+                meta.push('<span style="color:#4af;font-weight:bold;">' + esc(hostData.device_type).toUpperCase().replace(/_/g, ' ') + '</span>');
+            }
             document.getElementById('targetInfoMeta').innerHTML = meta.join(' &mdash; ');
 
             // Ports
@@ -3928,6 +3936,45 @@
             document.getElementById('targetInfoBar').style.display = 'none';
             document.getElementById('centerPlaceholder').style.display = 'flex';
             document.getElementById('centerWorkspace').style.display = 'none';
+        }
+
+        // Interface data cache for auto-fill on dropdown change
+        var _ifaceData = [];
+
+        async function loadInternalInterfaces() {
+            try {
+                const response = await fetch('/api/internal/interfaces');
+                const data = await response.json();
+                if (!data.success || !data.interfaces || data.interfaces.length === 0) return;
+
+                _ifaceData = data.interfaces;
+                var select = document.getElementById('discoverInterface');
+                select.innerHTML = '';
+                data.interfaces.forEach(function(iface) {
+                    var opt = document.createElement('option');
+                    opt.value = iface.name;
+                    opt.textContent = iface.name + ' (' + iface.ip + ')';
+                    select.appendChild(opt);
+                });
+
+                // Auto-fill subnet and LHOST from first interface
+                var first = data.interfaces[0];
+                document.getElementById('nmapSubnet').value = first.subnet;
+                document.getElementById('lhostInput').value = first.ip;
+            } catch (err) {
+                // Silent fail — hardcoded defaults remain
+            }
+        }
+
+        function onInterfaceChange() {
+            var name = document.getElementById('discoverInterface').value;
+            for (var i = 0; i < _ifaceData.length; i++) {
+                if (_ifaceData[i].name === name) {
+                    document.getElementById('nmapSubnet').value = _ifaceData[i].subnet;
+                    document.getElementById('lhostInput').value = _ifaceData[i].ip;
+                    break;
+                }
+            }
         }
 
         async function refreshInternalModes() {
@@ -4074,7 +4121,7 @@
                 const response = await fetch('/api/internal/scan', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ subnet })
+                    body: JSON.stringify({ subnet, interface: document.getElementById('discoverInterface').value })
                 });
                 const data = await response.json();
 
@@ -4187,11 +4234,12 @@
                 html += '<div class="host-item-info">';
                 html += '<div class="host-item-ip">' + ip + '</div>';
 
-                // Meta line
+                // Meta line — show hostname, OS, vendor
+                var vendor = esc(h.vendor || '');
                 var meta = [];
                 if (hostname) meta.push(hostname);
                 if (os) meta.push(os);
-                if (devType) meta.push(devType);
+                if (vendor && vendor !== 'Unknown') meta.push(vendor);
                 if (meta.length > 0) {
                     html += '<div class="host-item-meta">' + meta.join(' · ') + '</div>';
                 }
@@ -4204,6 +4252,11 @@
 
                 // Badges
                 var badges = [];
+                // Device type badge (blue) for notable device types
+                if (devType && devType !== 'workstation' && devType !== 'unknown') {
+                    var typeLabel = esc(devType).toUpperCase().replace(/_/g, ' ');
+                    badges.push('<span class="host-badge" style="background:rgba(68,170,255,0.15);color:#4af;border-color:#4af;">' + typeLabel + '</span>');
+                }
                 if (smbSigningOff) badges.push('<span class="host-badge host-badge-critical">RELAY TARGET</span>');
                 ports.forEach(function(p) {
                     if (p.port === '23') badges.push('<span class="host-badge host-badge-critical">Telnet</span>');
