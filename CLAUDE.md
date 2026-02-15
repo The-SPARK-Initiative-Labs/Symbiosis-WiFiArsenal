@@ -44,11 +44,13 @@ You must:
 - **License + Tags** (2026-02-11) - AGPL-3.0 license file, v1.2.0 and v1.5.0 git tags (Issue #3)
 - **Claude Code Setup** (2026-02-11) - 10 plugins, MCP server, hooks, settings (Issue #5 Parts 1-5)
 - **Issue #7 Step 0** (2026-02-14) - security fixes, nmap button, relay stop, intel panel, Glass upload
+- **Issue #7 Step 1 Part A** (2026-02-15) - async nmap, adapter bar, polling fix, status timer
+- **Issue #7 Step 1 Part B** (2026-02-15) - 5-panel pentest workstation layout, bug fixes, visual polish
 
 ### Current Priorities
 See `roadmap.md` for the full development roadmap.
 Location: `~/.claude/projects/-home-ov3rr1d3-wifi-arsenal/memory/roadmap.md`
-- **Issue #7 — Internal Network page** — Step 0 DONE (security + UI gaps), Step 1 next (5-panel layout redesign)
+- **Issue #7 — Internal Network page** — Steps 0, 1A, 1B DONE. Next: plan + build Discovery improvements (Step 1 in `issue7-plan.md` lines 104-148). Test lab is live.
 - **v1.6.0 — Field Ready** — full Arsenal audit (all 8 pages), fix all bugs, map performance, auto-tag by SSID
 - **v1.7.0 — Business Intelligence** — vulnerability density map, client evidence export, historical comparison
 - **Issue #9** — Switch Operator from API key to Claude Max (embed Claude Code in Page 8 via xterm.js)
@@ -238,7 +240,14 @@ WiFi Arsenal is a comprehensive WiFi penetration testing platform on Kali Linux.
 - **Do NOT use `shlex.quote()` with list-form subprocess** — it adds literal quote characters that corrupt values. List-form is already safe from injection.
 - **Shell heredocs:** Use quoted delimiter (`<< 'EOF'`) + env vars to pass data. Unquoted heredocs expand bash variables and create injection risk.
 - **Threading:** Shared state dicts accessed from multiple threads MUST use `threading.Lock()`. Pattern: `nmap_scan_lock = threading.Lock()` next to the dict. Wrap all reads AND writes with `with lock:`. Established by GPS system, followed by nmap scan.
+- **NEVER hardcode credentials** — not test passwords, not default cred lists inline. Discovered creds and default-check lists must come from config files or runtime input, never source code.
 - **Full plan:** `issue7-plan.md` in repo root — re-read each step
+
+### Test Lab (hackme network)
+- TP-Link router, SSID "hackme", subnet 192.168.0.0/24
+- Windows 11 target laptop on the network (Intel NIC, ports 135/139/445 open). IPs are DHCP — scan to find it, don't assume a specific address.
+- Kali connects via alfa1 in managed mode
+- **Windows firewall gotcha:** Default "Public" profile blocks all ports. Must be set to "Private" for SMB. Domain-joined business machines do this automatically — test lab quirk only.
 
 ---
 
