@@ -101,9 +101,14 @@ All 6 fixes implemented, reviewed by security + frontend agents, committed and p
 
 ---
 
+### STEP 1 PREP: UI Foundation — DONE (2026-02-15)
+
+- **Part A:** Async nmap (thread-safe), enhanced nmap_scan.sh (version/OS/SMB), adapter mode bar, polling fix on nav, count-up status timer, card-based nmap results with color coding
+- **Part B:** 5-panel pentest workstation layout (top bar, host list, attack workspace, credentials/evidence, output log), 3 bug fixes (toggle-off race, polling highlight, host count), 10 visual polish items
+
 ### STEP 1: Discovery Enhancements (1-2 sessions)
 
-Enhance Phase 1 from Issue #7. Build on existing passive discovery + nmap scan.
+Enhance Phase 1 from Issue #7. Build on existing passive discovery + nmap scan. Test lab is live on hackme network (192.168.0.0/24).
 
 **Files to modify:** `server.py`, `web/index.html`, `scripts/internal/nmap_scan.sh`
 **Files to create:** `scripts/internal/enum_smb.sh`, `scripts/internal/enum_snmp.sh`, `scripts/internal/banner_grab.sh`
