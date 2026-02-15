@@ -133,6 +133,20 @@ WiFi Arsenal is a comprehensive WiFi penetration testing platform on Kali Linux.
 
 **Navigation:** `showPage(pageName)` toggles page divs. Dashboard is the landing page. Order above matches the actual nav bar in `index.html` (lines 415-422).
 
+### Status Indicator (Green Box, Upper Right)
+- `setStatus(text, active)` — set status text, `active=true` makes it green
+- `startCountdown('SCANNING...', 30)` — countdown timer for fixed-duration operations
+- `startCountup('DISCOVERY')` — count-up timer for indefinite operations (discovery, responder, nmap)
+- `stopCountdown()` — resets to IDLE
+- All uses share `countdownInterval` — only one timer at a time
+- Every page action that takes time MUST update the status indicator
+
+### Page Navigation Rule
+- Any page with `setInterval()` polling MUST have a `stop*Polling()` cleanup function
+- `showPage()` MUST call that cleanup at the top (before page-specific init)
+- Pattern: `stopInternalPolling()` clears discoveryInterval, responderInterval, nmapPollInterval
+- MITM follows same pattern with `stopMitmPolling()`
+
 ---
 
 ## Wardriving Page Details (Page 7)
@@ -222,6 +236,8 @@ WiFi Arsenal is a comprehensive WiFi penetration testing platform on Kali Linux.
 - **Interface allowlist:** `VALID_INTERFACES = {'alfa0', 'alfa1', 'eth0', 'wlan0', 'wlan1'}` on all endpoints accepting interface names
 - **Port validation:** `int(lport)` + `if not (1 <= lport <= 65535)`
 - **Do NOT use `shlex.quote()` with list-form subprocess** — it adds literal quote characters that corrupt values. List-form is already safe from injection.
+- **Shell heredocs:** Use quoted delimiter (`<< 'EOF'`) + env vars to pass data. Unquoted heredocs expand bash variables and create injection risk.
+- **Threading:** Shared state dicts accessed from multiple threads MUST use `threading.Lock()`. Pattern: `nmap_scan_lock = threading.Lock()` next to the dict. Wrap all reads AND writes with `with lock:`. Established by GPS system, followed by nmap scan.
 - **Full plan:** `issue7-plan.md` in repo root — re-read each step
 
 ---
