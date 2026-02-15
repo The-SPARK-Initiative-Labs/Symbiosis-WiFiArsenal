@@ -223,6 +223,393 @@
         20%, 40%, 60%, 80% { transform: translateX(5px); }
     }
 
+    /* ===== Internal Network 5-Panel Layout ===== */
+    .internal-layout {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 120px);
+        gap: 0;
+        padding: 0;
+    }
+    /* [7] Top bar gradient + 2px bottom border */
+    .internal-topbar {
+        flex: 0 0 auto;
+        background: linear-gradient(180deg, #0c0c0c, #080808);
+        border-bottom: 2px solid #003300;
+        padding: 6px 12px;
+    }
+    .internal-topbar-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 3px 0;
+    }
+    .topbar-label {
+        color: #0f0;
+        font-size: 11px;
+        font-weight: bold;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+    .topbar-divider {
+        width: 1px;
+        height: 24px;
+        background: #333;
+        margin: 0 4px;
+        flex-shrink: 0;
+    }
+    /* [6] Top bar status pills with background + border */
+    .topbar-status {
+        font-size: 11px;
+        color: #666;
+        white-space: nowrap;
+        background: #0a0a0a;
+        padding: 2px 8px;
+        border-radius: 3px;
+        border: 1px solid #1a1a1a;
+    }
+    .internal-middle {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+        border-bottom: 1px solid #003300;
+    }
+    /* [1] Panel depth — green-tinted borders, subtle backgrounds, inset shadows */
+    .internal-left {
+        flex: 0 0 280px;
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid #1a3a1a;
+        background: #060806;
+        min-height: 0;
+        box-shadow: inset -1px 0 3px rgba(0,0,0,0.4);
+    }
+    .internal-left-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        border-bottom: 1px solid #1a1a1a;
+        flex-shrink: 0;
+    }
+    .internal-left-header h3 {
+        margin: 0;
+        font-size: 12px;
+        color: #0f0;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
+    .host-count-badge {
+        background: #003300;
+        color: #0f0;
+        padding: 1px 8px;
+        border-radius: 10px;
+        font-size: 10px;
+        font-weight: bold;
+    }
+    .internal-center {
+        flex: 2;
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid #1a3a1a;
+        background: #040404;
+        min-height: 0;
+        overflow-y: auto;
+    }
+    .internal-right {
+        flex: 1;
+        min-width: 300px;
+        max-width: 420px;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+    .internal-bottom {
+        flex: 0 0 180px;
+        display: flex;
+        flex-direction: column;
+        background: #030303;
+        border-top: 2px solid #003300;
+    }
+    .internal-bottom-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 4px 12px;
+        border-bottom: 1px solid #1a1a1a;
+        flex-shrink: 0;
+    }
+    .internal-bottom-header h3 {
+        margin: 0;
+        font-size: 11px;
+        color: #0f0;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
+
+    /* [3] Host items — improved scannability */
+    .host-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 10px 12px;
+        border-bottom: 1px solid #111;
+        cursor: pointer;
+        border-left: 3px solid transparent;
+        transition: background 0.15s, border-color 0.15s;
+    }
+    .host-item:hover {
+        background: #0a1a0a;
+    }
+    .host-item.selected {
+        background: #0a2a0a;
+        border-left-color: #00ff00;
+        box-shadow: inset 3px 0 8px rgba(0, 255, 0, 0.1);
+    }
+    .host-item.host-critical {
+        border-left-color: #f00;
+        background: #0a0505;
+    }
+    .host-item.host-critical.selected {
+        border-left-color: #00ff00;
+        background: #0a2a0a;
+    }
+    .host-item.host-interesting {
+        border-left-color: #ff8800;
+    }
+    .host-item-icon {
+        font-size: 18px;
+        flex-shrink: 0;
+        line-height: 1;
+        margin-top: 2px;
+    }
+    .host-item-info {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+    }
+    .host-item-ip {
+        color: #0f0;
+        font-family: monospace;
+        font-weight: bold;
+        font-size: 13px;
+        letter-spacing: 0.5px;
+    }
+    .host-item-meta {
+        color: #888;
+        font-size: 10px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-top: 2px;
+    }
+    .host-item-ports {
+        color: #ffcc00;
+        font-family: monospace;
+        font-size: 10px;
+        margin-top: 3px;
+        background: rgba(255, 204, 0, 0.05);
+        padding: 1px 4px;
+        border-radius: 2px;
+        display: inline-block;
+    }
+    /* [9] Badge refinement — sharper corners, letter-spacing, uppercase */
+    .host-badge {
+        display: inline-block;
+        padding: 1px 5px;
+        border-radius: 2px;
+        font-size: 9px;
+        font-weight: bold;
+        margin-right: 3px;
+        margin-top: 3px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .host-badge-critical {
+        background: #f00;
+        color: #000;
+    }
+    .host-badge-warn {
+        background: #ff8800;
+        color: #000;
+    }
+    .host-badge-info {
+        background: transparent;
+        color: #0f0;
+        border: 1px solid #003300;
+    }
+
+    /* Center panel */
+    /* [10] Placeholder — larger ghostly icon, uppercase text */
+    .center-placeholder {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: #333;
+        text-align: center;
+        gap: 12px;
+        user-select: none;
+    }
+    .center-placeholder-icon {
+        font-size: 64px;
+        opacity: 0.3;
+    }
+    .center-placeholder-text {
+        font-size: 13px;
+        color: #444;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+    }
+    .center-placeholder-sub {
+        font-size: 11px;
+        color: #333;
+    }
+    /* [4] Target info bar — green left border, larger IP with glow */
+    .target-info-bar {
+        background: #0d1a0d;
+        border: 1px solid #004400;
+        border-left: 3px solid #00ff00;
+        border-radius: 4px;
+        padding: 10px 14px;
+        margin: 12px 12px 0 12px;
+        display: none;
+    }
+    .target-info-bar-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+    }
+    .target-info-ip {
+        color: #0f0;
+        font-family: monospace;
+        font-weight: bold;
+        font-size: 18px;
+        text-shadow: 0 0 6px rgba(0, 255, 0, 0.3);
+    }
+    .target-deselect {
+        background: none;
+        border: 1px solid #333;
+        color: #666;
+        cursor: pointer;
+        padding: 2px 8px;
+        font-size: 11px;
+        border-radius: 3px;
+    }
+    .target-deselect:hover {
+        border-color: #f00;
+        color: #f00;
+    }
+    .target-info-meta {
+        color: #888;
+        font-size: 11px;
+    }
+    .target-info-ports {
+        margin-top: 6px;
+        font-size: 11px;
+    }
+    .target-smb-banner {
+        background: #1a1a00;
+        border: 1px solid #333;
+        padding: 4px 8px;
+        margin-top: 6px;
+        font-size: 11px;
+        color: #ff0;
+        border-radius: 3px;
+    }
+    /* [2] Attack section differentiation — colored top borders */
+    .attack-section {
+        background: #080808;
+        border: 1px solid #1a1a1a;
+        border-radius: 4px;
+        padding: 12px;
+        margin: 12px 12px 0 12px;
+    }
+    .attack-section.section-cred {
+        border-top: 2px solid #004400;
+    }
+    .attack-section.section-exploit {
+        border-top: 2px solid #660000;
+        background: #080505;
+    }
+    .attack-section.section-listener {
+        border-top: 2px solid #333;
+    }
+    .attack-section-label {
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-size: 10px;
+        font-weight: bold;
+        margin-bottom: 8px;
+        display: block;
+    }
+    .attack-section-label.cred { color: #0f0; }
+    .attack-section-label.exploit { color: #f00; }
+    .attack-section-label.listener { color: #888; }
+
+    /* Right panel sections */
+    .right-section {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+    }
+    .right-section.creds { flex: 3; border-bottom: 2px solid #333300; }
+    .right-section.evidence { flex: 2; }
+    /* [8] Right panel headers — gradient backgrounds */
+    .right-section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 12px;
+        border-bottom: 1px solid #1a1a1a;
+        flex-shrink: 0;
+        background: linear-gradient(180deg, #0c0c0c, #080808);
+    }
+    .right-section-header h3 {
+        margin: 0;
+        font-size: 11px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
+    .right-section-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px;
+        font-size: 11px;
+    }
+
+    /* [5] Scrollbar styling — dark track, green thumb */
+    .internal-left ::-webkit-scrollbar,
+    .internal-center ::-webkit-scrollbar,
+    .internal-right ::-webkit-scrollbar,
+    .internal-bottom ::-webkit-scrollbar {
+        width: 6px;
+    }
+    .internal-left ::-webkit-scrollbar-track,
+    .internal-center ::-webkit-scrollbar-track,
+    .internal-right ::-webkit-scrollbar-track,
+    .internal-bottom ::-webkit-scrollbar-track {
+        background: #0a0a0a;
+    }
+    .internal-left ::-webkit-scrollbar-thumb,
+    .internal-center ::-webkit-scrollbar-thumb,
+    .internal-right ::-webkit-scrollbar-thumb,
+    .internal-bottom ::-webkit-scrollbar-thumb {
+        background: #1a3a1a;
+        border-radius: 3px;
+    }
+    .internal-left ::-webkit-scrollbar-thumb:hover,
+    .internal-center ::-webkit-scrollbar-thumb:hover,
+    .internal-right ::-webkit-scrollbar-thumb:hover,
+    .internal-bottom ::-webkit-scrollbar-thumb:hover {
+        background: #2a5a2a;
+    }
+
     </style>
     <!-- Leaflet for live wardrive map (local copies for offline use) -->
     <link rel="stylesheet" href="/lib/leaflet.css" />
@@ -1203,185 +1590,185 @@
         
         <!-- Page: Internal Network Attack -->
         <div id="page-internal" class="page">
-            <div style="display: flex; flex-direction: column; height: 100%; gap: 15px; padding: 15px;">
+            <div class="internal-layout">
 
-                <!-- Interface Status Bar -->
-                <div class="panel" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; flex: 0 0 auto;">
-                    <div style="display: flex; gap: 15px; align-items: center;">
-                        <span style="font-size: 1.1em; color: #0f0;">🔧 Interfaces</span>
+                <!-- TOP BAR — Controls strip -->
+                <div class="internal-topbar">
+                    <!-- Row 1: Adapters + Status indicators -->
+                    <div class="internal-topbar-row">
+                        <span class="topbar-label">Adapters</span>
                         <span class="mode-status" id="internalAlfa0Status" title="alfa0 mode — Monitor: passive capture | Managed: active network">alfa0: checking...</span>
                         <span class="mode-status" id="internalAlfa1Status" title="alfa1 mode — Monitor: passive capture | Managed: active network">alfa1: checking...</span>
-                    </div>
-                    <div style="display: flex; gap: 5px; align-items: center;">
-                        <select id="internalIfaceSelect" style="background: #001a00; color: #00ff00; border: 1px solid #003300; padding: 5px;" title="Select interface to configure">
+                        <select id="internalIfaceSelect" style="background: #001a00; color: #00ff00; border: 1px solid #003300; padding: 3px 6px; font-size: 11px;" title="Select interface to configure">
                             <option value="alfa0">alfa0</option>
                             <option value="alfa1">alfa1</option>
                         </select>
-                        <button class="button" onclick="setInternalMode('monitor')" style="padding: 5px 10px;" title="Set to monitor mode for passive capture">Monitor</button>
-                        <button class="button" onclick="setInternalMode('managed')" style="padding: 5px 10px;" title="Set to managed mode to join a network">Managed</button>
-                        <button class="button" onclick="refreshInternalModes()" style="padding: 5px 10px;" title="Refresh interface status">Refresh</button>
+                        <button class="button" onclick="setInternalMode('monitor')" style="padding: 3px 8px; font-size: 10px;" title="Set to monitor mode for passive capture">Monitor</button>
+                        <button class="button" onclick="setInternalMode('managed')" style="padding: 3px 8px; font-size: 10px;" title="Set to managed mode to join a network">Managed</button>
+                        <button class="button" onclick="refreshInternalModes()" style="padding: 3px 8px; font-size: 10px;" title="Refresh interface status">Refresh</button>
+                        <div class="topbar-divider"></div>
+                        <span class="topbar-status">DISC: <span id="discoverStatus" style="color: #666;">Stopped</span></span>
+                        <span class="topbar-status">RESP: <span id="responderStatus" style="color: #666;">Stopped</span></span>
+                        <span class="topbar-status">LSTN: <span id="listenerStatus" style="color: #666;">Stopped</span></span>
+                    </div>
+                    <!-- Row 2: Discovery + Nmap + Responder controls -->
+                    <div class="internal-topbar-row">
+                        <span class="topbar-label">Discovery</span>
+                        <select id="discoverInterface" style="padding: 3px 6px; background: #0a0a0a; border: 1px solid #333; color: #0f0; font-size: 11px;" title="Network interface to monitor">
+                            <option value="alfa0">alfa0</option>
+                            <option value="alfa1">alfa1</option>
+                            <option value="eth0">eth0</option>
+                            <option value="wlan0">wlan0</option>
+                        </select>
+                        <button onclick="startDiscovery()" class="button" style="padding: 3px 8px; font-size: 10px;" title="Start passive network monitoring">▶ Start</button>
+                        <button onclick="stopDiscovery()" class="button danger" style="padding: 3px 8px; font-size: 10px;" title="Stop discovery">Stop</button>
+                        <button onclick="clearDiscovery()" class="button" style="padding: 3px 8px; font-size: 10px;" title="Clear discovery results">Clear</button>
+                        <div class="topbar-divider"></div>
+                        <span class="topbar-label">Nmap</span>
+                        <input type="text" id="nmapSubnet" placeholder="192.168.1.0/24" value="192.168.1.0/24" style="width: 140px; padding: 3px 6px; background: #001a00; border: 1px solid #003300; color: #0f0; font-family: monospace; font-size: 11px;" title="Subnet to scan with nmap">
+                        <button id="nmapScanBtn" onclick="nmapScan()" class="button" style="padding: 3px 8px; font-size: 10px;" title="Run nmap host discovery and port scan on subnet">Scan</button>
+                        <button id="nmapCancelBtn" onclick="stopNmapScan()" class="button danger" style="padding: 3px 8px; font-size: 10px; display: none;" title="Cancel running nmap scan">Cancel</button>
+                        <div class="topbar-divider"></div>
+                        <span class="topbar-label">Responder</span>
+                        <button onclick="startResponder()" class="button" style="padding: 3px 8px; font-size: 10px;" title="Start Responder — poison LLMNR/NBT-NS/WPAD to capture NTLMv2 hashes">▶ Start</button>
+                        <button onclick="stopResponder()" class="button danger" style="padding: 3px 8px; font-size: 10px;" title="Stop Responder">Stop</button>
+                        <span class="topbar-status" style="color: #ff0;" title="Number of NTLMv2 hashes captured by Responder">Hashes: <span id="hashCount">0</span></span>
                     </div>
                 </div>
 
-                <!-- Top Row: Discovery + Responder -->
-                <div style="display: flex; gap: 15px; flex: 0 0 auto;">
-                    
-                    <!-- Passive Discovery -->
-                    <div class="panel" style="flex: 2; padding: 15px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <h3 style="margin: 0; color: #0f0;">🔍 Passive Discovery</h3>
-                            <div style="display: flex; gap: 5px; align-items: center;">
-                                <span id="discoverStatus" style="color: #666; font-size: 12px;">Stopped</span>
-                                <select id="discoverInterface" style="padding: 5px; background: #0a0a0a; border: 1px solid #333; color: #0f0; font-size: 11px;" title="Network interface to monitor">
-                                    <option value="alfa0">alfa0</option>
-                                    <option value="alfa1">alfa1</option>
-                                    <option value="eth0">eth0</option>
-                                    <option value="wlan0">wlan0</option>
-                                </select>
-                                <button onclick="startDiscovery()" class="button" style="padding: 5px 10px; font-size: 11px;" title="Start passive network monitoring">▶️ Start</button>
-                                <button onclick="stopDiscovery()" class="button danger" style="padding: 5px 10px; font-size: 11px;" title="Stop discovery">⏹️ Stop</button>
-                                <button onclick="clearDiscovery()" class="button" style="padding: 5px 10px; font-size: 11px;" title="Clear results">🗑️</button>
-                            </div>
+                <!-- MIDDLE — 3-column layout -->
+                <div class="internal-middle">
+
+                    <!-- LEFT PANEL — Host List -->
+                    <div class="internal-left">
+                        <div class="internal-left-header">
+                            <h3>Hosts</h3>
+                            <span id="hostCountBadge" class="host-count-badge" title="Number of discovered hosts">0</span>
                         </div>
-                        <div style="display: flex; gap: 5px; align-items: center; margin-bottom: 8px;">
-                            <input type="text" id="nmapSubnet" placeholder="192.168.1.0/24" value="192.168.1.0/24" style="width: 160px; padding: 5px; background: #001a00; border: 1px solid #003300; color: #0f0; font-family: monospace; font-size: 11px;" title="Subnet to scan with nmap">
-                            <button id="nmapScanBtn" onclick="nmapScan()" class="button" style="padding: 5px 10px; font-size: 11px;" title="Run nmap host discovery and port scan on subnet">🔎 Nmap Scan</button>
-                            <button id="nmapCancelBtn" onclick="stopNmapScan()" class="button danger" style="padding: 5px 10px; font-size: 11px; display: none;" title="Cancel running nmap scan">⏹️ Cancel</button>
-                        </div>
-                        <div id="intelBar" style="display: none; margin-bottom: 8px; padding: 8px; background: #0a0a0a; border: 1px solid #333; border-radius: 4px; font-size: 11px;">
+                        <div id="intelBar" style="display: none; padding: 6px 10px; background: #0a0a0a; border-bottom: 1px solid #1a1a1a; font-size: 10px; flex-shrink: 0;">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <span id="intelSummary" style="color: #888;">Loading intel...</span>
-                                <span id="intelBadge" style="padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: bold;"></span>
+                                <span id="intelBadge" style="padding: 1px 6px; border-radius: 3px; font-size: 9px; font-weight: bold;"></span>
                             </div>
-                            <div id="intelRecommendations" style="color: #ff0; margin-top: 5px;"></div>
+                            <div id="intelRecommendations" style="color: #ff0; margin-top: 3px;"></div>
                         </div>
-                        <div id="discoveryResults" style="height: 200px; overflow-y: auto; background: #0a0a0a; border: 1px solid #222; padding: 10px; font-size: 12px;">
-                            <div style="color: #666;">Start discovery to monitor network traffic for vulnerabilities...</div>
-                        </div>
-                    </div>
-                    
-                    <!-- Responder -->
-                    <div class="panel" style="flex: 1; padding: 15px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <h3 style="margin: 0; color: #f00;">☠️ Responder</h3>
-                            <span id="responderStatus" style="color: #666; font-size: 12px;">Stopped</span>
-                        </div>
-                        <div style="font-size: 11px; color: #888; margin-bottom: 10px;">
-                            Poison LLMNR/NBT-NS/WPAD to capture NTLMv2 hashes
-                        </div>
-                        <div style="display: flex; gap: 5px; margin-bottom: 10px;">
-                            <button onclick="startResponder()" class="button" style="flex: 1; padding: 8px; font-size: 11px;" title="Start hash capture">▶️ Start</button>
-                            <button onclick="stopResponder()" class="button danger" style="flex: 1; padding: 8px; font-size: 11px;" title="Stop Responder">⏹️ Stop</button>
-                        </div>
-                        <div style="font-size: 12px; color: #0f0;">
-                            Hashes Captured: <span id="hashCount" style="color: #ff0;">0</span>
+                        <div id="discoveryResults" style="flex: 1; overflow-y: auto; font-size: 12px;">
+                            <div style="color: #555; padding: 20px 12px; text-align: center; font-size: 11px;">Run Discovery or Nmap to find hosts</div>
                         </div>
                     </div>
-                    
+
+                    <!-- CENTER PANEL — Attack Workspace -->
+                    <div class="internal-center">
+                        <!-- Placeholder (shown when no host selected) -->
+                        <div id="centerPlaceholder" class="center-placeholder">
+                            <div class="center-placeholder-icon">🎯</div>
+                            <div class="center-placeholder-text">Select a host from the discovery panel</div>
+                            <div class="center-placeholder-sub">Run Discovery or Nmap Scan to find targets</div>
+                        </div>
+
+                        <!-- Workspace (shown when host selected) -->
+                        <div id="centerWorkspace" style="display: none;">
+                            <!-- Target Info Bar -->
+                            <div id="targetInfoBar" class="target-info-bar">
+                                <div class="target-info-bar-header">
+                                    <span id="targetInfoIp" class="target-info-ip"></span>
+                                    <button class="target-deselect" onclick="deselectHost()" title="Deselect this target">✕ Deselect</button>
+                                </div>
+                                <div id="targetInfoMeta" class="target-info-meta"></div>
+                                <div id="targetInfoPorts" class="target-info-ports"></div>
+                                <div id="targetInfoSmb" class="target-smb-banner" style="display: none;"></div>
+                            </div>
+
+                            <!-- Credential Access -->
+                            <div class="attack-section section-cred">
+                                <label class="attack-section-label cred">Credential Access</label>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
+                                    <div>
+                                        <label style="color: #888; font-size: 10px;">Target IP:</label>
+                                        <input type="text" id="attackTarget" placeholder="192.168.1.50" style="width: 100%; padding: 5px; background: #001a00; border: 1px solid #003300; color: #0f0; font-family: monospace; font-size: 11px;" title="Target IP address">
+                                    </div>
+                                    <div>
+                                        <label style="color: #888; font-size: 10px;">Domain:</label>
+                                        <input type="text" id="attackDomain" placeholder="WORKGROUP" value="WORKGROUP" style="width: 100%; padding: 5px; background: #001a00; border: 1px solid #003300; color: #0f0; font-family: monospace; font-size: 11px;" title="Domain or WORKGROUP">
+                                    </div>
+                                    <div>
+                                        <label style="color: #888; font-size: 10px;">Username:</label>
+                                        <input type="text" id="attackUser" placeholder="administrator" style="width: 100%; padding: 5px; background: #001a00; border: 1px solid #003300; color: #0f0; font-family: monospace; font-size: 11px;" title="Username from cracked hash">
+                                    </div>
+                                    <div>
+                                        <label style="color: #888; font-size: 10px;">Password:</label>
+                                        <input type="password" id="attackPass" placeholder="password" style="width: 100%; padding: 5px; background: #001a00; border: 1px solid #003300; color: #0f0; font-family: monospace; font-size: 11px;" title="Cracked password">
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 5px;">
+                                    <button onclick="smbListShares()" class="button" style="flex: 1; padding: 7px; font-size: 10px;" title="List SMB shares on target">📁 SMB Shares</button>
+                                    <button onclick="psexecShell()" class="button" style="flex: 1; padding: 7px; font-size: 10px;" title="Get shell via PsExec">🖥 PsExec</button>
+                                    <button onclick="wmiexecShell()" class="button" style="flex: 1; padding: 7px; font-size: 10px;" title="Get shell via WMI">🖥 WMI</button>
+                                    <button onclick="secretsDump()" class="button" style="flex: 1; padding: 7px; font-size: 10px;" title="Dump all credentials from target">🔐 Secrets</button>
+                                </div>
+                            </div>
+
+                            <!-- Exploitation -->
+                            <div class="attack-section section-exploit">
+                                <label class="attack-section-label exploit">Exploitation</label>
+                                <div style="display: flex; gap: 5px;">
+                                    <button onclick="launchEternalBlue()" class="button" style="flex: 1; padding: 7px; font-size: 10px; background: linear-gradient(180deg, #440000, #220000); border-color: #660000;" title="MS17-010 EternalBlue — requires SMBv1">🔥 EternalBlue</button>
+                                    <button onclick="startRelay()" class="button" style="flex: 1; padding: 7px; font-size: 10px;" title="Relay captured NTLM auth to target">🔄 NTLM Relay</button>
+                                    <button onclick="stopRelay()" class="button danger" style="flex: 1; padding: 7px; font-size: 10px;" title="Stop NTLM relay attack">⏹ Stop Relay</button>
+                                </div>
+                            </div>
+
+                            <!-- Listener -->
+                            <div class="attack-section section-listener">
+                                <label class="attack-section-label listener">Listener</label>
+                                <div style="display: flex; gap: 5px; align-items: center;">
+                                    <input type="text" id="lhostInput" placeholder="10.0.0.1" style="width: 100px; padding: 5px; background: #0a0a0a; border: 1px solid #333; color: #0f0; font-size: 10px;" title="Your IP for callbacks">
+                                    <input type="text" id="lportInput" placeholder="4444" value="4444" style="width: 60px; padding: 5px; background: #0a0a0a; border: 1px solid #333; color: #0f0; font-size: 10px;" title="Listener port">
+                                    <button onclick="startListener()" class="button" style="padding: 5px 10px; font-size: 10px;" title="Start Metasploit listener for reverse shells">▶ Listen</button>
+                                    <button onclick="stopListener()" class="button danger" style="padding: 5px 10px; font-size: 10px;" title="Stop listener">⏹</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT PANEL — Credentials + Evidence -->
+                    <div class="internal-right">
+                        <!-- Credentials section -->
+                        <div class="right-section creds">
+                            <div class="right-section-header">
+                                <h3 style="color: #ff0;">🔑 Credentials</h3>
+                                <button onclick="refreshHashes()" class="button" style="padding: 2px 8px; font-size: 10px;" title="Refresh captured credentials">🔄</button>
+                            </div>
+                            <div id="credentialsList" class="right-section-body">
+                                <div style="color: #555;">No credentials captured yet...</div>
+                            </div>
+                        </div>
+                        <!-- Evidence section -->
+                        <div class="right-section evidence">
+                            <div class="right-section-header">
+                                <h3 style="color: #ff0;">📁 Evidence</h3>
+                                <div style="display: flex; gap: 4px;">
+                                    <button onclick="refreshEvidence()" class="button" style="padding: 2px 8px; font-size: 10px;" title="Refresh evidence files">🔄</button>
+                                    <button onclick="exportEvidence()" class="button" style="padding: 2px 8px; font-size: 10px;" title="Export all evidence as ZIP">📥</button>
+                                </div>
+                            </div>
+                            <div id="evidenceList" class="right-section-body">
+                                <div style="color: #555;">No evidence collected yet...</div>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
-                
-                <!-- Middle Row: Credentials + Attack Modules -->
-                <div style="display: flex; gap: 15px; flex: 1;">
-                    
-                    <!-- Captured Credentials -->
-                    <div class="panel" style="flex: 1; padding: 15px; display: flex; flex-direction: column;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <h3 style="margin: 0; color: #ff0;">🔑 Captured Credentials</h3>
-                            <button onclick="refreshHashes()" class="button" style="padding: 5px 10px; font-size: 11px;" title="Refresh">🔄</button>
-                        </div>
-                        <div id="credentialsList" style="flex: 1; overflow-y: auto; background: #0a0a0a; border: 1px solid #222; padding: 10px; font-size: 11px;">
-                            <div style="color: #666;">No credentials captured yet...</div>
-                        </div>
+
+                <!-- BOTTOM PANEL — Output Log -->
+                <div class="internal-bottom">
+                    <div class="internal-bottom-header">
+                        <h3>📟 Output</h3>
+                        <button onclick="clearInternalOutput()" class="button" style="padding: 2px 8px; font-size: 10px;" title="Clear output log">Clear</button>
                     </div>
-                    
-                    <!-- Attack Modules -->
-                    <div class="panel" style="flex: 1; padding: 15px;">
-                        <h3 style="margin: 0 0 10px 0; color: #f00;">💀 Attack Modules</h3>
-                        
-                        <!-- Target + Creds -->
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
-                            <div>
-                                <label style="color: #888; font-size: 10px;">Target IP:</label>
-                                <input type="text" id="attackTarget" placeholder="192.168.1.50" style="width: 100%; padding: 6px; background: #001a00; border: 1px solid #003300; color: #0f0; font-family: monospace; font-size: 11px;" title="Target IP address">
-                            </div>
-                            <div>
-                                <label style="color: #888; font-size: 10px;">Domain:</label>
-                                <input type="text" id="attackDomain" placeholder="WORKGROUP" value="WORKGROUP" style="width: 100%; padding: 6px; background: #001a00; border: 1px solid #003300; color: #0f0; font-family: monospace; font-size: 11px;" title="Domain or WORKGROUP">
-                            </div>
-                            <div>
-                                <label style="color: #888; font-size: 10px;">Username:</label>
-                                <input type="text" id="attackUser" placeholder="administrator" style="width: 100%; padding: 6px; background: #001a00; border: 1px solid #003300; color: #0f0; font-family: monospace; font-size: 11px;" title="Username from cracked hash">
-                            </div>
-                            <div>
-                                <label style="color: #888; font-size: 10px;">Password:</label>
-                                <input type="password" id="attackPass" placeholder="password" style="width: 100%; padding: 6px; background: #001a00; border: 1px solid #003300; color: #0f0; font-family: monospace; font-size: 11px;" title="Cracked password">
-                            </div>
-                        </div>
-                        
-                        <!-- Credential-Based Access -->
-                        <div style="margin-bottom: 15px;">
-                            <label style="color: #0f0; font-size: 11px; display: block; margin-bottom: 5px;">🚪 Legitimate Access (with creds):</label>
-                            <div style="display: flex; gap: 5px;">
-                                <button onclick="smbListShares()" class="button" style="flex: 1; padding: 8px; font-size: 10px;" title="List SMB shares on target">📁 SMB Shares</button>
-                                <button onclick="psexecShell()" class="button" style="flex: 1; padding: 8px; font-size: 10px;" title="Get shell via PsExec">🖥️ PsExec</button>
-                                <button onclick="wmiexecShell()" class="button" style="flex: 1; padding: 8px; font-size: 10px;" title="Get shell via WMI">🖥️ WMI</button>
-                                <button onclick="secretsDump()" class="button" style="flex: 1; padding: 8px; font-size: 10px;" title="Dump all credentials">🔐 Secrets</button>
-                            </div>
-                        </div>
-                        
-                        <!-- Exploitation -->
-                        <div style="margin-bottom: 15px;">
-                            <label style="color: #f00; font-size: 11px; display: block; margin-bottom: 5px;">💥 Exploitation (no creds needed):</label>
-                            <div style="display: flex; gap: 5px;">
-                                <button onclick="launchEternalBlue()" class="button" style="flex: 1; padding: 8px; font-size: 10px; background: linear-gradient(180deg, #440000, #220000); border-color: #660000;" title="MS17-010 EternalBlue - requires SMBv1">🔥 EternalBlue</button>
-                                <button onclick="startRelay()" class="button" style="flex: 1; padding: 8px; font-size: 10px;" title="Relay captured auth to target">🔄 NTLM Relay</button>
-                                <button onclick="stopRelay()" class="button danger" style="flex: 1; padding: 8px; font-size: 10px;" title="Stop NTLM relay attack">⏹️ Stop Relay</button>
-                            </div>
-                        </div>
-                        
-                        <!-- Listener -->
-                        <div>
-                            <label style="color: #888; font-size: 11px; display: block; margin-bottom: 5px;">📡 Listener:</label>
-                            <div style="display: flex; gap: 5px; align-items: center;">
-                                <input type="text" id="lhostInput" placeholder="10.0.0.1" style="width: 100px; padding: 6px; background: #0a0a0a; border: 1px solid #333; color: #0f0; font-size: 10px;" title="Your IP for callbacks">
-                                <input type="text" id="lportInput" placeholder="4444" value="4444" style="width: 60px; padding: 6px; background: #0a0a0a; border: 1px solid #333; color: #0f0; font-size: 10px;" title="Listener port">
-                                <button onclick="startListener()" class="button" style="padding: 6px 10px; font-size: 10px;" title="Start Metasploit listener">▶️ Listen</button>
-                                <button onclick="stopListener()" class="button danger" style="padding: 6px 10px; font-size: 10px;" title="Stop listener">⏹️</button>
-                                <span id="listenerStatus" style="color: #666; font-size: 10px;">Stopped</span>
-                            </div>
-                        </div>
-                    </div>
-                    
+                    <pre id="internalOutput" style="flex: 1; overflow-y: auto; background: #000; padding: 8px 12px; margin: 0; font-size: 11px; color: #0f0; white-space: pre-wrap; border-left: 3px solid #003300;">Ready for attack operations...</pre>
                 </div>
-                
-                <!-- Bottom Row: Output + Evidence -->
-                <div style="display: flex; gap: 15px; flex: 1;">
-                    
-                    <!-- Attack Output -->
-                    <div class="panel" style="flex: 2; padding: 15px; display: flex; flex-direction: column;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <h3 style="margin: 0; color: #0f0;">📟 Output</h3>
-                            <button onclick="clearInternalOutput()" class="button" style="padding: 5px 10px; font-size: 11px;" title="Clear output">🗑️</button>
-                        </div>
-                        <pre id="internalOutput" style="flex: 1; overflow-y: auto; background: #000; border: 1px solid #222; padding: 10px; margin: 0; font-size: 11px; color: #0f0; white-space: pre-wrap;">Ready for attack operations...</pre>
-                    </div>
-                    
-                    <!-- Evidence Locker -->
-                    <div class="panel" style="flex: 1; padding: 15px; display: flex; flex-direction: column;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <h3 style="margin: 0; color: #ff0;">📁 Evidence Locker</h3>
-                            <div style="display: flex; gap: 5px;">
-                                <button onclick="refreshEvidence()" class="button" style="padding: 5px 10px; font-size: 11px;" title="Refresh">🔄</button>
-                                <button onclick="exportEvidence()" class="button" style="padding: 5px 10px; font-size: 11px;" title="Export all as ZIP">📥 Export</button>
-                            </div>
-                        </div>
-                        <div id="evidenceList" style="flex: 1; overflow-y: auto; background: #0a0a0a; border: 1px solid #222; padding: 10px; font-size: 11px;">
-                            <div style="color: #666;">No evidence collected yet...</div>
-                        </div>
-                    </div>
-                    
-                </div>
-                
+
             </div>
         </div><!-- End page-internal -->
         
@@ -3433,6 +3820,115 @@
         let discoveryInterval = null;
         let responderInterval = null;
         let nmapPollInterval = null;
+        let selectedHost = null;
+
+        function getHostIcon(deviceType, os) {
+            const dt = (deviceType || '').toLowerCase();
+            const o = (os || '').toLowerCase();
+            if (dt.indexOf('printer') >= 0) return '🖨️';
+            if (dt.indexOf('router') >= 0 || dt.indexOf('switch') >= 0 || dt.indexOf('firewall') >= 0) return '🔌';
+            if (dt.indexOf('phone') >= 0 || dt.indexOf('mobile') >= 0) return '📱';
+            if (dt.indexOf('server') >= 0 || o.indexOf('server') >= 0) return '🖥️';
+            if (o.indexOf('windows') >= 0) return '💻';
+            if (o.indexOf('linux') >= 0) return '🐧';
+            if (o.indexOf('mac') >= 0 || o.indexOf('apple') >= 0 || o.indexOf('ios') >= 0) return '🍎';
+            return '💻';
+        }
+
+        function updateHostCount() {
+            var badge = document.getElementById('hostCountBadge');
+            if (!badge) return;
+            var items = document.querySelectorAll('#discoveryResults .host-item[data-host]');
+            badge.textContent = items.length;
+        }
+
+        function selectHost(ip, element) {
+            // Toggle off if clicking same host
+            if (selectedHost && selectedHost.ip === ip) {
+                deselectHost();
+                return;
+            }
+            // Remove selected from all
+            document.querySelectorAll('#discoveryResults .host-item').forEach(function(el) {
+                el.classList.remove('selected');
+            });
+            // Select this one
+            element.classList.add('selected');
+
+            // Parse host data
+            var hostData = {};
+            try {
+                hostData = JSON.parse(element.dataset.host || '{}');
+            } catch(e) {
+                hostData = { ip: ip };
+            }
+            selectedHost = hostData;
+
+            // Fill attack target
+            document.getElementById('attackTarget').value = ip;
+            if (hostData.smb_domain) {
+                document.getElementById('attackDomain').value = hostData.smb_domain;
+            }
+
+            // Note: esc() used here only processes data from our own nmap scan results
+            // (internal-only tool, not user-supplied web input), same pattern as existing code
+            var esc = function(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
+
+            // Populate target info bar
+            document.getElementById('targetInfoIp').textContent = ip;
+
+            var meta = [];
+            if (hostData.hostname) meta.push(esc(hostData.hostname));
+            if (hostData.os) meta.push(esc(hostData.os));
+            if (hostData.device_type) meta.push(esc(hostData.device_type));
+            document.getElementById('targetInfoMeta').innerHTML = meta.join(' &mdash; ');
+
+            // Ports
+            var portsHtml = '';
+            if (hostData.ports && hostData.ports.length > 0) {
+                var DANGEROUS = ['21','23','69','161','512','513','514'];
+                var INTERESTING = ['445','139','3389','5985','5986','88','389','636'];
+                hostData.ports.forEach(function(p) {
+                    var color = '#ff0';
+                    if (DANGEROUS.indexOf(p.port) >= 0) color = '#f00';
+                    else if (INTERESTING.indexOf(p.port) >= 0) color = '#f80';
+                    portsHtml += '<span style="color:' + color + '; margin-right:10px; font-family:monospace;">' + esc(p.port) + '</span><span style="color:#888; margin-right:14px;">' + esc(p.service) + '</span>';
+                });
+            }
+            document.getElementById('targetInfoPorts').innerHTML = portsHtml;
+
+            // SMB banner
+            var smbDiv = document.getElementById('targetInfoSmb');
+            if (hostData.smb_info) {
+                var smb = hostData.smb_info;
+                var parts = [];
+                if (smb.domain) parts.push('Domain: ' + esc(smb.domain));
+                if (smb.os) parts.push(esc(smb.os));
+                if (smb.signing) parts.push('Signing: <span style="color:' + (smb.signing === 'disabled' ? '#f00;font-weight:bold' : '#0f0') + ';">' + esc(smb.signing).toUpperCase() + '</span>');
+                if (smb.auth_level) parts.push('Auth: ' + esc(smb.auth_level));
+                smbDiv.innerHTML = parts.join(' | ');
+                smbDiv.style.display = 'block';
+            } else {
+                smbDiv.style.display = 'none';
+            }
+
+            // Show workspace, hide placeholder
+            document.getElementById('targetInfoBar').style.display = 'block';
+            document.getElementById('centerPlaceholder').style.display = 'none';
+            document.getElementById('centerWorkspace').style.display = 'block';
+
+            appendInternalOutput('[*] Target selected: ' + ip);
+        }
+
+        function deselectHost() {
+            selectedHost = null;
+            document.querySelectorAll('#discoveryResults .host-item').forEach(function(el) {
+                el.classList.remove('selected');
+            });
+            document.getElementById('targetInfoBar').style.display = 'none';
+            document.getElementById('centerPlaceholder').style.display = 'flex';
+            document.getElementById('centerWorkspace').style.display = 'none';
+        }
 
         async function refreshInternalModes() {
             try {
@@ -3551,8 +4047,10 @@
         async function clearDiscovery() {
             try {
                 await fetch('/api/internal/discover/clear', { method: 'POST' });
-                document.getElementById('discoveryResults').innerHTML = '<div style="color: #666;">Results cleared...</div>';
+                document.getElementById('discoveryResults').innerHTML = '<div style="color: #555; padding: 20px 12px; text-align: center; font-size: 11px;">Run Discovery or Nmap to find hosts</div>';
                 document.getElementById('intelBar').style.display = 'none';
+                deselectHost();
+                updateHostCount();
                 appendInternalOutput('[*] Discovery results cleared');
             } catch (err) {
                 appendInternalOutput('[-] Error: ' + err.message);
@@ -3649,20 +4147,21 @@
         function displayNmapResults(results) {
             const hosts = results.hosts || [];
             if (hosts.length === 0) {
-                document.getElementById('discoveryResults').innerHTML = '<div style="color: #666;">No hosts found in scan.</div>';
+                document.getElementById('discoveryResults').innerHTML = '<div style="color: #555; padding: 20px 12px; text-align: center; font-size: 11px;">No hosts found in scan.</div>';
+                updateHostCount();
                 return;
             }
+            // Note: esc() only processes nmap scan output (internal tool data, not user web input)
             const esc = function(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); };
             const DANGEROUS_PORTS = ['21', '23', '69', '161', '512', '513', '514'];
             const INTERESTING_PORTS = ['445', '139', '3389', '5985', '5986', '88', '389', '636'];
 
-            let html = '<div style="color: #0f0; margin-bottom: 8px; font-weight: bold;">🔎 Nmap Results — ' + hosts.length + ' host(s)</div>';
+            let html = '';
 
             hosts.forEach(function(h) {
                 const ip = esc(h.ip);
                 const hostname = esc(h.hostname || '');
                 const os = esc(h.os || '');
-                const osAcc = esc(h.os_accuracy || '');
                 const devType = esc(h.device_type || '');
                 const smb = h.smb_info;
                 const ports = h.ports || [];
@@ -3670,65 +4169,66 @@
                 const hasDangerous = ports.some(function(p) { return DANGEROUS_PORTS.indexOf(p.port) >= 0; });
                 const hasSMB = ports.some(function(p) { return p.port === '445' || p.port === '139'; });
                 const smbSigningOff = smb && smb.signing === 'disabled';
-                let borderColor = '#333';
-                if (hasDangerous || smbSigningOff) borderColor = '#f00';
-                else if (hasSMB) borderColor = '#ff0';
 
-                html += '<div style="border: 1px solid ' + borderColor + '; border-radius: 4px; padding: 10px; margin-bottom: 8px; background: #0a0a0a;">';
+                // Determine criticality class
+                let critClass = '';
+                if (hasDangerous || smbSigningOff) critClass = ' host-critical';
+                else if (hasSMB) critClass = ' host-interesting';
 
-                // Header: IP + hostname + device type
-                html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">';
-                html += '<span style="color: #0f0; font-weight: bold; cursor: pointer; text-decoration: underline;" onclick="document.getElementById(\'attackTarget\').value=\'' + esc(h.ip) + '\'" title="Click to set as attack target">' + ip + '</span>';
-                let meta = [];
+                // Build host data JSON for data attribute (store smb_domain shortcut)
+                var hostObj = JSON.parse(JSON.stringify(h));
+                if (smb && smb.domain) hostObj.smb_domain = smb.domain;
+                var dataAttr = esc(JSON.stringify(hostObj));
+
+                var icon = getHostIcon(devType, os);
+
+                html += '<div class="host-item' + critClass + '" onclick="selectHost(\'' + esc(h.ip) + '\', this)" data-host="' + dataAttr + '" title="Click to select as attack target">';
+                html += '<div class="host-item-icon">' + icon + '</div>';
+                html += '<div class="host-item-info">';
+                html += '<div class="host-item-ip">' + ip + '</div>';
+
+                // Meta line
+                var meta = [];
                 if (hostname) meta.push(hostname);
+                if (os) meta.push(os);
                 if (devType) meta.push(devType);
-                html += '<span style="color: #888; font-size: 11px;">' + meta.join(' | ') + '</span>';
-                html += '</div>';
-
-                // OS line
-                if (os) {
-                    html += '<div style="color: #aaa; font-size: 11px; margin-bottom: 4px;">OS: ' + os + (osAcc ? ' (' + osAcc + ')' : '') + '</div>';
+                if (meta.length > 0) {
+                    html += '<div class="host-item-meta">' + meta.join(' · ') + '</div>';
                 }
 
-                // SMB info banner
-                if (smb) {
-                    let smbParts = [];
-                    if (smb.domain) smbParts.push('Domain: ' + esc(smb.domain));
-                    if (smb.os) smbParts.push(esc(smb.os));
-                    if (smb.signing) smbParts.push('Signing: <span style="color:' + (smb.signing === 'disabled' ? '#f00; font-weight:bold' : '#0f0') + ';">' + esc(smb.signing).toUpperCase() + '</span>');
-                    if (smb.auth_level) smbParts.push('Auth: ' + esc(smb.auth_level));
-                    html += '<div style="background: #1a1a00; border: 1px solid #333; padding: 4px 8px; margin-bottom: 6px; font-size: 11px; color: #ff0; border-radius: 3px;">' + smbParts.join(' | ') + '</div>';
-                }
-
-                // Ports with version info
+                // Port summary (compact)
                 if (ports.length > 0) {
-                    html += '<div style="font-size: 11px;">';
-                    ports.forEach(function(p) {
-                        let portColor = '#ff0';
-                        if (DANGEROUS_PORTS.indexOf(p.port) >= 0) portColor = '#f00';
-                        else if (INTERESTING_PORTS.indexOf(p.port) >= 0) portColor = '#f80';
-                        let svcText = esc(p.service);
-                        if (p.product) svcText += ' <span style="color:#888;">(' + esc(p.product) + (p.version ? ' ' + esc(p.version) : '') + ')</span>';
-                        html += '<span style="color:' + portColor + '; margin-right: 12px;">' + esc(p.port) + '</span>/<span style="color:#ccc;">' + svcText + '</span><br>';
-                    });
-                    html += '</div>';
+                    var portNums = ports.map(function(p) { return p.port; }).join(' ');
+                    html += '<div class="host-item-ports">' + portNums + '</div>';
                 }
 
-                // Critical finding badges
-                let badges = [];
+                // Badges
+                var badges = [];
+                if (smbSigningOff) badges.push('<span class="host-badge host-badge-critical">RELAY TARGET</span>');
                 ports.forEach(function(p) {
-                    if (p.port === '23') badges.push('<span style="background:#f00; color:#000; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:bold;">Telnet:23</span>');
-                    if (p.port === '21') badges.push('<span style="background:#f00; color:#000; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:bold;">FTP:21</span>');
+                    if (p.port === '23') badges.push('<span class="host-badge host-badge-critical">Telnet</span>');
+                    if (p.port === '21') badges.push('<span class="host-badge host-badge-critical">FTP</span>');
                 });
-                if (smbSigningOff) badges.push('<span style="background:#f00; color:#000; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:bold;">RELAY TARGET</span>');
+                if (hasSMB) badges.push('<span class="host-badge host-badge-warn">SMB</span>');
                 if (badges.length > 0) {
-                    html += '<div style="margin-top: 6px; display: flex; gap: 4px; flex-wrap: wrap;">' + badges.join('') + '</div>';
+                    html += '<div>' + badges.join('') + '</div>';
                 }
 
-                html += '</div>';
+                html += '</div></div>';
             });
 
-            document.getElementById('discoveryResults').innerHTML = html;
+            document.getElementById('discoveryResults').innerHTML = html; // nmap output, sanitized by esc()
+            updateHostCount();
+            // Re-apply selection highlight after innerHTML replacement
+            if (selectedHost) {
+                var reItems = document.querySelectorAll('#discoveryResults .host-item[data-host]');
+                for (var ri = 0; ri < reItems.length; ri++) {
+                    try {
+                        var rd = JSON.parse(reItems[ri].dataset.host || '{}');
+                        if (rd.ip === selectedHost.ip) { reItems[ri].classList.add('selected'); break; }
+                    } catch(e) {}
+                }
+            }
         }
 
         async function refreshIntel() {
@@ -3776,48 +4276,70 @@
             try {
                 const response = await fetch('/api/internal/discover/results');
                 const data = await response.json();
-                
+
                 if (data.success && data.results) {
                     const results = data.results;
+                    // Note: esc() only processes discover.py output (internal tool data)
+                    const esc = function(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); };
                     let html = '';
-                    
-                    // Vulnerabilities
+
+                    // Vulnerabilities as host-items with critical styling
                     if (results.vulnerabilities && results.vulnerabilities.length > 0) {
-                        html += '<div style="color: #f00; margin-bottom: 10px; font-weight: bold;">⚠️ VULNERABILITIES</div>';
                         results.vulnerabilities.forEach(v => {
-                            const color = v.severity === 'critical' ? '#f00' : v.severity === 'high' ? '#ff0' : '#888';
-                            html += '<div style="padding: 5px; margin-bottom: 5px; border-left: 3px solid ' + color + '; background: #111;">';
-                            html += '<span style="color: ' + color + ';">[' + v.type + ']</span> ';
-                            html += '<span style="color: #0f0;">' + v.target + '</span><br>';
-                            html += '<span style="color: #888; font-size: 10px;">' + v.details + '</span>';
+                            const critClass = v.severity === 'critical' ? ' host-critical' : v.severity === 'high' ? ' host-interesting' : '';
+                            const hostData = esc(JSON.stringify({ ip: v.target, vuln_type: v.type, vuln_details: v.details, attack: v.attack }));
+                            html += '<div class="host-item' + critClass + '" onclick="selectHost(\'' + esc(v.target) + '\', this)" data-host="' + hostData + '" title="' + esc(v.details) + '">';
+                            html += '<div class="host-item-icon">⚠️</div>';
+                            html += '<div class="host-item-info">';
+                            html += '<div class="host-item-ip">' + esc(v.target) + '</div>';
+                            html += '<div class="host-item-meta">' + esc(v.type) + ' · ' + esc(v.details) + '</div>';
                             if (v.attack && v.attack !== 'info' && v.attack !== 'captured') {
-                                html += ' <button onclick="autoAttack(\'' + v.attack + '\', \'' + v.target + '\')" style="padding: 2px 6px; font-size: 9px; background: #440000; border: 1px solid #660000; color: #f00; cursor: pointer;">Attack</button>';
+                                html += '<div><span class="host-badge host-badge-critical">' + esc(v.attack).toUpperCase() + '</span></div>';
                             }
-                            html += '</div>';
+                            html += '</div></div>';
                         });
                     }
-                    
-                    // Hosts
-                    const hostCount = Object.keys(results.hosts || {}).length;
-                    if (hostCount > 0) {
-                        html += '<div style="color: #0f0; margin: 10px 0 5px 0;">📡 Hosts Discovered: ' + hostCount + '</div>';
-                    }
-                    
+
+                    // Hosts as items
+                    const hosts = results.hosts || {};
+                    Object.keys(hosts).forEach(function(ip) {
+                        const hostData = esc(JSON.stringify({ ip: ip }));
+                        html += '<div class="host-item" onclick="selectHost(\'' + esc(ip) + '\', this)" data-host="' + hostData + '" title="Click to select as target">';
+                        html += '<div class="host-item-icon">💻</div>';
+                        html += '<div class="host-item-info">';
+                        html += '<div class="host-item-ip">' + esc(ip) + '</div>';
+                        html += '<div class="host-item-meta">Discovered via passive monitoring</div>';
+                        html += '</div></div>';
+                    });
+
                     // Cleartext creds
                     if (results.cleartext && results.cleartext.length > 0) {
-                        html += '<div style="color: #ff0; margin: 10px 0 5px 0;">🔑 CLEARTEXT CREDENTIALS</div>';
                         results.cleartext.forEach(c => {
-                            html += '<div style="padding: 3px; color: #ff0; font-family: monospace;">';
-                            html += c.type + ': ' + (c.credentials || c.data);
-                            html += '</div>';
+                            html += '<div class="host-item host-critical" title="Cleartext credentials captured">';
+                            html += '<div class="host-item-icon">🔑</div>';
+                            html += '<div class="host-item-info">';
+                            html += '<div class="host-item-ip" style="color: #ff0;">' + esc(c.type) + '</div>';
+                            html += '<div class="host-item-meta" style="color: #ff0;">' + esc(c.credentials || c.data) + '</div>';
+                            html += '</div></div>';
                         });
                     }
-                    
+
                     if (html === '') {
-                        html = '<div style="color: #666;">Listening for traffic...</div>';
+                        html = '<div style="color: #555; padding: 20px 12px; text-align: center; font-size: 11px;">Listening for traffic...</div>';
                     }
-                    
-                    document.getElementById('discoveryResults').innerHTML = html;
+
+                    document.getElementById('discoveryResults').innerHTML = html; // discover.py output, sanitized by esc()
+                    updateHostCount();
+                    // Re-apply selection highlight after innerHTML replacement
+                    if (selectedHost) {
+                        var reItems = document.querySelectorAll('#discoveryResults .host-item[data-host]');
+                        for (var ri = 0; ri < reItems.length; ri++) {
+                            try {
+                                var rd = JSON.parse(reItems[ri].dataset.host || '{}');
+                                if (rd.ip === selectedHost.ip) { reItems[ri].classList.add('selected'); break; }
+                            } catch(e) {}
+                        }
+                    }
                 }
                 refreshIntel();
             } catch (err) {
@@ -4208,7 +4730,19 @@
         
         function autoAttack(attackType, target) {
             document.getElementById('attackTarget').value = target;
-            
+
+            // Find and select the matching host in the left panel (break after first match to avoid toggle-off)
+            var hostItems = document.querySelectorAll('#discoveryResults .host-item[data-host]');
+            for (var i = 0; i < hostItems.length; i++) {
+                try {
+                    var data = JSON.parse(hostItems[i].dataset.host || '{}');
+                    if (data.ip === target) {
+                        selectHost(target, hostItems[i]);
+                        break;
+                    }
+                } catch(e) {}
+            }
+
             if (attackType === 'responder') {
                 appendInternalOutput('[*] Target is vulnerable to Responder poisoning');
                 appendInternalOutput('[*] Start Responder to capture hashes');
