@@ -225,6 +225,15 @@ orchestrator_state = {
     'start_time': None
 }
 
+# Global state for async nmap scan
+nmap_scan_state = {
+    'running': False,
+    'process': None,
+    'start_time': None,
+    'subnet': None
+}
+nmap_scan_lock = threading.Lock()
+
 # Global state for live wardrive scanning
 import sys
 sys.path.insert(0, '/home/ov3rr1d3/wifi_arsenal/wardrive_system/wardrive')
@@ -6130,40 +6139,94 @@ def internal_discover_clear():
 
 @app.route('/api/internal/scan', methods=['POST'])
 def internal_scan():
-    """Run nmap scan on subnet"""
+    """Start async nmap scan on subnet"""
+    global nmap_scan_state
+
+    with nmap_scan_lock:
+        if nmap_scan_state['running']:
+            return jsonify({'success': False, 'error': 'Scan already running'})
+
     data = request.json or {}
     subnet = data.get('subnet', '192.168.1.0/24')
-    
-    # Sanitize input
+
     if not re.match(r'^[0-9./]+$', subnet):
         return jsonify({'success': False, 'error': 'Invalid subnet format'})
-    
+
     script = os.path.join(SCRIPT_DIR, 'internal', 'nmap_scan.sh')
+
+    def run_nmap():
+        global nmap_scan_state
+        try:
+            process = subprocess.Popen(
+                ['bash', script, subnet],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
+            with nmap_scan_lock:
+                nmap_scan_state['process'] = process
+            process.wait()
+        finally:
+            with nmap_scan_lock:
+                nmap_scan_state['running'] = False
+                nmap_scan_state['process'] = None
+
+    with nmap_scan_lock:
+        nmap_scan_state['running'] = True
+        nmap_scan_state['start_time'] = time.time()
+        nmap_scan_state['subnet'] = subnet
+
+    thread = threading.Thread(target=run_nmap)
+    thread.daemon = True
+    thread.start()
+
+    return jsonify({'success': True, 'message': 'Scan started'})
+
+
+@app.route('/api/internal/scan/status', methods=['GET'])
+def internal_scan_status():
+    """Get nmap scan status"""
+    with nmap_scan_lock:
+        running = nmap_scan_state['running']
+        start_time = nmap_scan_state['start_time']
+        subnet = nmap_scan_state['subnet']
+    elapsed = 0
+    if running and start_time:
+        elapsed = int(time.time() - start_time)
+    return jsonify({
+        'running': running,
+        'elapsed': elapsed,
+        'subnet': subnet
+    })
+
+
+@app.route('/api/internal/scan/results', methods=['GET'])
+def internal_scan_results():
+    """Get nmap scan results from JSON file"""
     results_file = os.path.join(CAPTURE_DIR, 'nmap_results.json')
-    
-    try:
-        # Run scan (this takes time)
-        result = subprocess.run(['bash', script, subnet], 
-                              capture_output=True, text=True, timeout=300)
-        
-        # Read results
-        if os.path.exists(results_file):
-            with open(results_file, 'r') as f:
-                scan_results = json.load(f)
-            return jsonify({
-                'success': True,
-                'results': scan_results
-            })
-        else:
-            return jsonify({
-                'success': False, 
-                'error': 'Scan completed but no results file',
-                'output': result.stdout + result.stderr
-            })
-    except subprocess.TimeoutExpired:
-        return jsonify({'success': False, 'error': 'Scan timed out (5 min limit)'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+    if os.path.exists(results_file):
+        with open(results_file, 'r') as f:
+            return jsonify({'success': True, 'results': json.load(f)})
+    return jsonify({'success': False, 'error': 'No results available'})
+
+
+@app.route('/api/internal/scan/stop', methods=['POST'])
+def internal_scan_stop():
+    """Stop running nmap scan"""
+    global nmap_scan_state
+    with nmap_scan_lock:
+        proc = nmap_scan_state['process']
+    if proc:
+        try:
+            proc.terminate()
+            proc.wait(timeout=5)
+        except Exception:
+            proc.kill()
+        with nmap_scan_lock:
+            nmap_scan_state['running'] = False
+            nmap_scan_state['process'] = None
+        return jsonify({'success': True, 'message': 'Scan cancelled'})
+    return jsonify({'success': False, 'error': 'No scan running'})
 
 
 @app.route('/api/internal/intel', methods=['GET'])

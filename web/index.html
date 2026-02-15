@@ -1204,7 +1204,25 @@
         <!-- Page: Internal Network Attack -->
         <div id="page-internal" class="page">
             <div style="display: flex; flex-direction: column; height: 100%; gap: 15px; padding: 15px;">
-                
+
+                <!-- Interface Status Bar -->
+                <div class="panel" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; flex: 0 0 auto;">
+                    <div style="display: flex; gap: 15px; align-items: center;">
+                        <span style="font-size: 1.1em; color: #0f0;">🔧 Interfaces</span>
+                        <span class="mode-status" id="internalAlfa0Status" title="alfa0 mode — Monitor: passive capture | Managed: active network">alfa0: checking...</span>
+                        <span class="mode-status" id="internalAlfa1Status" title="alfa1 mode — Monitor: passive capture | Managed: active network">alfa1: checking...</span>
+                    </div>
+                    <div style="display: flex; gap: 5px; align-items: center;">
+                        <select id="internalIfaceSelect" style="background: #001a00; color: #00ff00; border: 1px solid #003300; padding: 5px;" title="Select interface to configure">
+                            <option value="alfa0">alfa0</option>
+                            <option value="alfa1">alfa1</option>
+                        </select>
+                        <button class="button" onclick="setInternalMode('monitor')" style="padding: 5px 10px;" title="Set to monitor mode for passive capture">Monitor</button>
+                        <button class="button" onclick="setInternalMode('managed')" style="padding: 5px 10px;" title="Set to managed mode to join a network">Managed</button>
+                        <button class="button" onclick="refreshInternalModes()" style="padding: 5px 10px;" title="Refresh interface status">Refresh</button>
+                    </div>
+                </div>
+
                 <!-- Top Row: Discovery + Responder -->
                 <div style="display: flex; gap: 15px; flex: 0 0 auto;">
                     
@@ -1228,6 +1246,7 @@
                         <div style="display: flex; gap: 5px; align-items: center; margin-bottom: 8px;">
                             <input type="text" id="nmapSubnet" placeholder="192.168.1.0/24" value="192.168.1.0/24" style="width: 160px; padding: 5px; background: #001a00; border: 1px solid #003300; color: #0f0; font-family: monospace; font-size: 11px;" title="Subnet to scan with nmap">
                             <button id="nmapScanBtn" onclick="nmapScan()" class="button" style="padding: 5px 10px; font-size: 11px;" title="Run nmap host discovery and port scan on subnet">🔎 Nmap Scan</button>
+                            <button id="nmapCancelBtn" onclick="stopNmapScan()" class="button danger" style="padding: 5px 10px; font-size: 11px; display: none;" title="Cancel running nmap scan">⏹️ Cancel</button>
                         </div>
                         <div id="intelBar" style="display: none; margin-bottom: 8px; padding: 8px; background: #0a0a0a; border: 1px solid #333; border-radius: 4px; font-size: 11px;">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -1713,8 +1732,15 @@
         let countdownInterval = null;
         
         // Page navigation
+        function stopInternalPolling() {
+            if (nmapPollInterval) { clearInterval(nmapPollInterval); nmapPollInterval = null; }
+            if (discoveryInterval) { clearInterval(discoveryInterval); discoveryInterval = null; }
+            if (responderInterval) { clearInterval(responderInterval); responderInterval = null; }
+        }
+
         function showPage(pageName) {
             stopSyncPolling();
+            stopInternalPolling();
             // Hide all pages
             document.querySelectorAll('.page').forEach(page => {
                 page.classList.remove('active');
@@ -1750,6 +1776,8 @@
                 refreshEvidence();
                 refreshDiscoveryResults();
                 refreshIntel();
+                refreshInternalModes();
+                checkInternalPolling();
             } else if (pageName === 'dashboard') {
                 stopMitmPolling();
                 refreshDashboard();
@@ -1952,6 +1980,20 @@
                 countdownInterval = null;
             }
             setStatus('IDLE', false);
+        }
+
+        function startCountup(baseText) {
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+            let elapsed = 0;
+            setStatus(`${baseText} 0:00`, true);
+            countdownInterval = setInterval(() => {
+                elapsed++;
+                const mins = Math.floor(elapsed / 60);
+                const secs = String(elapsed % 60).padStart(2, '0');
+                setStatus(`${baseText} ${mins}:${secs}`, true);
+            }, 1000);
         }
         
         function toggleAdvancedAttacks() {
@@ -3390,6 +3432,72 @@
         
         let discoveryInterval = null;
         let responderInterval = null;
+        let nmapPollInterval = null;
+
+        async function refreshInternalModes() {
+            try {
+                const response = await fetch('/api/mode/status');
+                const result = await response.json();
+                document.getElementById('internalAlfa0Status').textContent = 'alfa0: ' + result.alfa0;
+                document.getElementById('internalAlfa1Status').textContent = 'alfa1: ' + result.alfa1;
+            } catch (error) {
+                console.error('Error refreshing internal modes:', error);
+            }
+        }
+
+        async function setInternalMode(mode) {
+            const iface = document.getElementById('internalIfaceSelect').value;
+            try {
+                const response = await fetch('/api/mode/set', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ interface: iface, mode: mode })
+                });
+                const result = await response.json();
+                appendInternalOutput('[*] ' + result.output);
+                setTimeout(refreshInternalModes, 1000);
+            } catch (error) {
+                appendInternalOutput('[-] Mode change error: ' + error.message);
+            }
+        }
+
+        async function checkInternalPolling() {
+            try {
+                const discResp = await fetch('/api/internal/discover/status');
+                const discData = await discResp.json();
+                if (discData.running) {
+                    document.getElementById('discoverStatus').textContent = 'Running';
+                    document.getElementById('discoverStatus').style.color = '#0f0';
+                    if (!discoveryInterval) {
+                        discoveryInterval = setInterval(refreshDiscoveryResults, 3000);
+                    }
+                }
+            } catch (e) { /* ignore */ }
+
+            try {
+                const respResp = await fetch('/api/internal/responder/status');
+                const respData = await respResp.json();
+                if (respData.running) {
+                    document.getElementById('responderStatus').textContent = 'Running';
+                    document.getElementById('responderStatus').style.color = '#0f0';
+                    if (!responderInterval) {
+                        responderInterval = setInterval(refreshHashes, 5000);
+                    }
+                }
+            } catch (e) { /* ignore */ }
+
+            try {
+                const nmapResp = await fetch('/api/internal/scan/status');
+                const nmapData = await nmapResp.json();
+                if (nmapData.running) {
+                    document.getElementById('nmapScanBtn').disabled = true;
+                    document.getElementById('nmapCancelBtn').style.display = '';
+                    if (!nmapPollInterval) {
+                        nmapPollInterval = setInterval(pollNmapStatus, 2000);
+                    }
+                }
+            } catch (e) { /* ignore */ }
+        }
         
         async function startDiscovery() {
             const iface = document.getElementById('discoverInterface').value;
@@ -3406,8 +3514,9 @@
                 if (data.success) {
                     document.getElementById('discoverStatus').textContent = 'Running';
                     document.getElementById('discoverStatus').style.color = '#0f0';
+                    startCountup('DISCOVERY');
                     appendInternalOutput('[+] Discovery started');
-                    
+
                     // Start polling for results
                     if (discoveryInterval) clearInterval(discoveryInterval);
                     discoveryInterval = setInterval(refreshDiscoveryResults, 3000);
@@ -3418,20 +3527,21 @@
                 appendInternalOutput('[-] Error: ' + err.message);
             }
         }
-        
+
         async function stopDiscovery() {
             try {
                 const response = await fetch('/api/internal/discover/stop', { method: 'POST' });
                 const data = await response.json();
-                
+
                 document.getElementById('discoverStatus').textContent = 'Stopped';
                 document.getElementById('discoverStatus').style.color = '#666';
-                
+                stopCountdown();
+
                 if (discoveryInterval) {
                     clearInterval(discoveryInterval);
                     discoveryInterval = null;
                 }
-                
+
                 appendInternalOutput('[*] Discovery stopped');
             } catch (err) {
                 appendInternalOutput('[-] Error: ' + err.message);
@@ -3442,6 +3552,7 @@
             try {
                 await fetch('/api/internal/discover/clear', { method: 'POST' });
                 document.getElementById('discoveryResults').innerHTML = '<div style="color: #666;">Results cleared...</div>';
+                document.getElementById('intelBar').style.display = 'none';
                 appendInternalOutput('[*] Discovery results cleared');
             } catch (err) {
                 appendInternalOutput('[-] Error: ' + err.message);
@@ -3456,8 +3567,10 @@
             }
             const btn = document.getElementById('nmapScanBtn');
             btn.disabled = true;
-            btn.textContent = '⏳ Scanning...';
-            appendInternalOutput('[*] Running nmap scan on ' + subnet + ' (may take up to 5 min)...');
+            btn.textContent = '⏳ 0:00';
+            document.getElementById('nmapCancelBtn').style.display = '';
+            appendInternalOutput('[*] Starting nmap scan on ' + subnet + ' (version detection + OS fingerprinting)...');
+            startCountup('NMAP SCAN');
 
             try {
                 const response = await fetch('/api/internal/scan', {
@@ -3467,17 +3580,69 @@
                 });
                 const data = await response.json();
 
-                if (data.success && data.results) {
-                    displayNmapResults(data.results);
-                    appendInternalOutput('[+] Nmap scan complete — ' + (data.results.hosts || []).length + ' host(s) found');
+                if (data.success) {
+                    if (nmapPollInterval) clearInterval(nmapPollInterval);
+                    nmapPollInterval = setInterval(pollNmapStatus, 2000);
                 } else {
-                    appendInternalOutput('[-] Nmap scan failed: ' + (data.error || 'Unknown error'));
+                    appendInternalOutput('[-] ' + (data.error || 'Failed to start scan'));
+                    btn.disabled = false;
+                    btn.textContent = '🔎 Nmap Scan';
+                    document.getElementById('nmapCancelBtn').style.display = 'none';
                 }
             } catch (err) {
                 appendInternalOutput('[-] Nmap error: ' + err.message);
-            } finally {
                 btn.disabled = false;
                 btn.textContent = '🔎 Nmap Scan';
+                document.getElementById('nmapCancelBtn').style.display = 'none';
+            }
+        }
+
+        async function pollNmapStatus() {
+            try {
+                const response = await fetch('/api/internal/scan/status');
+                const data = await response.json();
+
+                if (data.running) {
+                    const mins = Math.floor(data.elapsed / 60);
+                    const secs = String(data.elapsed % 60).padStart(2, '0');
+                    document.getElementById('nmapScanBtn').textContent = '⏳ ' + mins + ':' + secs;
+                } else {
+                    clearInterval(nmapPollInterval);
+                    nmapPollInterval = null;
+                    document.getElementById('nmapScanBtn').disabled = false;
+                    document.getElementById('nmapScanBtn').textContent = '🔎 Nmap Scan';
+                    document.getElementById('nmapCancelBtn').style.display = 'none';
+                    stopCountdown();
+
+                    const resultsResp = await fetch('/api/internal/scan/results');
+                    const resultsData = await resultsResp.json();
+                    if (resultsData.success && resultsData.results) {
+                        displayNmapResults(resultsData.results);
+                        appendInternalOutput('[+] Nmap scan complete — ' + (resultsData.results.hosts || []).length + ' host(s) found');
+                        refreshIntel();
+                    } else {
+                        appendInternalOutput('[-] Scan finished but no results available');
+                    }
+                }
+            } catch (err) {
+                console.error('Nmap poll error:', err);
+            }
+        }
+
+        async function stopNmapScan() {
+            try {
+                await fetch('/api/internal/scan/stop', { method: 'POST' });
+                if (nmapPollInterval) {
+                    clearInterval(nmapPollInterval);
+                    nmapPollInterval = null;
+                }
+                document.getElementById('nmapScanBtn').disabled = false;
+                document.getElementById('nmapScanBtn').textContent = '🔎 Nmap Scan';
+                document.getElementById('nmapCancelBtn').style.display = 'none';
+                stopCountdown();
+                appendInternalOutput('[*] Nmap scan cancelled');
+            } catch (err) {
+                appendInternalOutput('[-] Cancel error: ' + err.message);
             }
         }
 
@@ -3487,22 +3652,82 @@
                 document.getElementById('discoveryResults').innerHTML = '<div style="color: #666;">No hosts found in scan.</div>';
                 return;
             }
-            const esc = function(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+            const esc = function(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); };
+            const DANGEROUS_PORTS = ['21', '23', '69', '161', '512', '513', '514'];
+            const INTERESTING_PORTS = ['445', '139', '3389', '5985', '5986', '88', '389', '636'];
+
             let html = '<div style="color: #0f0; margin-bottom: 8px; font-weight: bold;">🔎 Nmap Results — ' + hosts.length + ' host(s)</div>';
-            html += '<table style="width: 100%; border-collapse: collapse; font-size: 11px;">';
-            html += '<tr style="color: #0f0; border-bottom: 1px solid #333;"><th style="text-align: left; padding: 3px;">IP</th><th style="text-align: left; padding: 3px;">Hostname</th><th style="text-align: left; padding: 3px;">OS</th><th style="text-align: left; padding: 3px;">Ports</th><th style="text-align: left; padding: 3px;">Status</th></tr>';
+
             hosts.forEach(function(h) {
                 const ip = esc(h.ip);
-                const hostname = esc(h.hostname || '-');
-                const os = esc(h.os || '-');
-                const status = esc(h.status || 'up');
-                let ports = '-';
-                if (h.ports && h.ports.length > 0) {
-                    ports = h.ports.map(function(p) { return '<span style="color: #ff0;">' + esc(p.port) + '</span>/' + esc(p.service); }).join(', ');
+                const hostname = esc(h.hostname || '');
+                const os = esc(h.os || '');
+                const osAcc = esc(h.os_accuracy || '');
+                const devType = esc(h.device_type || '');
+                const smb = h.smb_info;
+                const ports = h.ports || [];
+
+                const hasDangerous = ports.some(function(p) { return DANGEROUS_PORTS.indexOf(p.port) >= 0; });
+                const hasSMB = ports.some(function(p) { return p.port === '445' || p.port === '139'; });
+                const smbSigningOff = smb && smb.signing === 'disabled';
+                let borderColor = '#333';
+                if (hasDangerous || smbSigningOff) borderColor = '#f00';
+                else if (hasSMB) borderColor = '#ff0';
+
+                html += '<div style="border: 1px solid ' + borderColor + '; border-radius: 4px; padding: 10px; margin-bottom: 8px; background: #0a0a0a;">';
+
+                // Header: IP + hostname + device type
+                html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">';
+                html += '<span style="color: #0f0; font-weight: bold; cursor: pointer; text-decoration: underline;" onclick="document.getElementById(\'attackTarget\').value=\'' + esc(h.ip) + '\'" title="Click to set as attack target">' + ip + '</span>';
+                let meta = [];
+                if (hostname) meta.push(hostname);
+                if (devType) meta.push(devType);
+                html += '<span style="color: #888; font-size: 11px;">' + meta.join(' | ') + '</span>';
+                html += '</div>';
+
+                // OS line
+                if (os) {
+                    html += '<div style="color: #aaa; font-size: 11px; margin-bottom: 4px;">OS: ' + os + (osAcc ? ' (' + osAcc + ')' : '') + '</div>';
                 }
-                html += '<tr style="border-bottom: 1px solid #1a1a1a;"><td style="padding: 3px; color: #0f0;">' + ip + '</td><td style="padding: 3px; color: #888;">' + hostname + '</td><td style="padding: 3px; color: #888;">' + os + '</td><td style="padding: 3px;">' + ports + '</td><td style="padding: 3px; color: ' + (status === 'up' ? '#0f0' : '#f00') + ';">' + status + '</td></tr>';
+
+                // SMB info banner
+                if (smb) {
+                    let smbParts = [];
+                    if (smb.domain) smbParts.push('Domain: ' + esc(smb.domain));
+                    if (smb.os) smbParts.push(esc(smb.os));
+                    if (smb.signing) smbParts.push('Signing: <span style="color:' + (smb.signing === 'disabled' ? '#f00; font-weight:bold' : '#0f0') + ';">' + esc(smb.signing).toUpperCase() + '</span>');
+                    if (smb.auth_level) smbParts.push('Auth: ' + esc(smb.auth_level));
+                    html += '<div style="background: #1a1a00; border: 1px solid #333; padding: 4px 8px; margin-bottom: 6px; font-size: 11px; color: #ff0; border-radius: 3px;">' + smbParts.join(' | ') + '</div>';
+                }
+
+                // Ports with version info
+                if (ports.length > 0) {
+                    html += '<div style="font-size: 11px;">';
+                    ports.forEach(function(p) {
+                        let portColor = '#ff0';
+                        if (DANGEROUS_PORTS.indexOf(p.port) >= 0) portColor = '#f00';
+                        else if (INTERESTING_PORTS.indexOf(p.port) >= 0) portColor = '#f80';
+                        let svcText = esc(p.service);
+                        if (p.product) svcText += ' <span style="color:#888;">(' + esc(p.product) + (p.version ? ' ' + esc(p.version) : '') + ')</span>';
+                        html += '<span style="color:' + portColor + '; margin-right: 12px;">' + esc(p.port) + '</span>/<span style="color:#ccc;">' + svcText + '</span><br>';
+                    });
+                    html += '</div>';
+                }
+
+                // Critical finding badges
+                let badges = [];
+                ports.forEach(function(p) {
+                    if (p.port === '23') badges.push('<span style="background:#f00; color:#000; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:bold;">Telnet:23</span>');
+                    if (p.port === '21') badges.push('<span style="background:#f00; color:#000; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:bold;">FTP:21</span>');
+                });
+                if (smbSigningOff) badges.push('<span style="background:#f00; color:#000; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:bold;">RELAY TARGET</span>');
+                if (badges.length > 0) {
+                    html += '<div style="margin-top: 6px; display: flex; gap: 4px; flex-wrap: wrap;">' + badges.join('') + '</div>';
+                }
+
+                html += '</div>';
             });
-            html += '</table>';
+
             document.getElementById('discoveryResults').innerHTML = html;
         }
 
@@ -3615,6 +3840,7 @@
                 if (data.success) {
                     document.getElementById('responderStatus').textContent = 'Running';
                     document.getElementById('responderStatus').style.color = '#f00';
+                    startCountup('RESPONDER');
                     appendInternalOutput('[+] Responder started - poisoning LLMNR/NBT-NS/WPAD');
                     
                     // Start polling for hashes
@@ -3634,12 +3860,13 @@
                 
                 document.getElementById('responderStatus').textContent = 'Stopped';
                 document.getElementById('responderStatus').style.color = '#666';
-                
+                stopCountdown();
+
                 if (responderInterval) {
                     clearInterval(responderInterval);
                     responderInterval = null;
                 }
-                
+
                 appendInternalOutput('[*] Responder stopped');
             } catch (err) {
                 appendInternalOutput('[-] Error: ' + err.message);
