@@ -35,17 +35,17 @@ while true; do
                         
                         echo "[+] NEW HASH: $DOMAIN\\$USER"
                         
-                        # Update JSON
-                        python3 << PYEOF
+                        # Update JSON (quoted heredoc + env vars to prevent injection)
+                        HASH_USER="$USER" HASH_DOMAIN="$DOMAIN" HASH_LINE="$line" HASH_JSON_PATH="$HASH_JSON" python3 << 'PYEOF'
 import json
 import os
 from datetime import datetime
 
-hash_file = "$HASH_JSON"
+hash_file = os.environ["HASH_JSON_PATH"]
 new_hash = {
-    "user": "$USER",
-    "domain": "$DOMAIN",
-    "hash": """$line""",
+    "user": os.environ["HASH_USER"],
+    "domain": os.environ["HASH_DOMAIN"],
+    "hash": os.environ["HASH_LINE"],
     "type": "NTLMv2",
     "status": "captured",
     "cracked_password": None,

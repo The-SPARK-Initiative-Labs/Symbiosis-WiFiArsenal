@@ -332,6 +332,9 @@
         flex-direction: column;
         background: #030303;
         border-top: 2px solid #003300;
+        min-height: 0;
+        max-height: 180px;
+        overflow: hidden;
     }
     .internal-bottom-header {
         display: flex;
@@ -1620,18 +1623,18 @@
                             <option value="eth0">eth0</option>
                             <option value="wlan0">wlan0</option>
                         </select>
-                        <button onclick="startDiscovery()" class="button" style="padding: 3px 8px; font-size: 10px;" title="Start passive network monitoring">▶ Start</button>
-                        <button onclick="stopDiscovery()" class="button danger" style="padding: 3px 8px; font-size: 10px;" title="Stop discovery">Stop</button>
-                        <button onclick="clearDiscovery()" class="button" style="padding: 3px 8px; font-size: 10px;" title="Clear discovery results">Clear</button>
+                        <button id="discStartBtn" onclick="startDiscovery()" class="button" style="padding: 3px 8px; font-size: 10px;" title="Start passive network monitoring">▶ Start</button>
+                        <button id="discStopBtn" onclick="stopDiscovery()" class="button danger" style="padding: 3px 8px; font-size: 10px; display: none;" title="Stop discovery">Stop</button>
+                        <button id="discClearBtn" onclick="clearDiscovery()" class="button" style="padding: 3px 8px; font-size: 10px;" title="Clear discovery results">Clear</button>
                         <div class="topbar-divider"></div>
                         <span class="topbar-label">Nmap</span>
                         <input type="text" id="nmapSubnet" placeholder="192.168.1.0/24" value="192.168.1.0/24" style="width: 140px; padding: 3px 6px; background: #001a00; border: 1px solid #003300; color: #0f0; font-family: monospace; font-size: 11px;" title="Subnet to scan with nmap">
-                        <button id="nmapScanBtn" onclick="nmapScan()" class="button" style="padding: 3px 8px; font-size: 10px;" title="Run nmap host discovery and port scan on subnet">Scan</button>
+                        <button id="nmapScanBtn" onclick="nmapScan()" class="button" style="padding: 3px 8px; font-size: 10px;" title="Run nmap host discovery and port scan on subnet">🔎 Nmap Scan</button>
                         <button id="nmapCancelBtn" onclick="stopNmapScan()" class="button danger" style="padding: 3px 8px; font-size: 10px; display: none;" title="Cancel running nmap scan">Cancel</button>
                         <div class="topbar-divider"></div>
                         <span class="topbar-label">Responder</span>
-                        <button onclick="startResponder()" class="button" style="padding: 3px 8px; font-size: 10px;" title="Start Responder — poison LLMNR/NBT-NS/WPAD to capture NTLMv2 hashes">▶ Start</button>
-                        <button onclick="stopResponder()" class="button danger" style="padding: 3px 8px; font-size: 10px;" title="Stop Responder">Stop</button>
+                        <button id="respStartBtn" onclick="startResponder()" class="button" style="padding: 3px 8px; font-size: 10px;" title="Start Responder — poison LLMNR/NBT-NS/WPAD to capture NTLMv2 hashes">▶ Start</button>
+                        <button id="respStopBtn" onclick="stopResponder()" class="button danger" style="padding: 3px 8px; font-size: 10px; display: none;" title="Stop Responder">Stop</button>
                         <span class="topbar-status" style="color: #ff0;" title="Number of NTLMv2 hashes captured by Responder">Hashes: <span id="hashCount">0</span></span>
                     </div>
                 </div>
@@ -1724,8 +1727,8 @@
                                 <div style="display: flex; gap: 5px; align-items: center;">
                                     <input type="text" id="lhostInput" placeholder="10.0.0.1" style="width: 100px; padding: 5px; background: #0a0a0a; border: 1px solid #333; color: #0f0; font-size: 10px;" title="Your IP for callbacks">
                                     <input type="text" id="lportInput" placeholder="4444" value="4444" style="width: 60px; padding: 5px; background: #0a0a0a; border: 1px solid #333; color: #0f0; font-size: 10px;" title="Listener port">
-                                    <button onclick="startListener()" class="button" style="padding: 5px 10px; font-size: 10px;" title="Start Metasploit listener for reverse shells">▶ Listen</button>
-                                    <button onclick="stopListener()" class="button danger" style="padding: 5px 10px; font-size: 10px;" title="Stop listener">⏹</button>
+                                    <button id="lstnStartBtn" onclick="startListener()" class="button" style="padding: 5px 10px; font-size: 10px;" title="Start Metasploit listener for reverse shells">▶ Listen</button>
+                                    <button id="lstnStopBtn" onclick="stopListener()" class="button danger" style="padding: 5px 10px; font-size: 10px; display: none;" title="Stop listener">⏹</button>
                                 </div>
                             </div>
                         </div>
@@ -2123,6 +2126,10 @@
             if (nmapPollInterval) { clearInterval(nmapPollInterval); nmapPollInterval = null; }
             if (discoveryInterval) { clearInterval(discoveryInterval); discoveryInterval = null; }
             if (responderInterval) { clearInterval(responderInterval); responderInterval = null; }
+            // Clear all section timers
+            for (var key in internalTimers) {
+                if (internalTimers[key].interval) { clearInterval(internalTimers[key].interval); internalTimers[key].interval = null; }
+            }
         }
 
         function showPage(pageName) {
@@ -2162,6 +2169,7 @@
                 refreshHashes();
                 refreshEvidence();
                 refreshDiscoveryResults();
+                loadLastNmapResults();
                 refreshIntel();
                 refreshInternalModes();
                 loadInternalInterfaces();
@@ -3823,6 +3831,73 @@
         let nmapPollInterval = null;
         let selectedHost = null;
 
+        // Per-section timers (replaces broken global timer for Internal page)
+        let internalTimers = {
+            discovery: { interval: null, startTime: null },
+            responder: { interval: null, startTime: null },
+            nmap:      { interval: null, startTime: null },
+            listener:  { interval: null, startTime: null }
+        };
+
+        function formatSectionElapsed(seconds) {
+            var m = Math.floor(seconds / 60);
+            var s = String(Math.floor(seconds % 60)).padStart(2, '0');
+            return m + ':' + s;
+        }
+
+        function startSectionTimer(section, startTimeMs) {
+            var t = internalTimers[section];
+            if (!t) return;
+            if (t.interval) clearInterval(t.interval);
+            t.startTime = startTimeMs;
+            var statusMap = { discovery: 'discoverStatus', responder: 'responderStatus', nmap: null, listener: 'listenerStatus' };
+            var labelMap = { discovery: 'Running', responder: 'Running', nmap: null, listener: 'Listening' };
+            var el = statusMap[section] ? document.getElementById(statusMap[section]) : null;
+            t.interval = setInterval(function() {
+                var elapsed = (Date.now() - t.startTime) / 1000;
+                if (el) {
+                    el.textContent = labelMap[section] + ' ' + formatSectionElapsed(elapsed);
+                    el.style.color = section === 'responder' ? '#f00' : '#0f0';
+                }
+            }, 1000);
+            // Immediate first update
+            if (el) {
+                el.textContent = labelMap[section] + ' 0:00';
+                el.style.color = section === 'responder' ? '#f00' : '#0f0';
+            }
+            updateActiveToolCount();
+        }
+
+        function stopSectionTimer(section) {
+            var t = internalTimers[section];
+            if (!t) return;
+            if (t.interval) { clearInterval(t.interval); t.interval = null; }
+            t.startTime = null;
+            var statusMap = { discovery: 'discoverStatus', responder: 'responderStatus', nmap: null, listener: 'listenerStatus' };
+            var el = statusMap[section] ? document.getElementById(statusMap[section]) : null;
+            if (el) {
+                el.textContent = 'Stopped';
+                el.style.color = '#666';
+            }
+            updateActiveToolCount();
+        }
+
+        function updateActiveToolCount() {
+            var count = 0;
+            for (var key in internalTimers) {
+                if (internalTimers[key].interval) count++;
+            }
+            // Update global status only if on Internal page
+            var page = document.getElementById('page-internal');
+            if (page && page.classList.contains('active')) {
+                if (count > 0) {
+                    setStatus(count + ' ACTIVE', true);
+                } else {
+                    setStatus('IDLE', false);
+                }
+            }
+        }
+
         function getHostIcon(deviceType, os) {
             const iconMap = {
                 'printer': '🖨️', 'router': '🔌', 'switch': '🔌',
@@ -4009,8 +4084,12 @@
                 const discResp = await fetch('/api/internal/discover/status');
                 const discData = await discResp.json();
                 if (discData.running) {
-                    document.getElementById('discoverStatus').textContent = 'Running';
-                    document.getElementById('discoverStatus').style.color = '#0f0';
+                    // Restore timer from backend start_time (or approximate)
+                    var discStart = discData.start_time ? discData.start_time * 1000 : Date.now();
+                    startSectionTimer('discovery', discStart);
+                    document.getElementById('discStartBtn').style.display = 'none';
+                    document.getElementById('discStopBtn').style.display = '';
+                    document.getElementById('discClearBtn').disabled = true;
                     if (!discoveryInterval) {
                         discoveryInterval = setInterval(refreshDiscoveryResults, 3000);
                     }
@@ -4021,8 +4100,10 @@
                 const respResp = await fetch('/api/internal/responder/status');
                 const respData = await respResp.json();
                 if (respData.running) {
-                    document.getElementById('responderStatus').textContent = 'Running';
-                    document.getElementById('responderStatus').style.color = '#0f0';
+                    var respStart = respData.start_time ? respData.start_time * 1000 : Date.now();
+                    startSectionTimer('responder', respStart);
+                    document.getElementById('respStartBtn').style.display = 'none';
+                    document.getElementById('respStopBtn').style.display = '';
                     if (!responderInterval) {
                         responderInterval = setInterval(refreshHashes, 5000);
                     }
@@ -4033,11 +4114,23 @@
                 const nmapResp = await fetch('/api/internal/scan/status');
                 const nmapData = await nmapResp.json();
                 if (nmapData.running) {
+                    var nmapStart = nmapData.start_time ? nmapData.start_time * 1000 : Date.now();
+                    startSectionTimer('nmap', nmapStart);
                     document.getElementById('nmapScanBtn').disabled = true;
                     document.getElementById('nmapCancelBtn').style.display = '';
                     if (!nmapPollInterval) {
                         nmapPollInterval = setInterval(pollNmapStatus, 2000);
                     }
+                }
+            } catch (e) { /* ignore */ }
+
+            try {
+                const lstnResp = await fetch('/api/internal/listener/status');
+                const lstnData = await lstnResp.json();
+                if (lstnData.running) {
+                    startSectionTimer('listener', Date.now()); // approximate — no backend start_time for listener
+                    document.getElementById('lstnStartBtn').style.display = 'none';
+                    document.getElementById('lstnStopBtn').style.display = '';
                 }
             } catch (e) { /* ignore */ }
         }
@@ -4055,9 +4148,10 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    document.getElementById('discoverStatus').textContent = 'Running';
-                    document.getElementById('discoverStatus').style.color = '#0f0';
-                    startCountup('DISCOVERY');
+                    startSectionTimer('discovery', Date.now());
+                    document.getElementById('discStartBtn').style.display = 'none';
+                    document.getElementById('discStopBtn').style.display = '';
+                    document.getElementById('discClearBtn').disabled = true;
                     appendInternalOutput('[+] Discovery started');
 
                     // Start polling for results
@@ -4076,9 +4170,10 @@
                 const response = await fetch('/api/internal/discover/stop', { method: 'POST' });
                 const data = await response.json();
 
-                document.getElementById('discoverStatus').textContent = 'Stopped';
-                document.getElementById('discoverStatus').style.color = '#666';
-                stopCountdown();
+                stopSectionTimer('discovery');
+                document.getElementById('discStartBtn').style.display = '';
+                document.getElementById('discStopBtn').style.display = 'none';
+                document.getElementById('discClearBtn').disabled = false;
 
                 if (discoveryInterval) {
                     clearInterval(discoveryInterval);
@@ -4114,8 +4209,9 @@
             btn.disabled = true;
             btn.textContent = '⏳ 0:00';
             document.getElementById('nmapCancelBtn').style.display = '';
+            document.getElementById('discClearBtn').disabled = true;
             appendInternalOutput('[*] Starting nmap scan on ' + subnet + ' (version detection + OS fingerprinting)...');
-            startCountup('NMAP SCAN');
+            startSectionTimer('nmap', Date.now());
 
             try {
                 const response = await fetch('/api/internal/scan', {
@@ -4133,12 +4229,16 @@
                     btn.disabled = false;
                     btn.textContent = '🔎 Nmap Scan';
                     document.getElementById('nmapCancelBtn').style.display = 'none';
+                    document.getElementById('discClearBtn').disabled = false;
+                    stopSectionTimer('nmap');
                 }
             } catch (err) {
                 appendInternalOutput('[-] Nmap error: ' + err.message);
                 btn.disabled = false;
                 btn.textContent = '🔎 Nmap Scan';
                 document.getElementById('nmapCancelBtn').style.display = 'none';
+                document.getElementById('discClearBtn').disabled = false;
+                stopSectionTimer('nmap');
             }
         }
 
@@ -4174,7 +4274,8 @@
                     document.getElementById('nmapScanBtn').disabled = false;
                     document.getElementById('nmapScanBtn').textContent = '🔎 Nmap Scan';
                     document.getElementById('nmapCancelBtn').style.display = 'none';
-                    stopCountdown();
+                    document.getElementById('discClearBtn').disabled = false;
+                    stopSectionTimer('nmap');
 
                     const resultsResp = await fetch('/api/internal/scan/results');
                     const resultsData = await resultsResp.json();
@@ -4192,20 +4293,32 @@
         }
 
         async function stopNmapScan() {
+            // Reset UI immediately so timer doesn't leak on network error
+            if (nmapPollInterval) {
+                clearInterval(nmapPollInterval);
+                nmapPollInterval = null;
+            }
+            document.getElementById('nmapScanBtn').disabled = false;
+            document.getElementById('nmapScanBtn').textContent = '🔎 Nmap Scan';
+            document.getElementById('nmapCancelBtn').style.display = 'none';
+            document.getElementById('discClearBtn').disabled = false;
+            stopSectionTimer('nmap');
             try {
                 await fetch('/api/internal/scan/stop', { method: 'POST' });
-                if (nmapPollInterval) {
-                    clearInterval(nmapPollInterval);
-                    nmapPollInterval = null;
-                }
-                document.getElementById('nmapScanBtn').disabled = false;
-                document.getElementById('nmapScanBtn').textContent = '🔎 Nmap Scan';
-                document.getElementById('nmapCancelBtn').style.display = 'none';
-                stopCountdown();
                 appendInternalOutput('[*] Nmap scan cancelled');
             } catch (err) {
                 appendInternalOutput('[-] Cancel error: ' + err.message);
             }
+        }
+
+        async function loadLastNmapResults() {
+            try {
+                const response = await fetch('/api/internal/scan/results');
+                const data = await response.json();
+                if (data.success && data.results && (data.results.hosts || []).length > 0) {
+                    displayNmapResults(data.results);
+                }
+            } catch (e) { /* ignore */ }
         }
 
         function displayNmapResults(results) {
@@ -4430,11 +4543,11 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    document.getElementById('responderStatus').textContent = 'Running';
-                    document.getElementById('responderStatus').style.color = '#f00';
-                    startCountup('RESPONDER');
+                    startSectionTimer('responder', Date.now());
+                    document.getElementById('respStartBtn').style.display = 'none';
+                    document.getElementById('respStopBtn').style.display = '';
                     appendInternalOutput('[+] Responder started - poisoning LLMNR/NBT-NS/WPAD');
-                    
+
                     // Start polling for hashes
                     if (responderInterval) clearInterval(responderInterval);
                     responderInterval = setInterval(refreshHashes, 5000);
@@ -4450,9 +4563,9 @@
             try {
                 await fetch('/api/internal/responder/stop', { method: 'POST' });
                 
-                document.getElementById('responderStatus').textContent = 'Stopped';
-                document.getElementById('responderStatus').style.color = '#666';
-                stopCountdown();
+                stopSectionTimer('responder');
+                document.getElementById('respStartBtn').style.display = '';
+                document.getElementById('respStopBtn').style.display = 'none';
 
                 if (responderInterval) {
                     clearInterval(responderInterval);
@@ -4496,10 +4609,10 @@
                     }
                 }
                 
-                // Also update responder status
+                // Also update responder status (only if timer isn't managing it)
                 const statusRes = await fetch('/api/internal/responder/status');
                 const statusData = await statusRes.json();
-                if (statusData.running) {
+                if (statusData.running && !internalTimers.responder.interval) {
                     document.getElementById('responderStatus').textContent = 'Running';
                     document.getElementById('responderStatus').style.color = '#f00';
                 }
@@ -4739,8 +4852,9 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    document.getElementById('listenerStatus').textContent = 'Listening';
-                    document.getElementById('listenerStatus').style.color = '#0f0';
+                    startSectionTimer('listener', Date.now());
+                    document.getElementById('lstnStartBtn').style.display = 'none';
+                    document.getElementById('lstnStopBtn').style.display = '';
                     appendInternalOutput('[+] Listener started');
                     appendInternalOutput('[+] Attach with: screen -r msf_listener');
                 } else {
@@ -4754,8 +4868,9 @@
         async function stopListener() {
             try {
                 await fetch('/api/internal/listener/stop', { method: 'POST' });
-                document.getElementById('listenerStatus').textContent = 'Stopped';
-                document.getElementById('listenerStatus').style.color = '#666';
+                stopSectionTimer('listener');
+                document.getElementById('lstnStartBtn').style.display = '';
+                document.getElementById('lstnStopBtn').style.display = 'none';
                 appendInternalOutput('[*] Listener stopped');
             } catch (err) {
                 appendInternalOutput('[-] Error: ' + err.message);

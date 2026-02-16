@@ -1,7 +1,7 @@
 #!/bin/bash
 # Start passive discovery
 
-INTERFACE="${1:-alfa0}"
+INTERFACE="${1:-alfa1}"
 SCRIPT_DIR="/home/ov3rr1d3/wifi_arsenal/scripts/internal"
 PID_FILE="/tmp/discovery_pid.txt"
 LOG_FILE="/home/ov3rr1d3/wifi_arsenal/captures/discovery.log"
@@ -19,13 +19,16 @@ echo "[*] Starting passive discovery on $INTERFACE"
 
 # Start discovery in background
 sudo python3 "$SCRIPT_DIR/discover.py" "$INTERFACE" > "$LOG_FILE" 2>&1 &
-DISC_PID=$!
-echo $DISC_PID > "$PID_FILE"
+SUDO_PID=$!
 
 sleep 2
 
-if ps -p $DISC_PID > /dev/null 2>&1; then
-    echo "[+] Discovery started (PID: $DISC_PID)"
+# Find the actual python3 child of sudo (sudo PID != tool PID)
+REAL_PID=$(pgrep -P $SUDO_PID -f "discover.py" 2>/dev/null || echo $SUDO_PID)
+echo $REAL_PID > "$PID_FILE"
+
+if ps -p $REAL_PID > /dev/null 2>&1; then
+    echo "[+] Discovery started (PID: $REAL_PID)"
     echo "[+] Results: /home/ov3rr1d3/wifi_arsenal/captures/discovery_results.json"
 else
     echo "[-] Discovery failed to start"
