@@ -356,6 +356,14 @@ discovery_state_lock = threading.Lock()
 responder_state = {'start_time': None}
 responder_state_lock = threading.Lock()
 
+# Global state for SMB enumeration
+smb_enum_state = {'running': False, 'process': None, 'start_time': None, 'targets': []}
+smb_enum_lock = threading.Lock()
+
+# Global state for SNMP enumeration
+snmp_enum_state = {'running': False, 'process': None, 'start_time': None, 'targets': []}
+snmp_enum_lock = threading.Lock()
+
 # Global state for live wardrive scanning
 import sys
 sys.path.insert(0, '/home/ov3rr1d3/wifi_arsenal/wardrive_system/wardrive')
@@ -6969,6 +6977,265 @@ def internal_relay_status():
         except (ProcessLookupError, ValueError, PermissionError, OSError):
             pass
     return jsonify({'success': True, 'running': running})
+
+
+# ============== ENUMERATION ENDPOINTS ==============
+
+@app.route('/api/internal/discover/smb-enum', methods=['POST'])
+def internal_smb_enum_start():
+    """Start SMB enumeration on targets (auto-detect from nmap if no targets specified)"""
+    global smb_enum_state
+
+    with smb_enum_lock:
+        if smb_enum_state['running']:
+            return jsonify({'success': False, 'error': 'SMB enumeration already running'})
+
+    data = request.json or {}
+    targets = data.get('targets', [])
+    # Optional credentials for authenticated enum (test lab / post-crack)
+    smb_user = data.get('username', '')
+    smb_pass = data.get('password', '')
+    mode = 'authenticated' if smb_user else 'anonymous'
+
+    # Auto-detect: find hosts with port 445 from nmap results
+    if not targets:
+        nmap_file = os.path.join(CAPTURE_DIR, 'nmap_results.json')
+        if os.path.exists(nmap_file):
+            try:
+                with open(nmap_file, 'r') as f:
+                    nmap_data = json.load(f)
+                for host in nmap_data.get('hosts', []):
+                    for port in host.get('ports', []):
+                        if str(port.get('port', '')) == '445':
+                            ip = host.get('ip', '')
+                            if ip and ip not in targets:
+                                targets.append(ip)
+                            break
+            except (json.JSONDecodeError, IOError):
+                pass
+
+    if not targets:
+        return jsonify({'success': False, 'error': 'No SMB targets found (no hosts with port 445)'})
+
+    # Validate all target IPs
+    for ip in targets:
+        if not re.match(r'^[0-9.]+$', ip):
+            return jsonify({'success': False, 'error': f'Invalid IP: {ip}'}), 400
+
+    results_file = os.path.join(CAPTURE_DIR, 'smb_enum_results.json')
+    script = os.path.join(SCRIPT_DIR, 'internal', 'enum_smb.sh')
+
+    def run_smb_enum():
+        global smb_enum_state
+        try:
+            # Clear stale results from previous run
+            if os.path.exists(results_file):
+                os.remove(results_file)
+            cmd = ['bash', script, results_file] + targets
+            # Pass credentials via env vars (never on command line, never logged)
+            env = os.environ.copy()
+            if smb_user:
+                env['SMB_USER'] = smb_user
+                env['SMB_PASS'] = smb_pass
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                env=env
+            )
+            with smb_enum_lock:
+                smb_enum_state['process'] = process
+            process.wait()
+        finally:
+            with smb_enum_lock:
+                smb_enum_state['running'] = False
+                smb_enum_state['process'] = None
+
+    with smb_enum_lock:
+        smb_enum_state['running'] = True
+        smb_enum_state['start_time'] = time.time()
+        smb_enum_state['targets'] = targets
+
+    thread = threading.Thread(target=run_smb_enum)
+    thread.daemon = True
+    thread.start()
+
+    return jsonify({'success': True, 'message': f'SMB enumeration started ({mode}) on {len(targets)} target(s)', 'targets': targets, 'mode': mode})
+
+
+@app.route('/api/internal/discover/smb-enum', methods=['GET'])
+def internal_smb_enum_status():
+    """Get SMB enumeration status and results"""
+    with smb_enum_lock:
+        running = smb_enum_state['running']
+        start_time = smb_enum_state['start_time']
+        targets = smb_enum_state['targets']
+
+    elapsed = 0
+    if running and start_time:
+        elapsed = int(time.time() - start_time)
+
+    result = {
+        'running': running,
+        'elapsed': elapsed,
+        'targets': targets,
+        'results': None
+    }
+
+    results_file = os.path.join(CAPTURE_DIR, 'smb_enum_results.json')
+    if os.path.exists(results_file):
+        try:
+            with open(results_file, 'r') as f:
+                result['results'] = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    return jsonify(result)
+
+
+@app.route('/api/internal/discover/smb-enum/stop', methods=['POST'])
+def internal_smb_enum_stop():
+    """Stop running SMB enumeration"""
+    global smb_enum_state
+    with smb_enum_lock:
+        proc = smb_enum_state['process']
+    if proc:
+        try:
+            proc.terminate()
+            proc.wait(timeout=5)
+        except Exception:
+            proc.kill()
+        with smb_enum_lock:
+            smb_enum_state['running'] = False
+            smb_enum_state['process'] = None
+        return jsonify({'success': True, 'message': 'SMB enumeration stopped'})
+    return jsonify({'success': False, 'error': 'No SMB enumeration running'})
+
+
+@app.route('/api/internal/discover/snmp-enum', methods=['POST'])
+def internal_snmp_enum_start():
+    """Start SNMP enumeration on targets (auto-detect from nmap if no targets specified)"""
+    global snmp_enum_state
+
+    with snmp_enum_lock:
+        if snmp_enum_state['running']:
+            return jsonify({'success': False, 'error': 'SNMP enumeration already running'})
+
+    data = request.json or {}
+    targets = data.get('targets', [])
+
+    # Auto-detect: find hosts with port 161 from nmap results
+    if not targets:
+        nmap_file = os.path.join(CAPTURE_DIR, 'nmap_results.json')
+        if os.path.exists(nmap_file):
+            try:
+                with open(nmap_file, 'r') as f:
+                    nmap_data = json.load(f)
+                for host in nmap_data.get('hosts', []):
+                    for port in host.get('ports', []):
+                        if str(port.get('port', '')) == '161':
+                            ip = host.get('ip', '')
+                            if ip and ip not in targets:
+                                targets.append(ip)
+                            break
+            except (json.JSONDecodeError, IOError):
+                pass
+
+    # SNMP is UDP — nmap may not always detect port 161
+    # If no SNMP ports found but nmap has results, offer to try all hosts
+    # For now, require explicit targets or nmap detection
+    if not targets:
+        return jsonify({'success': False, 'error': 'No SNMP targets found (no hosts with port 161). Try with explicit targets.'})
+
+    # Validate all target IPs
+    for ip in targets:
+        if not re.match(r'^[0-9.]+$', ip):
+            return jsonify({'success': False, 'error': f'Invalid IP: {ip}'}), 400
+
+    results_file = os.path.join(CAPTURE_DIR, 'snmp_enum_results.json')
+    script = os.path.join(SCRIPT_DIR, 'internal', 'enum_snmp.sh')
+
+    def run_snmp_enum():
+        global snmp_enum_state
+        try:
+            # Clear stale results from previous run
+            if os.path.exists(results_file):
+                os.remove(results_file)
+            cmd = ['bash', script, results_file] + targets
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
+            with snmp_enum_lock:
+                snmp_enum_state['process'] = process
+            process.wait()
+        finally:
+            with snmp_enum_lock:
+                snmp_enum_state['running'] = False
+                snmp_enum_state['process'] = None
+
+    with snmp_enum_lock:
+        snmp_enum_state['running'] = True
+        snmp_enum_state['start_time'] = time.time()
+        snmp_enum_state['targets'] = targets
+
+    thread = threading.Thread(target=run_snmp_enum)
+    thread.daemon = True
+    thread.start()
+
+    return jsonify({'success': True, 'message': f'SNMP enumeration started on {len(targets)} target(s)', 'targets': targets})
+
+
+@app.route('/api/internal/discover/snmp-enum', methods=['GET'])
+def internal_snmp_enum_status():
+    """Get SNMP enumeration status and results"""
+    with snmp_enum_lock:
+        running = snmp_enum_state['running']
+        start_time = snmp_enum_state['start_time']
+        targets = snmp_enum_state['targets']
+
+    elapsed = 0
+    if running and start_time:
+        elapsed = int(time.time() - start_time)
+
+    result = {
+        'running': running,
+        'elapsed': elapsed,
+        'targets': targets,
+        'results': None
+    }
+
+    results_file = os.path.join(CAPTURE_DIR, 'snmp_enum_results.json')
+    if os.path.exists(results_file):
+        try:
+            with open(results_file, 'r') as f:
+                result['results'] = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    return jsonify(result)
+
+
+@app.route('/api/internal/discover/snmp-enum/stop', methods=['POST'])
+def internal_snmp_enum_stop():
+    """Stop running SNMP enumeration"""
+    global snmp_enum_state
+    with snmp_enum_lock:
+        proc = snmp_enum_state['process']
+    if proc:
+        try:
+            proc.terminate()
+            proc.wait(timeout=5)
+        except Exception:
+            proc.kill()
+        with snmp_enum_lock:
+            snmp_enum_state['running'] = False
+            snmp_enum_state['process'] = None
+        return jsonify({'success': True, 'message': 'SNMP enumeration stopped'})
+    return jsonify({'success': False, 'error': 'No SNMP enumeration running'})
 
 
 # ============== ACCESS ENDPOINTS ==============
