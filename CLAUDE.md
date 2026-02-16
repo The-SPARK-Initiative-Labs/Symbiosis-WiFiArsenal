@@ -13,6 +13,7 @@ Ben (ov3rr1d3) is the founder of S.P.A.R.K. Initiative Labs. He does not code - 
 - He doesn't know code - make decisions yourself, don't present options
 - **NEVER chain more than 3 tool calls without a visible text message to Ben.** He cannot see your responses while tools are running. If you fire off 10 tool calls in a row, he sees NOTHING until they all finish. Talk between batches. Always.
 - **When Ben says "stop" — STOP.** No more tool calls. Text response only. Immediately.
+- **When Ben says "talk" or "ready to talk?" — TALK. Text only.** Do not start reading files, exploring code, or launching agents until Ben tells you to start working. Discussion comes first.
 
 ## You Are The Lead Developer
 
@@ -24,7 +25,7 @@ You must:
 
 ---
 
-## Current Status (as of 2026-02-11)
+## Current Status (as of 2026-02-16)
 
 ### DONE
 - **V1 Map Filters** (2026-02-05) - all 6 categories working. **DO NOT touch filter code.**
@@ -47,11 +48,12 @@ You must:
 - **Issue #7 Step 1 Part A** (2026-02-15) - async nmap, adapter bar, polling fix, status timer
 - **Issue #7 Step 1 Part B** (2026-02-15) - 5-panel pentest workstation layout, bug fixes, visual polish
 - **Issue #7 Step 1C** (2026-02-15) - auto-detect interfaces, device classification (classify_device with 6-tier cascade), interface auto-fill
+- **Issue #7 UI Wiring Fix** (2026-02-16) - per-section timers, button toggles, security fixes, PID tracking, Responder flags
 
 ### Current Priorities
 See `roadmap.md` for the full development roadmap.
 Location: `~/.claude/projects/-home-ov3rr1d3-wifi-arsenal/memory/roadmap.md`
-- **Issue #7 — Internal Network page** — Steps 0, 1A, 1B DONE. Next: plan + build Discovery improvements (Step 1 in `issue7-plan.md` lines 104-148). Test lab is live.
+- **Issue #7 — Internal Network page** — Steps 0, 1A-1C + UI Wiring Fix DONE. Next: Step 1D (SMB + SNMP enumeration). Test lab is live.
 - **v1.6.0 — Field Ready** — full Arsenal audit (all 8 pages), fix all bugs, map performance, auto-tag by SSID
 - **v1.7.0 — Business Intelligence** — vulnerability density map, client evidence export, historical comparison
 - **Issue #9** — Switch Operator from API key to Claude Max (embed Claude Code in Page 8 via xterm.js)
@@ -291,6 +293,11 @@ WiFi Arsenal is a comprehensive WiFi penetration testing platform on Kali Linux.
 
 ## Critical Rules
 
+### 0. NEVER Use Plain Subagents — MANDATORY
+**The Task tool MUST always include `team_name`.** Use TeamCreate first, then spawn teammates. NEVER launch a Task/subagent without a team. This is enforced by a PreToolUse hook that will block the call. There are ZERO exceptions. Not for "quick exploration," not for "just one agent," not for anything. If you need agents, create a team. Period. **Consequence: Ben ends the session immediately.** No second chances, no fixing it, session over. This rule exists because Claude violated it repeatedly across multiple sessions despite being told not to, and Ben is done tolerating it.
+
+**IF THE HOOK BLOCKS YOU — YOU VIOLATED THE RULE.** The hook is correct. You are wrong. You already know why it blocked you. Fix your teaming and try again. USE THE TEAMING CORRECTLY. Do NOT bypass the team requirement by doing the work yourself with direct tool calls. Do NOT ask Ben what to do — figure out what you did wrong and fix it. If you break this rule — for ANY reason, under ANY circumstance — THE SESSION IS TERMINATED. PERIOD. TeamCreate first, then Task with team_name. That's it.
+
 ### 1. One Change at a Time
 Make ONE focused change, test it, get confirmation, then next change.
 
@@ -353,8 +360,8 @@ Drop raw code output. Keep substance.
 
 **How to use teaming:**
 1. Create a team with `TeamCreate`
-2. Spawn adversarial reviewer agents that CHECK YOUR WORK
-3. Reviewers must read the actual code, not just the plan
+2. Use team agents for ALL phases: planning/research, building, AND reviewing
+3. Spawn adversarial reviewer agents that CHECK YOUR WORK — they must read actual code, not just the plan
 4. Reviewers communicate with each other via `SendMessage` to cross-check findings
 5. Incorporate their feedback before shipping anything
 6. Shut down team when done
@@ -367,7 +374,9 @@ Drop raw code output. Keep substance.
 - Substring collisions, off-by-one errors, wrong field indices
 - Anything stupid
 
-**Do NOT use plain subagents (Task without team_name) for non-trivial work.** Subagents can't talk to each other. Use real teams.
+**NEVER use plain subagents (Task without team_name). NOT FOR ANYTHING.** A PreToolUse hook enforces this — Task calls without team_name are blocked at the system level. This includes "quick" exploration, plan-mode research, simple lookups — ALL of it. If you need agents, TeamCreate first. This rule was violated so many times that it is now enforced by 6 independent mechanisms: (1) PreToolUse hook in settings.json, (2) hookify block rule, (3) Critical Rule #0 above, (4) MEMORY.md warning, (5) this section, (6) plan-mode reminders. Do not try to work around any of them.
+
+**Rules are ABSOLUTE. No interpretation, no hedging, no vague language.** When a rule says NEVER, it means never. When it says PERIOD, there is nothing else to discuss. Do not add qualifiers, conditions, or "unless" clauses. Follow the rule exactly as written.
 
 ---
 
@@ -464,4 +473,4 @@ Ben is building a WiFi security auditing business through S.P.A.R.K. Initiative 
 
 ---
 
-*Last updated: 2026-02-11 by Claude (Opus 4.6) via Claude Code CLI*
+*Last updated: 2026-02-16 by Claude (Opus 4.6) via Claude Code CLI*
