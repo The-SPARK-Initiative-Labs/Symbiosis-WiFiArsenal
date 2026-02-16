@@ -378,6 +378,8 @@ Drop raw code output. Keep substance.
 
 **Rules are ABSOLUTE. No interpretation, no hedging, no vague language.** When a rule says NEVER, it means never. When it says PERIOD, there is nothing else to discuss. Do not add qualifiers, conditions, or "unless" clauses. Follow the rule exactly as written.
 
+**Hookify regex is CASE-INSENSITIVE.** The block rule pattern `Explore|general-purpose|Plan` uses `re.IGNORECASE`. This means any `subagent_type` containing "explore", "plan", or "general-purpose" in ANY capitalization is blocked — including types like `feature-dev:code-explorer` where "explore" is a substring. Before using any agent type, check that its name doesn't contain these strings. A warning hook (`agent-type-warning`) fires on every Task call as a reminder.
+
 ---
 
 ## Claude Code Tooling
