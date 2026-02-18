@@ -25,7 +25,7 @@ You must:
 
 ---
 
-## Current Status (as of 2026-02-16)
+## Current Status (as of 2026-02-17)
 
 ### DONE
 - **V1 Map Filters** (2026-02-05) - all 6 categories working. **DO NOT touch filter code.**
@@ -49,11 +49,12 @@ You must:
 - **Issue #7 Step 1 Part B** (2026-02-15) - 5-panel pentest workstation layout, bug fixes, visual polish
 - **Issue #7 Step 1C** (2026-02-15) - auto-detect interfaces, device classification (classify_device with 6-tier cascade), interface auto-fill
 - **Issue #7 UI Wiring Fix** (2026-02-16) - per-section timers, button toggles, security fixes, PID tracking, Responder flags
+- **Issue #7 Step 1D** (2026-02-17) - SMB + SNMP enumeration scripts, 6 API endpoints, auto-detect targets, authenticated enum mode
 
 ### Current Priorities
 See `roadmap.md` for the full development roadmap.
 Location: `~/.claude/projects/-home-ov3rr1d3-wifi-arsenal/memory/roadmap.md`
-- **Issue #7 — Internal Network page** — Steps 0, 1A-1C + UI Wiring Fix DONE. Next: Step 1D (SMB + SNMP enumeration). Test lab is live.
+- **Issue #7 — Internal Network page** — Steps 0, 1A-1D + UI Wiring Fix DONE. Next: Step 1E (interactive host table + UI). Test lab is live.
 - **v1.6.0 — Field Ready** — full Arsenal audit (all 8 pages), fix all bugs, map performance, auto-tag by SSID
 - **v1.7.0 — Business Intelligence** — vulnerability density map, client evidence export, historical comparison
 - **Issue #9** — Switch Operator from API key to Claude Max (embed Claude Code in Page 8 via xterm.js)
