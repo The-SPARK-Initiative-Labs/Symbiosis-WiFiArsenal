@@ -553,6 +553,98 @@
     .attack-section-label.cred { color: #0f0; }
     .attack-section-label.exploit { color: #f00; }
     .attack-section-label.listener { color: #888; }
+    .attack-section-label.enum { color: #4af; }
+    .attack-section.section-enum {
+        border-top: 2px solid #004488;
+        background: #050810;
+    }
+    .enum-subsection-header {
+        color: #4af;
+        font-size: 10px;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        cursor: pointer;
+        padding: 4px 0;
+        user-select: none;
+        border-bottom: 1px solid #1a1a1a;
+        margin-bottom: 4px;
+    }
+    .enum-subsection-header:hover { color: #6cf; }
+    .enum-subsection-header::before { content: '\25BC '; font-size: 8px; }
+    .enum-subsection-header.collapsed::before { content: '\25B6 '; }
+    .enum-share-item {
+        padding: 3px 8px;
+        margin: 2px 0;
+        border-left: 2px solid #333;
+        font-family: monospace;
+        font-size: 11px;
+        color: #ccc;
+    }
+    .enum-share-item.accessible {
+        border-left-color: #f00;
+        background: rgba(255,0,0,0.05);
+    }
+    .enum-share-item .share-access {
+        color: #f00;
+        font-weight: bold;
+        font-size: 9px;
+        margin-left: 6px;
+    }
+    .enum-user-item {
+        display: inline-block;
+        padding: 1px 6px;
+        margin: 1px 2px;
+        background: rgba(0,255,0,0.08);
+        border: 1px solid #003300;
+        border-radius: 2px;
+        font-size: 10px;
+        color: #0f0;
+        font-family: monospace;
+    }
+    .enum-kv {
+        display: flex;
+        justify-content: space-between;
+        padding: 2px 0;
+        font-size: 11px;
+        border-bottom: 1px solid #111;
+    }
+    .enum-kv .ek { color: #888; }
+    .enum-kv .ev { color: #ccc; font-family: monospace; }
+    .enum-kv.bad .ev { color: #f00; font-weight: bold; }
+    .enum-kv.warn .ev { color: #ff0; }
+    .enum-process-tag {
+        display: inline-block;
+        padding: 1px 5px;
+        margin: 1px;
+        background: #111;
+        border: 1px solid #222;
+        border-radius: 2px;
+        font-size: 9px;
+        color: #888;
+        font-family: monospace;
+    }
+    .enum-iface-item {
+        padding: 2px 6px;
+        margin: 1px 0;
+        font-size: 10px;
+        font-family: monospace;
+        color: #ccc;
+    }
+    .enum-iface-item .iface-status-up { color: #0f0; }
+    .enum-iface-item .iface-status-down { color: #f00; }
+    .host-badge-enum { background: rgba(0,170,0,0.2); color: #0a0; border: 1px solid #0a0; }
+    .host-badge-snmp { background: rgba(0,170,255,0.15); color: #4af; border: 1px solid #4af; }
+    .host-badge-enum-running {
+        background: rgba(255,200,0,0.2);
+        color: #ff0;
+        border: 1px solid #ff0;
+        animation: enum-pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes enum-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+    }
 
     /* Right panel sections */
     .right-section {
@@ -1636,6 +1728,14 @@
                         <button id="respStartBtn" onclick="startResponder()" class="button" style="padding: 3px 8px; font-size: 10px;" title="Start Responder — poison LLMNR/NBT-NS/WPAD to capture NTLMv2 hashes">▶ Start</button>
                         <button id="respStopBtn" onclick="stopResponder()" class="button danger" style="padding: 3px 8px; font-size: 10px; display: none;" title="Stop Responder">Stop</button>
                         <span class="topbar-status" style="color: #ff0;" title="Number of NTLMv2 hashes captured by Responder">Hashes: <span id="hashCount">0</span></span>
+                        <div class="topbar-divider"></div>
+                        <span class="topbar-label">Enumerate</span>
+                        <button id="smbEnumStartBtn" onclick="startSmbEnum()" class="button" style="padding: 3px 8px; font-size: 10px;" title="Enumerate SMB shares, users, and password policy on all hosts with port 445">📁 SMB</button>
+                        <button id="smbEnumStopBtn" onclick="stopSmbEnum()" class="button danger" style="padding: 3px 8px; font-size: 10px; display: none;" title="Stop SMB enumeration">Stop</button>
+                        <button id="snmpEnumStartBtn" onclick="startSnmpEnum()" class="button" style="padding: 3px 8px; font-size: 10px;" title="Enumerate SNMP system info, interfaces, and processes on all hosts with port 161">📡 SNMP</button>
+                        <button id="snmpEnumStopBtn" onclick="stopSnmpEnum()" class="button danger" style="padding: 3px 8px; font-size: 10px; display: none;" title="Stop SNMP enumeration">Stop</button>
+                        <span class="topbar-status">SMB: <span id="smbEnumStatus" style="color: #666;">Idle</span></span>
+                        <span class="topbar-status">SNMP: <span id="snmpEnumStatus" style="color: #666;">Idle</span></span>
                     </div>
                 </div>
 
@@ -1682,6 +1782,12 @@
                                 <div id="targetInfoSmb" class="target-smb-banner" style="display: none;"></div>
                             </div>
 
+                            <!-- Enumeration Intel -->
+                            <div id="enumResultsSection" class="attack-section section-enum" style="display: none;">
+                                <label class="attack-section-label enum">Enumeration Intel</label>
+                                <div id="enumResultsContent" style="font-size: 11px;"></div>
+                            </div>
+
                             <!-- Credential Access -->
                             <div class="attack-section section-cred">
                                 <label class="attack-section-label cred">Credential Access</label>
@@ -1705,6 +1811,7 @@
                                 </div>
                                 <div style="display: flex; gap: 5px;">
                                     <button onclick="smbListShares()" class="button" style="flex: 1; padding: 7px; font-size: 10px;" title="List SMB shares on target">📁 SMB Shares</button>
+                                    <button onclick="startSmbEnumAuthenticated()" class="button" style="flex: 1; padding: 7px; font-size: 10px;" title="Run full SMB enumeration with credentials on selected host">🔑 Enum w/ Creds</button>
                                     <button onclick="psexecShell()" class="button" style="flex: 1; padding: 7px; font-size: 10px;" title="Get shell via PsExec">🖥 PsExec</button>
                                     <button onclick="wmiexecShell()" class="button" style="flex: 1; padding: 7px; font-size: 10px;" title="Get shell via WMI">🖥 WMI</button>
                                     <button onclick="secretsDump()" class="button" style="flex: 1; padding: 7px; font-size: 10px;" title="Dump all credentials from target">🔐 Secrets</button>
@@ -2126,6 +2233,8 @@
             if (nmapPollInterval) { clearInterval(nmapPollInterval); nmapPollInterval = null; }
             if (discoveryInterval) { clearInterval(discoveryInterval); discoveryInterval = null; }
             if (responderInterval) { clearInterval(responderInterval); responderInterval = null; }
+            if (smbEnumPollInterval) { clearInterval(smbEnumPollInterval); smbEnumPollInterval = null; }
+            if (snmpEnumPollInterval) { clearInterval(snmpEnumPollInterval); snmpEnumPollInterval = null; }
             // Clear all section timers
             for (var key in internalTimers) {
                 if (internalTimers[key].interval) { clearInterval(internalTimers[key].interval); internalTimers[key].interval = null; }
@@ -2174,6 +2283,7 @@
                 refreshInternalModes();
                 loadInternalInterfaces();
                 checkInternalPolling();
+                loadEnumResults();
             } else if (pageName === 'dashboard') {
                 stopMitmPolling();
                 refreshDashboard();
@@ -3836,8 +3946,16 @@
             discovery: { interval: null, startTime: null },
             responder: { interval: null, startTime: null },
             nmap:      { interval: null, startTime: null },
-            listener:  { interval: null, startTime: null }
+            listener:  { interval: null, startTime: null },
+            smbEnum:   { interval: null, startTime: null },
+            snmpEnum:  { interval: null, startTime: null }
         };
+
+        // Enum result caches + poll intervals
+        var smbEnumPollInterval = null;
+        var snmpEnumPollInterval = null;
+        var _smbEnumResults = {};
+        var _snmpEnumResults = {};
 
         function formatSectionElapsed(seconds) {
             var m = Math.floor(seconds / 60);
@@ -3850,8 +3968,8 @@
             if (!t) return;
             if (t.interval) clearInterval(t.interval);
             t.startTime = startTimeMs;
-            var statusMap = { discovery: 'discoverStatus', responder: 'responderStatus', nmap: null, listener: 'listenerStatus' };
-            var labelMap = { discovery: 'Running', responder: 'Running', nmap: null, listener: 'Listening' };
+            var statusMap = { discovery: 'discoverStatus', responder: 'responderStatus', nmap: null, listener: 'listenerStatus', smbEnum: 'smbEnumStatus', snmpEnum: 'snmpEnumStatus' };
+            var labelMap = { discovery: 'Running', responder: 'Running', nmap: null, listener: 'Listening', smbEnum: 'Running', snmpEnum: 'Running' };
             var el = statusMap[section] ? document.getElementById(statusMap[section]) : null;
             t.interval = setInterval(function() {
                 var elapsed = (Date.now() - t.startTime) / 1000;
@@ -3873,10 +3991,11 @@
             if (!t) return;
             if (t.interval) { clearInterval(t.interval); t.interval = null; }
             t.startTime = null;
-            var statusMap = { discovery: 'discoverStatus', responder: 'responderStatus', nmap: null, listener: 'listenerStatus' };
+            var statusMap = { discovery: 'discoverStatus', responder: 'responderStatus', nmap: null, listener: 'listenerStatus', smbEnum: 'smbEnumStatus', snmpEnum: 'snmpEnumStatus' };
+            var resetText = { smbEnum: 'Idle', snmpEnum: 'Idle' };
             var el = statusMap[section] ? document.getElementById(statusMap[section]) : null;
             if (el) {
-                el.textContent = 'Stopped';
+                el.textContent = resetText[section] || 'Stopped';
                 el.style.color = '#666';
             }
             updateActiveToolCount();
@@ -4000,6 +4119,9 @@
             document.getElementById('centerPlaceholder').style.display = 'none';
             document.getElementById('centerWorkspace').style.display = 'block';
 
+            // Show enum results for selected host
+            renderEnumResults(ip);
+
             appendInternalOutput('[*] Target selected: ' + ip);
         }
 
@@ -4011,6 +4133,7 @@
             document.getElementById('targetInfoBar').style.display = 'none';
             document.getElementById('centerPlaceholder').style.display = 'flex';
             document.getElementById('centerWorkspace').style.display = 'none';
+            document.getElementById('enumResultsSection').style.display = 'none';
         }
 
         // Interface data cache for auto-fill on dropdown change
@@ -4077,6 +4200,398 @@
             } catch (error) {
                 appendInternalOutput('[-] Mode change error: ' + error.message);
             }
+        }
+
+        // ── SMB / SNMP Enumeration Functions ──────────────────────────
+
+        async function startSmbEnum() {
+            appendInternalOutput('[*] Starting SMB enumeration on discovered hosts...');
+            try {
+                const response = await fetch('/api/internal/discover/smb-enum', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+                if (data.success) {
+                    startSectionTimer('smbEnum', Date.now());
+                    document.getElementById('smbEnumStartBtn').style.display = 'none';
+                    document.getElementById('smbEnumStopBtn').style.display = '';
+                    document.getElementById('smbEnumStatus').style.color = '#0f0';
+                    appendInternalOutput('[+] SMB enum started — ' + (data.targets || []).length + ' target(s)');
+                    if (smbEnumPollInterval) clearInterval(smbEnumPollInterval);
+                    smbEnumPollInterval = setInterval(pollSmbEnumStatus, 3000);
+                } else {
+                    appendInternalOutput('[-] SMB enum failed: ' + (data.error || 'unknown error'));
+                }
+            } catch (err) {
+                appendInternalOutput('[-] SMB enum error: ' + err.message);
+            }
+        }
+
+        async function stopSmbEnum() {
+            try {
+                await fetch('/api/internal/discover/smb-enum/stop', { method: 'POST' });
+                stopSectionTimer('smbEnum');
+                document.getElementById('smbEnumStartBtn').style.display = '';
+                document.getElementById('smbEnumStopBtn').style.display = 'none';
+                if (smbEnumPollInterval) { clearInterval(smbEnumPollInterval); smbEnumPollInterval = null; }
+                appendInternalOutput('[*] SMB enumeration stopped');
+            } catch (err) {
+                appendInternalOutput('[-] Stop error: ' + err.message);
+            }
+        }
+
+        async function startSnmpEnum() {
+            appendInternalOutput('[*] Starting SNMP enumeration on discovered hosts...');
+            try {
+                const response = await fetch('/api/internal/discover/snmp-enum', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+                if (data.success) {
+                    startSectionTimer('snmpEnum', Date.now());
+                    document.getElementById('snmpEnumStartBtn').style.display = 'none';
+                    document.getElementById('snmpEnumStopBtn').style.display = '';
+                    document.getElementById('snmpEnumStatus').style.color = '#0f0';
+                    appendInternalOutput('[+] SNMP enum started — ' + (data.targets || []).length + ' target(s)');
+                    if (snmpEnumPollInterval) clearInterval(snmpEnumPollInterval);
+                    snmpEnumPollInterval = setInterval(pollSnmpEnumStatus, 3000);
+                } else {
+                    appendInternalOutput('[-] SNMP enum failed: ' + (data.error || 'unknown error'));
+                }
+            } catch (err) {
+                appendInternalOutput('[-] SNMP enum error: ' + err.message);
+            }
+        }
+
+        async function stopSnmpEnum() {
+            try {
+                await fetch('/api/internal/discover/snmp-enum/stop', { method: 'POST' });
+                stopSectionTimer('snmpEnum');
+                document.getElementById('snmpEnumStartBtn').style.display = '';
+                document.getElementById('snmpEnumStopBtn').style.display = 'none';
+                if (snmpEnumPollInterval) { clearInterval(snmpEnumPollInterval); snmpEnumPollInterval = null; }
+                appendInternalOutput('[*] SNMP enumeration stopped');
+            } catch (err) {
+                appendInternalOutput('[-] Stop error: ' + err.message);
+            }
+        }
+
+        async function pollSmbEnumStatus() {
+            try {
+                const response = await fetch('/api/internal/discover/smb-enum');
+                const data = await response.json();
+                if (data.results) {
+                    for (var ip in data.results) {
+                        _smbEnumResults[ip] = data.results[ip];
+                    }
+                    refreshEnumBadges();
+                    if (selectedHost && _smbEnumResults[selectedHost.ip]) {
+                        renderEnumResults(selectedHost.ip);
+                    }
+                }
+                if (!data.running) {
+                    stopSectionTimer('smbEnum');
+                    document.getElementById('smbEnumStartBtn').style.display = '';
+                    document.getElementById('smbEnumStopBtn').style.display = 'none';
+                    if (smbEnumPollInterval) { clearInterval(smbEnumPollInterval); smbEnumPollInterval = null; }
+                    appendInternalOutput('[+] SMB enumeration complete');
+                    refreshEnumBadges();
+                }
+            } catch (err) {
+                console.error('SMB enum poll error:', err);
+            }
+        }
+
+        async function pollSnmpEnumStatus() {
+            try {
+                const response = await fetch('/api/internal/discover/snmp-enum');
+                const data = await response.json();
+                if (data.results) {
+                    for (var ip in data.results) {
+                        _snmpEnumResults[ip] = data.results[ip];
+                    }
+                    refreshEnumBadges();
+                    if (selectedHost && _snmpEnumResults[selectedHost.ip]) {
+                        renderEnumResults(selectedHost.ip);
+                    }
+                }
+                if (!data.running) {
+                    stopSectionTimer('snmpEnum');
+                    document.getElementById('snmpEnumStartBtn').style.display = '';
+                    document.getElementById('snmpEnumStopBtn').style.display = 'none';
+                    if (snmpEnumPollInterval) { clearInterval(snmpEnumPollInterval); snmpEnumPollInterval = null; }
+                    appendInternalOutput('[+] SNMP enumeration complete');
+                    refreshEnumBadges();
+                }
+            } catch (err) {
+                console.error('SNMP enum poll error:', err);
+            }
+        }
+
+        function refreshEnumBadges() {
+            var items = document.querySelectorAll('#discoveryResults .host-item[data-host]');
+            items.forEach(function(el) {
+                try {
+                    var hd = JSON.parse(el.dataset.host || '{}');
+                    var ip = hd.ip;
+                    if (!ip) return;
+
+                    // Remove existing enum badges
+                    el.querySelectorAll('.host-badge-enum, .host-badge-snmp, .host-badge-enum-running').forEach(function(b) { b.remove(); });
+
+                    // Find or create badge container
+                    var infoDiv = el.querySelector('.host-item-info');
+                    if (!infoDiv) return;
+                    var badgeContainer = infoDiv.querySelector('.enum-badge-row');
+                    if (!badgeContainer) {
+                        badgeContainer = document.createElement('div');
+                        badgeContainer.className = 'enum-badge-row';
+                        infoDiv.appendChild(badgeContainer);
+                    }
+                    badgeContainer.textContent = '';
+
+                    // SMB badge
+                    if (_smbEnumResults[ip]) {
+                        var b = document.createElement('span');
+                        b.className = 'host-badge host-badge-enum';
+                        b.textContent = 'SMB';
+                        b.title = 'SMB enumeration data available';
+                        badgeContainer.appendChild(b);
+                    }
+                    // SNMP badge
+                    if (_snmpEnumResults[ip]) {
+                        var b2 = document.createElement('span');
+                        b2.className = 'host-badge host-badge-snmp';
+                        b2.textContent = 'SNMP';
+                        b2.title = 'SNMP enumeration data available';
+                        badgeContainer.appendChild(b2);
+                    }
+                    // Running badges
+                    if (smbEnumPollInterval && !_smbEnumResults[ip]) {
+                        var ports = hd.ports || [];
+                        if (ports.some(function(p) { return p.port === '445'; })) {
+                            var br = document.createElement('span');
+                            br.className = 'host-badge host-badge-enum-running';
+                            br.textContent = 'SMB...';
+                            br.title = 'SMB enumeration in progress';
+                            badgeContainer.appendChild(br);
+                        }
+                    }
+                    if (snmpEnumPollInterval && !_snmpEnumResults[ip]) {
+                        var ports2 = hd.ports || [];
+                        if (ports2.some(function(p) { return p.port === '161'; })) {
+                            var br2 = document.createElement('span');
+                            br2.className = 'host-badge host-badge-enum-running';
+                            br2.textContent = 'SNMP...';
+                            br2.title = 'SNMP enumeration in progress';
+                            badgeContainer.appendChild(br2);
+                        }
+                    }
+                } catch(e) {}
+            });
+        }
+
+        // Note: renderEnumResults only processes data from our own enum scripts
+        // (internal-only tools, not user-supplied web input), sanitized through esc()
+        function renderEnumResults(ip) {
+            var section = document.getElementById('enumResultsSection');
+            var content = document.getElementById('enumResultsContent');
+            var smb = _smbEnumResults[ip];
+            var snmp = _snmpEnumResults[ip];
+
+            if (!smb && !snmp) {
+                section.style.display = 'none';
+                return;
+            }
+
+            var esc = function(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
+            var parts = [];
+
+            // SMB Results
+            if (smb) {
+                var smbHtml = '<div class="enum-subsection">';
+                smbHtml += '<div class="enum-subsection-header" onclick="this.classList.toggle(\'collapsed\'); this.nextElementSibling.style.display = this.classList.contains(\'collapsed\') ? \'none\' : \'block\';">SMB Enumeration</div>';
+                smbHtml += '<div class="enum-subsection-body">';
+
+                if (smb.os_info) {
+                    smbHtml += '<div class="enum-kv"><span class="ek">OS</span><span class="ev">' + esc(smb.os_info) + '</span></div>';
+                }
+                if (smb.domain) {
+                    smbHtml += '<div class="enum-kv"><span class="ek">Domain</span><span class="ev">' + esc(smb.domain) + '</span></div>';
+                }
+
+                var shares = smb.shares || [];
+                if (shares.length > 0) {
+                    smbHtml += '<div style="margin-top: 6px; margin-bottom: 2px; color: #888; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;">Shares (' + shares.length + ')</div>';
+                    shares.forEach(function(sh) {
+                        var isAccessible = sh.access && sh.access.toLowerCase().indexOf('ok') >= 0;
+                        smbHtml += '<div class="enum-share-item' + (isAccessible ? ' accessible' : '') + '">';
+                        smbHtml += '<strong>' + esc(sh.name) + '</strong>';
+                        if (sh.type) smbHtml += ' <span style="color:#666;">(' + esc(sh.type) + ')</span>';
+                        if (sh.comment) smbHtml += ' — ' + esc(sh.comment);
+                        if (isAccessible) smbHtml += '<span class="share-access">ACCESSIBLE</span>';
+                        smbHtml += '</div>';
+                    });
+                }
+
+                var users = smb.users || [];
+                if (users.length > 0) {
+                    smbHtml += '<div style="margin-top: 6px; margin-bottom: 2px; color: #888; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;">Users (' + users.length + ')</div>';
+                    smbHtml += '<div>';
+                    users.forEach(function(u) {
+                        smbHtml += '<span class="enum-user-item">' + esc(u) + '</span>';
+                    });
+                    smbHtml += '</div>';
+                }
+
+                var policy = smb.password_policy;
+                if (policy && typeof policy === 'object') {
+                    smbHtml += '<div style="margin-top: 6px; margin-bottom: 2px; color: #888; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;">Password Policy</div>';
+                    var policyKeys = { min_length: 'Min Length', lockout_threshold: 'Lockout Threshold', complexity: 'Complexity', max_age: 'Max Age' };
+                    for (var pk in policyKeys) {
+                        if (policy[pk] !== undefined) {
+                            var isBad = (pk === 'min_length' && parseInt(policy[pk]) < 8) ||
+                                        (pk === 'lockout_threshold' && parseInt(policy[pk]) === 0) ||
+                                        (pk === 'complexity' && policy[pk] === 'Disabled');
+                            smbHtml += '<div class="enum-kv' + (isBad ? ' bad' : '') + '"><span class="ek">' + policyKeys[pk] + '</span><span class="ev">' + esc(String(policy[pk])) + (isBad ? ' \u26A0' : '') + '</span></div>';
+                        }
+                    }
+                }
+
+                smbHtml += '</div></div>';
+                parts.push(smbHtml);
+            }
+
+            // SNMP Results
+            if (snmp) {
+                var snmpHtml = '<div class="enum-subsection" style="margin-top: 8px;">';
+                snmpHtml += '<div class="enum-subsection-header" onclick="this.classList.toggle(\'collapsed\'); this.nextElementSibling.style.display = this.classList.contains(\'collapsed\') ? \'none\' : \'block\';">SNMP Enumeration</div>';
+                snmpHtml += '<div class="enum-subsection-body">';
+
+                if (snmp.system) {
+                    var sys = snmp.system;
+                    if (sys.description) snmpHtml += '<div class="enum-kv"><span class="ek">Description</span><span class="ev">' + esc(sys.description) + '</span></div>';
+                    if (sys.name) snmpHtml += '<div class="enum-kv"><span class="ek">Name</span><span class="ev">' + esc(sys.name) + '</span></div>';
+                    if (sys.uptime) snmpHtml += '<div class="enum-kv"><span class="ek">Uptime</span><span class="ev">' + esc(sys.uptime) + '</span></div>';
+                    if (sys.contact) snmpHtml += '<div class="enum-kv"><span class="ek">Contact</span><span class="ev">' + esc(sys.contact) + '</span></div>';
+                    if (sys.location) snmpHtml += '<div class="enum-kv"><span class="ek">Location</span><span class="ev">' + esc(sys.location) + '</span></div>';
+                }
+
+                var ifaces = snmp.interfaces || [];
+                if (ifaces.length > 0) {
+                    snmpHtml += '<div style="margin-top: 6px; margin-bottom: 2px; color: #888; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;">Interfaces (' + ifaces.length + ')</div>';
+                    ifaces.forEach(function(ifc) {
+                        var statusUp = ifc.status && ifc.status.toLowerCase() === 'up';
+                        snmpHtml += '<div class="enum-iface-item">';
+                        snmpHtml += '<span class="' + (statusUp ? 'iface-status-up' : 'iface-status-down') + '">' + (statusUp ? '\u25CF' : '\u25CB') + '</span> ';
+                        snmpHtml += esc(ifc.name || ifc.description || 'Unknown');
+                        if (ifc.ip) snmpHtml += ' <span style="color:#ff0;">' + esc(ifc.ip) + '</span>';
+                        if (ifc.mac) snmpHtml += ' <span style="color:#666;">' + esc(ifc.mac) + '</span>';
+                        if (ifc.speed) snmpHtml += ' <span style="color:#666;">' + esc(ifc.speed) + '</span>';
+                        snmpHtml += '</div>';
+                    });
+                }
+
+                var procs = snmp.processes || [];
+                if (procs.length > 0) {
+                    snmpHtml += '<div style="margin-top: 6px; margin-bottom: 2px; color: #888; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;">Running Processes (' + procs.length + ')</div>';
+                    snmpHtml += '<div>';
+                    procs.forEach(function(proc) {
+                        var name = typeof proc === 'string' ? proc : (proc.name || proc);
+                        snmpHtml += '<span class="enum-process-tag">' + esc(name) + '</span>';
+                    });
+                    snmpHtml += '</div>';
+                }
+
+                snmpHtml += '</div></div>';
+                parts.push(snmpHtml);
+            }
+
+            // Note: content built from esc()-sanitized internal tool output (same pattern as displayNmapResults)
+            content.innerHTML = parts.join(''); // internal enum data, sanitized by esc()
+            section.style.display = 'block';
+        }
+
+        async function startSmbEnumAuthenticated() {
+            var ip = document.getElementById('attackTarget').value.trim();
+            var user = document.getElementById('attackUser').value.trim();
+            var pass = document.getElementById('attackPass').value.trim();
+            var domain = document.getElementById('attackDomain').value.trim() || 'WORKGROUP';
+
+            if (!ip) { appendInternalOutput('[-] No target IP specified'); return; }
+            if (!user || !pass) { appendInternalOutput('[-] Username and password required for authenticated enum'); return; }
+
+            appendInternalOutput('[*] Starting authenticated SMB enum on ' + ip + ' as ' + domain + '\\' + user + '...');
+            try {
+                const response = await fetch('/api/internal/discover/smb-enum', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ targets: [ip], username: user, password: pass, domain: domain })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    startSectionTimer('smbEnum', Date.now());
+                    document.getElementById('smbEnumStartBtn').style.display = 'none';
+                    document.getElementById('smbEnumStopBtn').style.display = '';
+                    document.getElementById('smbEnumStatus').style.color = '#0f0';
+                    appendInternalOutput('[+] Authenticated SMB enum started on ' + ip);
+                    if (smbEnumPollInterval) clearInterval(smbEnumPollInterval);
+                    smbEnumPollInterval = setInterval(pollSmbEnumStatus, 3000);
+                } else {
+                    appendInternalOutput('[-] Enum failed: ' + (data.error || 'unknown error'));
+                }
+            } catch (err) {
+                appendInternalOutput('[-] Error: ' + err.message);
+            }
+        }
+
+        async function loadEnumResults() {
+            // Load existing SMB enum results
+            try {
+                const smbResp = await fetch('/api/internal/discover/smb-enum');
+                const smbData = await smbResp.json();
+                if (smbData.results) {
+                    for (var ip in smbData.results) {
+                        _smbEnumResults[ip] = smbData.results[ip];
+                    }
+                }
+                if (smbData.running) {
+                    startSectionTimer('smbEnum', Date.now());
+                    document.getElementById('smbEnumStartBtn').style.display = 'none';
+                    document.getElementById('smbEnumStopBtn').style.display = '';
+                    document.getElementById('smbEnumStatus').style.color = '#0f0';
+                    if (!smbEnumPollInterval) {
+                        smbEnumPollInterval = setInterval(pollSmbEnumStatus, 3000);
+                    }
+                }
+            } catch(e) {}
+
+            // Load existing SNMP enum results
+            try {
+                const snmpResp = await fetch('/api/internal/discover/snmp-enum');
+                const snmpData = await snmpResp.json();
+                if (snmpData.results) {
+                    for (var ip2 in snmpData.results) {
+                        _snmpEnumResults[ip2] = snmpData.results[ip2];
+                    }
+                }
+                if (snmpData.running) {
+                    startSectionTimer('snmpEnum', Date.now());
+                    document.getElementById('snmpEnumStartBtn').style.display = 'none';
+                    document.getElementById('snmpEnumStopBtn').style.display = '';
+                    document.getElementById('snmpEnumStatus').style.color = '#0f0';
+                    if (!snmpEnumPollInterval) {
+                        snmpEnumPollInterval = setInterval(pollSnmpEnumStatus, 3000);
+                    }
+                }
+            } catch(e) {}
+
+            // Update badges after loading
+            setTimeout(refreshEnumBadges, 500);
         }
 
         async function checkInternalPolling() {
@@ -4191,6 +4706,8 @@
                 await fetch('/api/internal/discover/clear', { method: 'POST' });
                 document.getElementById('discoveryResults').innerHTML = '<div style="color: #555; padding: 20px 12px; text-align: center; font-size: 11px;">Run Discovery or Nmap to find hosts</div>';
                 document.getElementById('intelBar').style.display = 'none';
+                _smbEnumResults = {};
+                _snmpEnumResults = {};
                 deselectHost();
                 updateHostCount();
                 appendInternalOutput('[*] Discovery results cleared');
@@ -4412,6 +4929,7 @@
                     } catch(e) {}
                 }
             }
+            refreshEnumBadges();
         }
 
         async function refreshIntel() {

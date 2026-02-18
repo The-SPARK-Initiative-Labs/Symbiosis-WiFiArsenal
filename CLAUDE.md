@@ -299,6 +299,9 @@ WiFi Arsenal is a comprehensive WiFi penetration testing platform on Kali Linux.
 
 **IF THE HOOK BLOCKS YOU — YOU VIOLATED THE RULE.** The hook is correct. You are wrong. You already know why it blocked you. Fix your teaming and try again. USE THE TEAMING CORRECTLY. Do NOT bypass the team requirement by doing the work yourself with direct tool calls. Do NOT ask Ben what to do — figure out what you did wrong and fix it. If you break this rule — for ANY reason, under ANY circumstance — THE SESSION IS TERMINATED. PERIOD. TeamCreate first, then Task with team_name. That's it.
 
+### 0.5. NEVER Edit UI/CSS Without frontend-design Skill — MANDATORY
+**Before editing ANY HTML/CSS layout or styling, you MUST use the `frontend-design:frontend-design` skill FIRST.** Design the layout, discuss it with Ben, get approval, THEN code. This is enforced by a hookify block rule (`hookify.require-frontend-design.local.md`). There are ZERO exceptions. This rule exists because Claude repeatedly jumped straight to coding UI without thinking about design, producing cluttered, unreadable layouts that Ben couldn't understand. **Design first, code second. Always.**
+
 ### 1. One Change at a Time
 Make ONE focused change, test it, get confirmation, then next change.
 
