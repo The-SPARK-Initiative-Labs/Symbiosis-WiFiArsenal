@@ -18,13 +18,8 @@ trap "rm -rf $TMPDIR" EXIT
 
 # Authenticated mode: credentials passed via env vars (never on command line)
 AUTH_MODE="anonymous"
-SMB_CLIENT_AUTH="-N"
-E4L_AUTH=""
 if [ -n "$SMB_USER" ]; then
     AUTH_MODE="authenticated"
-    # smbclient uses -U user%pass, enum4linux uses -u user -p pass
-    SMB_CLIENT_AUTH="-U ${SMB_USER}%${SMB_PASS:-}"
-    E4L_AUTH="-u $SMB_USER -p ${SMB_PASS:-}"
 fi
 
 echo "[*] SMB Enumeration starting — mode: $AUTH_MODE, targets: $TARGETS"
@@ -34,11 +29,15 @@ for IP in $TARGETS; do
     HOSTDIR="$TMPDIR/$IP"
     mkdir -p "$HOSTDIR"
 
-    # 1. Share listing via smbclient (10s timeout)
-    timeout 15 smbclient -L "//$IP" $SMB_CLIENT_AUTH -t 10 > "$HOSTDIR/smbclient.txt" 2>&1 &
-
-    # 2. Full enumeration via enum4linux
-    timeout 120 enum4linux -a $E4L_AUTH "$IP" > "$HOSTDIR/enum4linux.txt" 2>&1 &
+    if [ "$AUTH_MODE" = "authenticated" ]; then
+        # Authenticated: quote username%password as single arg to handle spaces
+        timeout 15 smbclient -L "//$IP" -U "${SMB_USER}%${SMB_PASS:-}" -t 10 > "$HOSTDIR/smbclient.txt" 2>&1 &
+        timeout 120 enum4linux -a -u "$SMB_USER" -p "${SMB_PASS:-}" "$IP" > "$HOSTDIR/enum4linux.txt" 2>&1 &
+    else
+        # Anonymous: -N flag, no credentials
+        timeout 15 smbclient -L "//$IP" -N -t 10 > "$HOSTDIR/smbclient.txt" 2>&1 &
+        timeout 120 enum4linux -a "$IP" > "$HOSTDIR/enum4linux.txt" 2>&1 &
+    fi
 
     wait
     echo "[+] Done enumerating $IP"
@@ -99,11 +98,19 @@ for ip in targets:
                 in_shares = False
                 continue
             if in_shares:
+                # Skip junk lines (smbclient warnings, ANSI codes)
+                stripped = line.strip()
+                if stripped.startswith(('Reconnecting', 'Unable', 'do_connect', '[', '\x1b')):
+                    in_shares = False
+                    continue
                 # Format: "	ShareName       Disk      Some comment"
-                parts = line.split()
+                parts = stripped.split()
                 if len(parts) >= 2:
                     share_name = parts[0]
                     share_type = parts[1] if len(parts) > 1 else ''
+                    # Only accept valid SMB share types
+                    if share_type not in ('Disk', 'IPC', 'Printer'):
+                        continue
                     comment = ' '.join(parts[2:]) if len(parts) > 2 else ''
                     host_result["shares"].append({
                         "name": share_name,
@@ -157,17 +164,23 @@ for ip in targets:
                 in_share_section = False
                 continue
             if in_share_section:
-                parts = line.split()
+                stripped = line.strip()
+                if stripped.startswith(('Reconnecting', 'Unable', '[', '\x1b')):
+                    in_share_section = False
+                    continue
+                parts = stripped.split()
                 if len(parts) >= 2:
                     name = parts[0]
                     stype = parts[1] if len(parts) > 1 else ''
+                    if stype not in ('Disk', 'IPC', 'Printer'):
+                        continue
                     comment = ' '.join(parts[2:]) if len(parts) > 2 else ''
                     if name not in existing_shares and name not in ('Sharename',):
                         host_result["shares"].append({
                             "name": name,
                             "type": stype,
                             "comment": comment,
-                            "anonymous_access": True
+                            "anonymous_access": auth_mode == "anonymous"
                         })
 
         # Password policy
