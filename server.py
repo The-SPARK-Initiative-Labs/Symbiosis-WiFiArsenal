@@ -6669,24 +6669,39 @@ def internal_responder_status():
 
 @app.route('/api/internal/hashes', methods=['GET'])
 def internal_get_hashes():
-    """Get captured hashes"""
-    hash_file = os.path.join(CAPTURE_DIR, 'hashes', 'hashes.json')
-    
-    if os.path.exists(hash_file):
-        try:
-            with open(hash_file, 'r') as f:
-                hashes = json.load(f)
-            return jsonify({
-                'success': True,
-                'hashes': hashes
-            })
-        except Exception as e:
-            return jsonify({'success': False, 'error': str(e)})
-    else:
-        return jsonify({
-            'success': True,
-            'hashes': []
-        })
+    """Get captured hashes from Responder log directory"""
+    responder_log_dir = '/usr/share/responder/logs'
+    hashes = []
+
+    if os.path.isdir(responder_log_dir):
+        for fname in os.listdir(responder_log_dir):
+            if 'NTLMv2' not in fname and 'NTLMv1' not in fname:
+                continue
+            fpath = os.path.join(responder_log_dir, fname)
+            if not os.path.isfile(fpath):
+                continue
+            try:
+                with open(fpath, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith('#'):
+                            continue
+                        parts = line.split(':')
+                        if len(parts) >= 4:
+                            hashes.append({
+                                'user': parts[0],
+                                'domain': parts[2] if len(parts) > 2 else '',
+                                'source': fname.split('-')[-1].replace('.txt', ''),
+                                'hash': line,
+                                'type': 'NTLMv2' if 'NTLMv2' in fname else 'NTLMv1'
+                            })
+            except Exception:
+                continue
+
+    return jsonify({
+        'success': True,
+        'hashes': hashes
+    })
 
 
 @app.route('/api/internal/hashes/send-to-glass', methods=['POST'])
@@ -6698,7 +6713,7 @@ def internal_send_hash_to_glass():
     if not hash_string:
         return jsonify({'success': False, 'error': 'No hash provided'})
     
-    # Save hash to file for Glass
+    # Save hash to file (NTLMv2 = hashcat mode 5600)
     hash_file = os.path.join(CAPTURE_DIR, 'hashes', f'ntlmv2_{int(time.time())}.txt')
     try:
         with open(hash_file, 'w') as f:

@@ -242,7 +242,7 @@
         display: flex;
         align-items: center;
         gap: 10px;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         padding: 3px 0;
     }
     .topbar-label {
@@ -269,6 +269,89 @@
         padding: 2px 8px;
         border-radius: 3px;
         border: 1px solid #1a1a1a;
+    }
+    /* Tool group instrument panels */
+    .topbar-tool-group {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: #060606;
+        border: 1px solid #1a1a1a;
+        border-top: 2px solid #0f0;
+        border-radius: 4px;
+        padding: 4px 10px;
+        flex-shrink: 0;
+        position: relative;
+        transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .topbar-tool-group.nmap { border-top-color: #4af; }
+    .topbar-tool-group.resp { border-top-color: #ff0; }
+    .topbar-tool-group .topbar-label { font-size: 10px; }
+    .tool-running { box-shadow: 0 0 6px rgba(0, 255, 0, 0.15); border-color: #0f0; }
+    .tool-running.nmap { box-shadow: 0 0 6px rgba(68, 170, 255, 0.15); border-color: #4af; }
+    .tool-running.resp { box-shadow: 0 0 6px rgba(255, 255, 0, 0.15); border-color: #ff0; }
+    .tool-timer {
+        font-size: 10px;
+        font-family: 'Courier New', monospace;
+        color: #888;
+        margin-left: auto;
+        white-space: nowrap;
+    }
+    .tool-btn {
+        padding: 3px 8px;
+        font-size: 10px;
+        white-space: nowrap;
+    }
+    .tool-input {
+        width: 140px;
+        padding: 3px 6px;
+        background: #001a00;
+        border: 1px solid #003300;
+        color: #0f0;
+        font-family: 'Courier New', monospace;
+        font-size: 11px;
+    }
+    .tool-select {
+        padding: 3px 6px;
+        background: #0a0a0a;
+        border: 1px solid #333;
+        color: #0f0;
+        font-size: 11px;
+    }
+    .adapter-select {
+        background: #001a00;
+        color: #00ff00;
+        border: 1px solid #003300;
+        padding: 3px 6px;
+        font-size: 11px;
+    }
+    /* Enum action bar in left panel */
+    .enum-action-bar {
+        padding: 6px 10px;
+        background: #080a08;
+        border-bottom: 1px solid #1a1a1a;
+        flex-shrink: 0;
+    }
+    .enum-action-bar .enum-btn-row {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 4px;
+    }
+    .enum-action-bar .tool-btn {
+        padding: 2px 6px;
+        font-size: 10px;
+        flex: 1;
+    }
+    .enum-status {
+        font-size: 10px;
+        color: #666;
+        white-space: nowrap;
+    }
+    .enum-status-row {
+        display: flex;
+        gap: 10px;
+        font-size: 10px;
+        color: #666;
     }
     .internal-middle {
         display: flex;
@@ -1689,53 +1772,47 @@
 
                 <!-- TOP BAR — Controls strip -->
                 <div class="internal-topbar">
-                    <!-- Row 1: Adapters + Status indicators -->
+                    <!-- Row 1: Adapters -->
                     <div class="internal-topbar-row">
                         <span class="topbar-label">Adapters</span>
                         <span class="mode-status" id="internalAlfa0Status" title="alfa0 mode — Monitor: passive capture | Managed: active network">alfa0: checking...</span>
                         <span class="mode-status" id="internalAlfa1Status" title="alfa1 mode — Monitor: passive capture | Managed: active network">alfa1: checking...</span>
-                        <select id="internalIfaceSelect" style="background: #001a00; color: #00ff00; border: 1px solid #003300; padding: 3px 6px; font-size: 11px;" title="Select interface to configure">
+                        <select id="internalIfaceSelect" class="adapter-select" title="Select interface to configure">
                             <option value="alfa0">alfa0</option>
                             <option value="alfa1">alfa1</option>
                         </select>
-                        <button class="button" onclick="setInternalMode('monitor')" style="padding: 3px 8px; font-size: 10px;" title="Set to monitor mode for passive capture">Monitor</button>
-                        <button class="button" onclick="setInternalMode('managed')" style="padding: 3px 8px; font-size: 10px;" title="Set to managed mode to join a network">Managed</button>
-                        <button class="button" onclick="refreshInternalModes()" style="padding: 3px 8px; font-size: 10px;" title="Refresh interface status">Refresh</button>
-                        <div class="topbar-divider"></div>
-                        <span class="topbar-status">DISC: <span id="discoverStatus" style="color: #666;">Stopped</span></span>
-                        <span class="topbar-status">RESP: <span id="responderStatus" style="color: #666;">Stopped</span></span>
-                        <span class="topbar-status">LSTN: <span id="listenerStatus" style="color: #666;">Stopped</span></span>
+                        <button class="button tool-btn" onclick="setInternalMode('monitor')" title="Set to monitor mode for passive capture">Monitor</button>
+                        <button class="button tool-btn" onclick="setInternalMode('managed')" title="Set to managed mode to join a network">Managed</button>
+                        <button class="button tool-btn" onclick="refreshInternalModes()" title="Refresh interface status">↻ Refresh</button>
                     </div>
-                    <!-- Row 2: Discovery + Nmap + Responder controls -->
+                    <!-- Row 2: Tool Control Strip — three instrument panels -->
                     <div class="internal-topbar-row">
-                        <span class="topbar-label">Discovery</span>
-                        <select id="discoverInterface" onchange="onInterfaceChange()" style="padding: 3px 6px; background: #0a0a0a; border: 1px solid #333; color: #0f0; font-size: 11px;" title="Network interface to monitor — auto-fills subnet and LHOST">
-                            <option value="alfa0">alfa0</option>
-                            <option value="alfa1">alfa1</option>
-                            <option value="eth0">eth0</option>
-                            <option value="wlan0">wlan0</option>
-                        </select>
-                        <button id="discStartBtn" onclick="startDiscovery()" class="button" style="padding: 3px 8px; font-size: 10px;" title="Start passive network monitoring">▶ Start</button>
-                        <button id="discStopBtn" onclick="stopDiscovery()" class="button danger" style="padding: 3px 8px; font-size: 10px; display: none;" title="Stop discovery">Stop</button>
-                        <button id="discClearBtn" onclick="clearDiscovery()" class="button" style="padding: 3px 8px; font-size: 10px;" title="Clear discovery results">Clear</button>
-                        <div class="topbar-divider"></div>
-                        <span class="topbar-label">Nmap</span>
-                        <input type="text" id="nmapSubnet" placeholder="192.168.1.0/24" value="192.168.1.0/24" style="width: 140px; padding: 3px 6px; background: #001a00; border: 1px solid #003300; color: #0f0; font-family: monospace; font-size: 11px;" title="Subnet to scan with nmap">
-                        <button id="nmapScanBtn" onclick="nmapScan()" class="button" style="padding: 3px 8px; font-size: 10px;" title="Run nmap host discovery and port scan on subnet">🔎 Nmap Scan</button>
-                        <button id="nmapCancelBtn" onclick="stopNmapScan()" class="button danger" style="padding: 3px 8px; font-size: 10px; display: none;" title="Cancel running nmap scan">Cancel</button>
-                        <div class="topbar-divider"></div>
-                        <span class="topbar-label">Responder</span>
-                        <button id="respStartBtn" onclick="startResponder()" class="button" style="padding: 3px 8px; font-size: 10px;" title="Start Responder — poison LLMNR/NBT-NS/WPAD to capture NTLMv2 hashes">▶ Start</button>
-                        <button id="respStopBtn" onclick="stopResponder()" class="button danger" style="padding: 3px 8px; font-size: 10px; display: none;" title="Stop Responder">Stop</button>
-                        <span class="topbar-status" style="color: #ff0;" title="Number of NTLMv2 hashes captured by Responder">Hashes: <span id="hashCount">0</span></span>
-                        <div class="topbar-divider"></div>
-                        <span class="topbar-label">Enumerate</span>
-                        <button id="smbEnumStartBtn" onclick="startSmbEnum()" class="button" style="padding: 3px 8px; font-size: 10px;" title="Enumerate SMB shares, users, and password policy on all hosts with port 445">📁 SMB</button>
-                        <button id="smbEnumStopBtn" onclick="stopSmbEnum()" class="button danger" style="padding: 3px 8px; font-size: 10px; display: none;" title="Stop SMB enumeration">Stop</button>
-                        <button id="snmpEnumStartBtn" onclick="startSnmpEnum()" class="button" style="padding: 3px 8px; font-size: 10px;" title="Enumerate SNMP system info, interfaces, and processes on all hosts with port 161">📡 SNMP</button>
-                        <button id="snmpEnumStopBtn" onclick="stopSnmpEnum()" class="button danger" style="padding: 3px 8px; font-size: 10px; display: none;" title="Stop SNMP enumeration">Stop</button>
-                        <span class="topbar-status">SMB: <span id="smbEnumStatus" style="color: #666;">Idle</span></span>
-                        <span class="topbar-status">SNMP: <span id="snmpEnumStatus" style="color: #666;">Idle</span></span>
+                        <div class="topbar-tool-group" id="discToolGroup" data-section="discovery">
+                            <span class="topbar-label" style="color: #0f0;">Discovery</span>
+                            <select id="discoverInterface" onchange="onInterfaceChange()" class="tool-select" title="Network interface to monitor — auto-fills subnet and LHOST">
+                                <option value="alfa0">alfa0</option>
+                                <option value="alfa1">alfa1</option>
+                                <option value="eth0">eth0</option>
+                                <option value="wlan0">wlan0</option>
+                            </select>
+                            <button id="discStartBtn" onclick="startDiscovery()" class="button tool-btn" title="Start passive network monitoring">▶ Start</button>
+                            <button id="discStopBtn" onclick="stopDiscovery()" class="button danger tool-btn" style="display: none;" title="Stop discovery">Stop</button>
+                            <button id="discClearBtn" onclick="clearDiscovery()" class="button tool-btn" title="Clear discovery results">Clear</button>
+                            <span id="discTimerDisplay" class="tool-timer"></span>
+                        </div>
+                        <div class="topbar-tool-group nmap" id="nmapToolGroup" data-section="nmap">
+                            <span class="topbar-label" style="color: #4af;">Nmap</span>
+                            <input type="text" id="nmapSubnet" placeholder="192.168.1.0/24" value="192.168.1.0/24" class="tool-input" title="Subnet to scan with nmap">
+                            <button id="nmapScanBtn" onclick="nmapScan()" class="button tool-btn" title="Run nmap host discovery and port scan on subnet">🔎 Scan</button>
+                            <button id="nmapCancelBtn" onclick="stopNmapScan()" class="button danger tool-btn" style="display: none;" title="Cancel running nmap scan">Cancel</button>
+                        </div>
+                        <div class="topbar-tool-group resp" id="respToolGroup" data-section="responder">
+                            <span class="topbar-label" style="color: #ff0;">Responder</span>
+                            <button id="respStartBtn" onclick="startResponder()" class="button tool-btn" title="Start Responder — poison LLMNR/NBT-NS/WPAD to capture NTLMv2 hashes">▶ Start</button>
+                            <button id="respStopBtn" onclick="stopResponder()" class="button danger tool-btn" style="display: none;" title="Stop Responder">Stop</button>
+                            <span class="topbar-status" style="color: #ff0;" title="Number of NTLMv2 hashes captured by Responder">Hashes: <span id="hashCount">0</span></span>
+                            <span id="respTimerDisplay" class="tool-timer"></span>
+                        </div>
                     </div>
                 </div>
 
@@ -1747,6 +1824,19 @@
                         <div class="internal-left-header">
                             <h3>Hosts</h3>
                             <span id="hostCountBadge" class="host-count-badge" title="Number of discovered hosts">0</span>
+                        </div>
+                        <div class="enum-action-bar">
+                            <div class="enum-btn-row">
+                                <button id="smbEnumStartBtn" onclick="startSmbEnum()" class="button tool-btn" title="Enumerate SMB shares, users, and password policy on all hosts with port 445">📁 SMB</button>
+                                <button id="smbEnumStopBtn" onclick="stopSmbEnum()" class="button danger tool-btn" style="display: none;" title="Stop SMB enumeration">Stop SMB</button>
+                                <button id="snmpEnumStartBtn" onclick="startSnmpEnum()" class="button tool-btn" title="Enumerate SNMP system info, interfaces, and processes on all hosts with port 161">📡 SNMP</button>
+                                <button id="snmpEnumStopBtn" onclick="stopSnmpEnum()" class="button danger tool-btn" style="display: none;" title="Stop SNMP enumeration">Stop SNMP</button>
+                                <button id="smbEnumCredsBtn" onclick="startSmbEnumAuthenticated()" class="button tool-btn" title="Enumerate SMB with discovered credentials for deeper access">🔑 Creds</button>
+                            </div>
+                            <div class="enum-status-row">
+                                <span class="enum-status">SMB: <span id="smbEnumStatus" style="color: #666;">Idle</span></span>
+                                <span class="enum-status">SNMP: <span id="snmpEnumStatus" style="color: #666;">Idle</span></span>
+                            </div>
                         </div>
                         <div id="intelBar" style="display: none; padding: 6px 10px; background: #0a0a0a; border-bottom: 1px solid #1a1a1a; font-size: 10px; flex-shrink: 0;">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -3968,9 +4058,12 @@
             if (!t) return;
             if (t.interval) clearInterval(t.interval);
             t.startTime = startTimeMs;
-            var statusMap = { discovery: 'discoverStatus', responder: 'responderStatus', nmap: null, listener: 'listenerStatus', smbEnum: 'smbEnumStatus', snmpEnum: 'snmpEnumStatus' };
-            var labelMap = { discovery: 'Running', responder: 'Running', nmap: null, listener: 'Listening', smbEnum: 'Running', snmpEnum: 'Running' };
+            var statusMap = { discovery: 'discTimerDisplay', responder: 'respTimerDisplay', nmap: null, listener: null, smbEnum: 'smbEnumStatus', snmpEnum: 'snmpEnumStatus' };
+            var labelMap = { discovery: 'Running', responder: 'Running', nmap: null, listener: null, smbEnum: 'Running', snmpEnum: 'Running' };
             var el = statusMap[section] ? document.getElementById(statusMap[section]) : null;
+            // Add running glow to tool group
+            var toolGroup = document.querySelector('.topbar-tool-group[data-section="' + section + '"]');
+            if (toolGroup) toolGroup.classList.add('tool-running');
             t.interval = setInterval(function() {
                 var elapsed = (Date.now() - t.startTime) / 1000;
                 if (el) {
@@ -3991,13 +4084,16 @@
             if (!t) return;
             if (t.interval) { clearInterval(t.interval); t.interval = null; }
             t.startTime = null;
-            var statusMap = { discovery: 'discoverStatus', responder: 'responderStatus', nmap: null, listener: 'listenerStatus', smbEnum: 'smbEnumStatus', snmpEnum: 'snmpEnumStatus' };
+            var statusMap = { discovery: 'discTimerDisplay', responder: 'respTimerDisplay', nmap: null, listener: null, smbEnum: 'smbEnumStatus', snmpEnum: 'snmpEnumStatus' };
             var resetText = { smbEnum: 'Idle', snmpEnum: 'Idle' };
             var el = statusMap[section] ? document.getElementById(statusMap[section]) : null;
             if (el) {
-                el.textContent = resetText[section] || 'Stopped';
+                el.textContent = resetText[section] || '';
                 el.style.color = '#666';
             }
+            // Remove running glow from tool group
+            var toolGroup = document.querySelector('.topbar-tool-group[data-section="' + section + '"]');
+            if (toolGroup) toolGroup.classList.remove('tool-running');
             updateActiveToolCount();
         }
 
@@ -5131,8 +5227,8 @@
                 const statusRes = await fetch('/api/internal/responder/status');
                 const statusData = await statusRes.json();
                 if (statusData.running && !internalTimers.responder.interval) {
-                    document.getElementById('responderStatus').textContent = 'Running';
-                    document.getElementById('responderStatus').style.color = '#f00';
+                    var respEl = document.getElementById('respTimerDisplay');
+                    if (respEl) { respEl.textContent = 'Running'; respEl.style.color = '#f00'; }
                 }
             } catch (err) {
                 console.error('Hash refresh error:', err);
@@ -5162,7 +5258,7 @@
                     const sendData = await sendRes.json();
                     
                     if (sendData.success) {
-                        appendInternalOutput('[+] Hash sent to Glass for cracking');
+                        appendInternalOutput('[+] ' + (sendData.message || 'Hash sent to Glass for cracking'));
                     } else {
                         appendInternalOutput('[-] Failed to send hash: ' + sendData.error);
                     }
