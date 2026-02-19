@@ -59,6 +59,9 @@ Location: `~/.claude/projects/-home-ov3rr1d3-wifi-arsenal/memory/roadmap.md`
 - **v1.7.0 — Business Intelligence** — vulnerability density map, client evidence export, historical comparison
 - **Issue #9** — Switch Operator from API key to Claude Max (embed Claude Code in Page 8 via xterm.js)
 
+### Future: Managed Client Remote Access Agent
+Ben's other business (Custom Computer Connection) builds/repairs computers for personal clients. Concept: a RustDesk fork deployed under written contract as a silent monitoring + remote access agent, integrated into Arsenal as a "Managed Clients" page. **Idea phase only — not scoped, not started.** Full concept doc: `docs/MANAGED_CLIENTS_CONCEPT.md`. Create a GitHub issue when ready to build.
+
 ### V2 Is Abandoned
 `wardrive_system_v2/` was a ground-up rebuild that reached 60%. We're NOT using it. V2 files are reference only.
 
