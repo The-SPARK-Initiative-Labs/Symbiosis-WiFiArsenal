@@ -5280,7 +5280,10 @@
                                 html += '<div style="color: #ff0; font-family: monospace; font-size: 11px; margin-top: 3px;">Password: ' + h.cracked_password + '</div>';
                                 html += '<button onclick="useCredentials(\'' + h.user + '\', \'' + h.cracked_password + '\', \'' + (h.domain || 'WORKGROUP') + '\')" style="padding: 3px 8px; font-size: 9px; margin-top: 3px; background: #003300; border: 1px solid #006600; color: #0f0; cursor: pointer;">Use These</button>';
                             } else {
-                                html += '<button onclick="sendHashToGlass(' + i + ')" style="padding: 3px 8px; font-size: 9px; margin-top: 3px; background: #330033; border: 1px solid #660066; color: #f0f; cursor: pointer;">Send to Glass</button>';
+                                html += '<div style="display: flex; gap: 4px; margin-top: 3px;">';
+                                html += '<button onclick="saveHash(' + i + ')" style="padding: 3px 8px; font-size: 9px; background: #002233; border: 1px solid #006688; color: #0ff; cursor: pointer;" title="Save hash locally to captures/hashes/ for later cracking or evidence">💾 Save</button>';
+                                html += '<button onclick="sendHashToGlass(' + i + ')" style="padding: 3px 8px; font-size: 9px; background: #330033; border: 1px solid #660066; color: #f0f; cursor: pointer;" title="Upload hash to Glass for GPU cracking">Send to Glass</button>';
+                                html += '</div>';
                             }
                             html += '</div>';
                         });
@@ -5311,14 +5314,14 @@
             try {
                 const response = await fetch('/api/internal/hashes');
                 const data = await response.json();
-                
+
                 if (data.success && data.hashes && data.hashes[index]) {
-                    const hash = data.hashes[index].hash;
-                    
+                    const h = data.hashes[index];
+
                     const sendRes = await fetch('/api/internal/hashes/send-to-glass', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ hash: hash })
+                        body: JSON.stringify({ hash: h.hash, user: h.user, domain: h.domain, type: h.type })
                     });
                     const sendData = await sendRes.json();
                     
@@ -5333,6 +5336,32 @@
             }
         }
         
+        async function saveHash(index) {
+            try {
+                const response = await fetch('/api/internal/hashes');
+                const data = await response.json();
+
+                if (data.success && data.hashes && data.hashes[index]) {
+                    const h = data.hashes[index];
+
+                    const saveRes = await fetch('/api/internal/hashes/save', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ hash: h.hash, user: h.user, domain: h.domain, type: h.type })
+                    });
+                    const saveData = await saveRes.json();
+
+                    if (saveData.success) {
+                        appendInternalOutput('[+] ' + (saveData.message || 'Hash saved locally'));
+                    } else {
+                        appendInternalOutput('[-] Save failed: ' + saveData.error);
+                    }
+                }
+            } catch (err) {
+                appendInternalOutput('[-] Error: ' + err.message);
+            }
+        }
+
         async function smbListShares() {
             const target = document.getElementById('attackTarget').value;
             const user = document.getElementById('attackUser').value;

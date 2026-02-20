@@ -1708,8 +1708,9 @@ def captures():
     filter_type = request.args.get('filter', 'all')
     
     if filter_type == 'hash':
-        # Only hashcat files (for cracking)
+        # Hashcat files (WPA + NTLMv2)
         all_files = glob.glob(os.path.join(CAPTURE_DIR, '*.hc22000'))
+        all_files += glob.glob(os.path.join(CAPTURE_DIR, 'hashes', '*.txt'))
     else:
         # All capture files
         pcap_files = glob.glob(os.path.join(CAPTURE_DIR, '*.pcapng'))
@@ -6855,17 +6856,62 @@ def internal_get_hashes():
     })
 
 
+def make_hash_filename(user='unknown', domain='', hash_type='NTLMv2'):
+    """Generate a readable hash filename like: testlab (WORKGROUP) NTLMv2 Feb20 4-03AM.txt"""
+    safe_user = re.sub(r'[^a-zA-Z0-9@._-]', '_', user)[:50]
+    safe_domain = re.sub(r'[^a-zA-Z0-9._-]', '_', domain)[:30] if domain else ''
+    ts = time.strftime('%b%d %-I-%M%p')  # e.g. "Feb20 4-03AM"
+    if safe_domain:
+        return f'{safe_user} ({safe_domain}) {hash_type} {ts}.txt'
+    return f'{safe_user} {hash_type} {ts}.txt'
+
+
+@app.route('/api/internal/hashes/save', methods=['POST'])
+def internal_save_hash():
+    """Save a hash locally to captures/hashes/ for later cracking or evidence"""
+    data = request.json or {}
+    hash_string = data.get('hash', '')
+    user = data.get('user', 'unknown')
+    domain = data.get('domain', '')
+    hash_type = data.get('type', 'NTLMv2')
+
+    if not hash_string:
+        return jsonify({'success': False, 'error': 'No hash provided'})
+
+    hash_dir = os.path.join(CAPTURE_DIR, 'hashes')
+    os.makedirs(hash_dir, exist_ok=True)
+    filename = make_hash_filename(user, domain, hash_type)
+    hash_file = os.path.join(hash_dir, filename)
+
+    try:
+        with open(hash_file, 'w') as f:
+            f.write(hash_string)
+        return jsonify({
+            'success': True,
+            'message': f'Hash saved: {filename}',
+            'file': hash_file
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
 @app.route('/api/internal/hashes/send-to-glass', methods=['POST'])
 def internal_send_hash_to_glass():
     """Send a hash to Glass for cracking"""
     data = request.json or {}
     hash_string = data.get('hash', '')
-    
+    user = data.get('user', 'unknown')
+    domain = data.get('domain', '')
+    hash_type = data.get('type', 'NTLMv2')
+
     if not hash_string:
         return jsonify({'success': False, 'error': 'No hash provided'})
-    
-    # Save hash to file (NTLMv2 = hashcat mode 5600)
-    hash_file = os.path.join(CAPTURE_DIR, 'hashes', f'ntlmv2_{int(time.time())}.txt')
+
+    # Save hash to file with readable name
+    hash_dir = os.path.join(CAPTURE_DIR, 'hashes')
+    os.makedirs(hash_dir, exist_ok=True)
+    filename = make_hash_filename(user, domain, hash_type)
+    hash_file = os.path.join(hash_dir, filename)
     try:
         with open(hash_file, 'w') as f:
             f.write(hash_string)

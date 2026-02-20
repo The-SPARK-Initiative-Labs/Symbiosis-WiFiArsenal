@@ -52,6 +52,7 @@ You must:
 - **Issue #7 Step 1D** (2026-02-17) - SMB + SNMP enumeration scripts, 6 API endpoints, auto-detect targets, authenticated enum mode
 - **Issue #7 Step 1E** (2026-02-18) - 10 enum JS functions, timer integration, topbar redesign, enum in left panel, hash API fixed
 - **Issue #7 Step 2A** (2026-02-20) - Responder output streaming, session-scoped data, stale data cleanup, regex timestamp fix
+- **Issue #7 Step 2B** (2026-02-20) - Glass NTLMv2 upload (sidecar mode detection), Save button, readable hash filenames, Glass auto-escalate UI fix
 
 ### Current Priorities
 See `roadmap.md` for the full development roadmap.
@@ -60,6 +61,10 @@ Location: `~/.claude/projects/-home-ov3rr1d3-wifi-arsenal/memory/roadmap.md`
 - **v1.6.0 — Field Ready** — full Arsenal audit (all 8 pages), fix all bugs, map performance, auto-tag by SSID
 - **v1.7.0 — Business Intelligence** — vulnerability density map, client evidence export, historical comparison
 - **Issue #9** — Switch Operator from API key to Claude Max (embed Claude Code in Page 8 via xterm.js)
+- **Issue #18** — Glass Cracker UI needs full controls (mirror Arsenal cracking page)
+- **Issue #19** — Glass auto-start toggle (auto-crack on upload)
+- **Issue #20** — Arsenal needs to pull cracked passwords back from Glass
+- **Issue #21** — In-app field guide (plain English explanations of everything)
 
 ### Future: Managed Client Remote Access Agent
 Ben's other business (Custom Computer Connection) builds/repairs computers for personal clients. Concept: a RustDesk fork deployed under written contract as a silent monitoring + remote access agent, integrated into Arsenal as a "Managed Clients" page. **Idea phase only — not scoped, not started.** Full concept doc: `docs/MANAGED_CLIENTS_CONCEPT.md`. Create a GitHub issue when ready to build.
@@ -83,10 +88,30 @@ WiFi Arsenal is a comprehensive WiFi penetration testing platform on Kali Linux.
 - Flipper Zero with ESP32 Marauder
 
 **Glass** (Windows desktop):
-- GPU cracking: AMD RX 7900 XT
-- SSH: `ssh ov3rr1d3@192.168.1.7` or `ssh ov3rr1d3@ssh.sparkinitiative.io`
+- GPU cracking: AMD RX 7900 XT (20GB VRAM)
+- SSH: `ssh farri@192.168.1.7` (LAN) or `ssh farri@ssh.sparkinitiative.io` (Cloudflare Tunnel)
+- **Username is `farri`, NOT `ov3rr1d3`** — key auth is set up, no password needed
 - Web: `https://glass.sparkinitiative.io` (Cloudflare Tunnel)
-- LAN: `http://192.168.1.7:5001`
+- LAN cracking server: `http://192.168.1.7:5001`
+- LAN admin/file server: `http://192.168.1.7:5002`
+
+**Glass Server Architecture:**
+- Two Flask servers, both auto-start on boot via `C:\sparklabs\start_services.ps1`
+- **Port 5001** — Cracking server (`C:\cracking\glass_server.py`): receives hash files, queues them, runs hashcat with 7-stage escalation, reports GPU stats/progress
+- **Port 5002** — Admin/file manager (`C:\sparklabs\sparklabs_admin.py`): file browser, user auth, contact form
+- Hashcat: `C:\hashcat\hashcat.exe`
+- Wordlists: `D:\wordlists\` (rockyou2024.txt, SecLists, all_in_one.txt)
+- Rules: `D:\rules\` (best64, OneRuleToRuleThemAll, dive)
+- Cracking dirs: `C:\cracking\{inbox,processing,cracked,failed,results}\`
+- **Hash modes:** `.hc22000` = WPA (mode 22000), `.txt` = NTLMv2 (mode 5600). Sidecar `.mode` file next to each hash stores the mode number.
+- **Glass SSH:** Use `type` not `cat`. Restart: `Get-NetTCPConnection -LocalPort 5001` → `Stop-Process -Id <PID> -Force`, watchdog restarts in ~15s.
+- **Flask empty POST gotcha:** `fetch('/endpoint', {method:'POST'})` gets 415. Must include `headers: {'Content-Type': 'application/json'}, body: JSON.stringify({})`.
+
+**Hash Files (Arsenal side):**
+- `make_hash_filename(user, domain, hash_type)` in server.py — readable names like `testlab (WORKGROUP) NTLMv2 Feb20 4-03AM.txt`
+- `/api/captures?filter=hash` globs both `*.hc22000` and `captures/hashes/*.txt`
+- `/api/internal/hashes/save` — save hash locally without sending to Glass
+- `/api/internal/hashes/send-to-glass` — save + upload to Glass
 
 ---
 
