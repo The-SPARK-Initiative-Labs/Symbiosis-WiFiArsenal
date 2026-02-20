@@ -25,7 +25,7 @@ You must:
 
 ---
 
-## Current Status (as of 2026-02-17)
+## Current Status (as of 2026-02-20)
 
 ### DONE
 - **V1 Map Filters** (2026-02-05) - all 6 categories working. **DO NOT touch filter code.**
@@ -50,14 +50,19 @@ You must:
 - **Issue #7 Step 1C** (2026-02-15) - auto-detect interfaces, device classification (classify_device with 6-tier cascade), interface auto-fill
 - **Issue #7 UI Wiring Fix** (2026-02-16) - per-section timers, button toggles, security fixes, PID tracking, Responder flags
 - **Issue #7 Step 1D** (2026-02-17) - SMB + SNMP enumeration scripts, 6 API endpoints, auto-detect targets, authenticated enum mode
+- **Issue #7 Step 1E** (2026-02-18) - 10 enum JS functions, timer integration, topbar redesign, enum in left panel, hash API fixed
+- **Issue #7 Step 2A** (2026-02-20) - Responder output streaming, session-scoped data, stale data cleanup, regex timestamp fix
 
 ### Current Priorities
 See `roadmap.md` for the full development roadmap.
 Location: `~/.claude/projects/-home-ov3rr1d3-wifi-arsenal/memory/roadmap.md`
-- **Issue #7 — Internal Network page** — Steps 0, 1A-1D + UI Wiring Fix DONE. Next: Step 1E (interactive host table + UI). Test lab is live.
+- **Issue #7 — Internal Network page** — Steps 0-1E + 2A DONE. Next: Step 2B (Glass NTLMv2 upload). Test lab is live.
 - **v1.6.0 — Field Ready** — full Arsenal audit (all 8 pages), fix all bugs, map performance, auto-tag by SSID
 - **v1.7.0 — Business Intelligence** — vulnerability density map, client evidence export, historical comparison
 - **Issue #9** — Switch Operator from API key to Claude Max (embed Claude Code in Page 8 via xterm.js)
+
+### Future: Managed Client Remote Access Agent
+Ben's other business (Custom Computer Connection) builds/repairs computers for personal clients. Concept: a RustDesk fork deployed under written contract as a silent monitoring + remote access agent, integrated into Arsenal as a "Managed Clients" page. **Idea phase only — not scoped, not started.** Full concept doc: `docs/MANAGED_CLIENTS_CONCEPT.md`. Create a GitHub issue when ready to build.
 
 ### V2 Is Abandoned
 `wardrive_system_v2/` was a ground-up rebuild that reached 60%. We're NOT using it. V2 files are reference only.
@@ -245,6 +250,9 @@ WiFi Arsenal is a comprehensive WiFi penetration testing platform on Kali Linux.
 - **Shell heredocs:** Use quoted delimiter (`<< 'EOF'`) + env vars to pass data. Unquoted heredocs expand bash variables and create injection risk.
 - **Threading:** Shared state dicts accessed from multiple threads MUST use `threading.Lock()`. Pattern: `nmap_scan_lock = threading.Lock()` next to the dict. Wrap all reads AND writes with `with lock:`. Established by GPS system, followed by nmap scan.
 - **NEVER hardcode credentials** — not test passwords, not default cred lists inline. Discovered creds and default-check lists must come from config files or runtime input, never source code.
+- **Responder session log has timestamp prefix:** Lines are `02/20/2026 12:59:37 AM - [*] [LLMNR] ...` — strip `^\d{2}/\d{2}/\d{4}\s+\d{1,2}:\d{2}:\d{2}\s+[AP]M\s*-\s*` before regex matching.
+- **Session-scoped data pattern:** Result files (`nmap_results.json`, `discovery_results.json`) are deleted on scan start. Responder hashes use file position snapshots (`hash_file_positions` in `responder_state`). Internal page panels start empty — `checkInternalPolling()` only loads data for running/completed-this-session processes.
+- **`nmap_scan_state['start_time']` persists after scan completes** — only `running` and `process` are cleared. Used to detect "scan ran this server session" in frontend `checkInternalPolling()`.
 - **Full plan:** `issue7-plan.md` in repo root — re-read each step
 
 ### Nmap Gotchas
@@ -273,7 +281,7 @@ WiFi Arsenal is a comprehensive WiFi penetration testing platform on Kali Linux.
 | Flipper | 2 | Status check, sync |
 | Target Intel | 9 | Notes, hidden SSID reveal, client monitor |
 | Operator AI | 22 | Chat, auth, memory, conversations, tools |
-| Internal Net | 19 | Discovery, responder, exploitation, evidence |
+| Internal Net | 20 | Discovery, responder, exploitation, evidence |
 | MITM | 2 | DNS query logging |
 | System | 3 | Mode, context, status |
 
@@ -382,7 +390,7 @@ Drop raw code output. Keep substance.
 
 **Rules are ABSOLUTE. No interpretation, no hedging, no vague language.** When a rule says NEVER, it means never. When it says PERIOD, there is nothing else to discuss. Do not add qualifiers, conditions, or "unless" clauses. Follow the rule exactly as written.
 
-**Hookify regex is CASE-INSENSITIVE.** The block rule pattern `Explore|general-purpose|Plan` uses `re.IGNORECASE`. This means any `subagent_type` containing "explore", "plan", or "general-purpose" in ANY capitalization is blocked — including types like `feature-dev:code-explorer` where "explore" is a substring. Before using any agent type, check that its name doesn't contain these strings. A warning hook (`agent-type-warning`) fires on every Task call as a reminder.
+**Enforcement:** `enforce-teams.sh` (PreToolUse hook) blocks ANY Task call without `team_name` at the system level. A warning hook (`agent-type-warning`) also fires on every Task call as a reminder. All agent types (Explore, Plan, general-purpose, Bash, feature-dev:*, etc.) are allowed — as long as they have `team_name`.
 
 ---
 
