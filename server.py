@@ -353,7 +353,7 @@ nmap_scan_lock = threading.Lock()
 # Track start times for discovery and responder (for per-section timers)
 discovery_state = {'start_time': None}
 discovery_state_lock = threading.Lock()
-responder_state = {'start_time': None}
+responder_state = {'start_time': None, 'log_position': 0, 'hash_file_positions': {}}
 responder_state_lock = threading.Lock()
 
 # Global state for SMB enumeration
@@ -6176,6 +6176,14 @@ def internal_discover_start():
     if interface not in VALID_INTERFACES:
         return jsonify({'success': False, 'error': f'Invalid interface: {interface}'}), 400
 
+    # Clear stale results from previous discovery
+    old_disc = os.path.join(CAPTURE_DIR, 'discovery_results.json')
+    if os.path.exists(old_disc):
+        try:
+            os.remove(old_disc)
+        except OSError:
+            pass
+
     script = os.path.join(SCRIPT_DIR, 'internal', 'start_discover.sh')
     try:
         result = subprocess.run(['bash', script, interface],
@@ -6349,6 +6357,14 @@ def internal_scan():
             with nmap_scan_lock:
                 nmap_scan_state['running'] = False
                 nmap_scan_state['process'] = None
+
+    # Clear stale results from previous scan
+    old_results = os.path.join(CAPTURE_DIR, 'nmap_results.json')
+    if os.path.exists(old_results):
+        try:
+            os.remove(old_results)
+        except OSError:
+            pass
 
     with nmap_scan_lock:
         nmap_scan_state['running'] = True
@@ -6599,8 +6615,30 @@ def internal_responder_start():
                               capture_output=True, text=True, timeout=10)
         success = 'started' in result.stdout.lower()
         if success:
+            # Record current log size so we only stream events from this run
+            log_pos = 0
+            session_log = '/usr/share/responder/logs/Responder-Session.log'
+            try:
+                if os.path.exists(session_log):
+                    log_pos = os.path.getsize(session_log)
+            except OSError:
+                pass
+            # Snapshot existing hash files so we only show new hashes this session
+            hash_file_positions = {}
+            resp_log_dir = '/usr/share/responder/logs'
+            if os.path.isdir(resp_log_dir):
+                for fname in os.listdir(resp_log_dir):
+                    if 'NTLMv2' in fname or 'NTLMv1' in fname:
+                        fpath = os.path.join(resp_log_dir, fname)
+                        if os.path.isfile(fpath):
+                            try:
+                                hash_file_positions[fname] = os.path.getsize(fpath)
+                            except OSError:
+                                pass
             with responder_state_lock:
                 responder_state['start_time'] = time.time()
+                responder_state['log_position'] = log_pos
+                responder_state['hash_file_positions'] = hash_file_positions
         return jsonify({
             'success': success,
             'output': result.stdout + result.stderr
@@ -6618,12 +6656,100 @@ def internal_responder_stop():
                               capture_output=True, text=True, timeout=10)
         with responder_state_lock:
             responder_state['start_time'] = None
+            responder_state['log_position'] = 0
+            responder_state['hash_file_positions'] = {}
         return jsonify({
             'success': True,
             'output': result.stdout + result.stderr
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/internal/responder/output', methods=['GET'])
+def internal_responder_output():
+    """Stream new Responder log lines since last poll"""
+    session_log = '/usr/share/responder/logs/Responder-Session.log'
+
+    with responder_state_lock:
+        pos = responder_state.get('log_position', 0)
+
+    events = []
+    new_pos = pos
+
+    if os.path.exists(session_log):
+        try:
+            with open(session_log, 'r') as f:
+                f.seek(pos)
+                new_content = f.read()
+                new_pos = f.tell()
+        except OSError:
+            new_content = ''
+
+        if new_content:
+            for line in new_content.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+
+                # Strip Responder's timestamp prefix (e.g. "02/20/2026 12:59:37 AM - ")
+                line = re.sub(r'^\d{2}/\d{2}/\d{4}\s+\d{1,2}:\d{2}:\d{2}\s+[AP]M\s*-\s*', '', line)
+
+                # Poisoning events
+                m = re.match(r'\[(\*|\+)\]\s*\[(LLMNR|MDNS|NBT-NS|NBNS)\]\s*Poisoned answer sent to\s+(\S+)\s+for name\s+(.+)', line, re.IGNORECASE)
+                if m:
+                    events.append({'type': 'poison', 'service': m.group(2).upper(), 'target': m.group(3), 'name': m.group(4).strip()})
+                    continue
+
+                # Hash capture - client
+                m = re.match(r'\[(HTTP|SMB|MSSQL|FTP|LDAP|IMAP|POP|SMTP)\]\s*NTLMv[12]\s+Client\s*:\s*(\S+)', line, re.IGNORECASE)
+                if m:
+                    events.append({'type': 'hash_client', 'protocol': m.group(1).upper(), 'target': m.group(2)})
+                    continue
+
+                # Hash capture - username
+                m = re.match(r'\[(HTTP|SMB|MSSQL|FTP|LDAP|IMAP|POP|SMTP)\]\s*NTLMv[12]\s+Username\s*:\s*(.+)', line, re.IGNORECASE)
+                if m:
+                    events.append({'type': 'hash_user', 'protocol': m.group(1).upper(), 'user': m.group(2).strip()})
+                    continue
+
+                # Hash capture - hash line
+                m = re.match(r'\[(HTTP|SMB|MSSQL|FTP|LDAP|IMAP|POP|SMTP)\]\s*NTLMv[12]\s+Hash\s*:\s*(.+)', line, re.IGNORECASE)
+                if m:
+                    hash_val = m.group(2).strip()
+                    preview = hash_val[:60] + '...' if len(hash_val) > 60 else hash_val
+                    events.append({'type': 'hash_captured', 'protocol': m.group(1).upper(), 'hash_preview': preview})
+                    continue
+
+                # Duplicate skip
+                if 'skipping previously captured hash' in line.lower():
+                    events.append({'type': 'skip', 'message': line})
+                    continue
+
+                # Responder started
+                if 'responder started' in line.lower() or 'poisoners' in line.lower():
+                    events.append({'type': 'started', 'message': line})
+                    continue
+
+                # Listener started
+                m = re.match(r'\[\*\]\s*(.+listening.+)', line, re.IGNORECASE)
+                if m:
+                    events.append({'type': 'listener', 'detail': m.group(1).strip()})
+                    continue
+
+                # Servers started
+                m = re.match(r'\[\+\]\s*(Listening for events\.\.\.)', line, re.IGNORECASE)
+                if m:
+                    events.append({'type': 'listener', 'detail': m.group(1).strip()})
+                    continue
+
+                # Fallback - any line with content
+                events.append({'type': 'info', 'message': line})
+
+    with responder_state_lock:
+        responder_state['log_position'] = new_pos
+
+    return jsonify({'success': True, 'events': events})
 
 
 @app.route('/api/internal/responder/status', methods=['GET'])
@@ -6644,20 +6770,33 @@ def internal_responder_status():
 
     with responder_state_lock:
         start_time = responder_state['start_time']
+        hash_file_positions = responder_state.get('hash_file_positions', {})
+        has_session = start_time is not None
         if not running and start_time is not None:
             responder_state['start_time'] = None
             start_time = None
 
-    # Count hashes
+    # Count hashes — session-scoped when Responder is/was running
     hash_count = 0
-    hash_file = os.path.join(CAPTURE_DIR, 'hashes', 'hashes.json')
-    if os.path.exists(hash_file):
-        try:
-            with open(hash_file, 'r') as f:
-                hashes = json.load(f)
-                hash_count = len(hashes)
-        except Exception:
-            pass
+    responder_log_dir = '/usr/share/responder/logs'
+    if os.path.isdir(responder_log_dir):
+        for fname in os.listdir(responder_log_dir):
+            if 'NTLMv2' in fname or 'NTLMv1' in fname:
+                fpath = os.path.join(responder_log_dir, fname)
+                if os.path.isfile(fpath):
+                    try:
+                        with open(fpath, 'rb') as f:
+                            if has_session and fname in hash_file_positions:
+                                f.seek(hash_file_positions[fname])
+                            elif has_session and fname not in hash_file_positions:
+                                pass  # New file this session — count all
+                            content = f.read().decode('utf-8', errors='replace')
+                            for line in content.splitlines():
+                                line = line.strip()
+                                if line and not line.startswith('#'):
+                                    hash_count += 1
+                    except OSError:
+                        pass
 
     return jsonify({
         'running': running,
@@ -6669,9 +6808,14 @@ def internal_responder_status():
 
 @app.route('/api/internal/hashes', methods=['GET'])
 def internal_get_hashes():
-    """Get captured hashes from Responder log directory"""
+    """Get captured hashes from Responder log directory (session-scoped when Responder is running)"""
     responder_log_dir = '/usr/share/responder/logs'
     hashes = []
+
+    # Get snapshot positions so we only return hashes captured this session
+    with responder_state_lock:
+        hash_file_positions = responder_state.get('hash_file_positions', {})
+        has_session = responder_state.get('start_time') is not None
 
     if os.path.isdir(responder_log_dir):
         for fname in os.listdir(responder_log_dir):
@@ -6681,20 +6825,27 @@ def internal_get_hashes():
             if not os.path.isfile(fpath):
                 continue
             try:
-                with open(fpath, 'r') as f:
-                    for line in f:
-                        line = line.strip()
-                        if not line or line.startswith('#'):
-                            continue
-                        parts = line.split(':')
-                        if len(parts) >= 4:
-                            hashes.append({
-                                'user': parts[0],
-                                'domain': parts[2] if len(parts) > 2 else '',
-                                'source': fname.split('-')[-1].replace('.txt', ''),
-                                'hash': line,
-                                'type': 'NTLMv2' if 'NTLMv2' in fname else 'NTLMv1'
-                            })
+                with open(fpath, 'rb') as f:
+                    # If session active, skip past pre-existing content
+                    if has_session and fname in hash_file_positions:
+                        f.seek(hash_file_positions[fname])
+                    elif has_session and fname not in hash_file_positions:
+                        pass  # New file this session — read all
+                    content = f.read().decode('utf-8', errors='replace')
+
+                for line in content.splitlines():
+                    line = line.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                    parts = line.split(':')
+                    if len(parts) >= 4:
+                        hashes.append({
+                            'user': parts[0],
+                            'domain': parts[2] if len(parts) > 2 else '',
+                            'source': fname.split('-')[-1].replace('.txt', ''),
+                            'hash': line,
+                            'type': 'NTLMv2' if 'NTLMv2' in fname else 'NTLMv1'
+                        })
             except Exception:
                 continue
 

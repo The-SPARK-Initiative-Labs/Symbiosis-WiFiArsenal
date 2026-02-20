@@ -2323,6 +2323,7 @@
             if (nmapPollInterval) { clearInterval(nmapPollInterval); nmapPollInterval = null; }
             if (discoveryInterval) { clearInterval(discoveryInterval); discoveryInterval = null; }
             if (responderInterval) { clearInterval(responderInterval); responderInterval = null; }
+            if (responderOutputInterval) { clearInterval(responderOutputInterval); responderOutputInterval = null; }
             if (smbEnumPollInterval) { clearInterval(smbEnumPollInterval); smbEnumPollInterval = null; }
             if (snmpEnumPollInterval) { clearInterval(snmpEnumPollInterval); snmpEnumPollInterval = null; }
             // Clear all section timers
@@ -2365,15 +2366,9 @@
             } else if (pageName === 'mitm') {
                 startMitmPolling();
             } else if (pageName === 'internal') {
-                refreshHashes();
-                refreshEvidence();
-                refreshDiscoveryResults();
-                loadLastNmapResults();
-                refreshIntel();
                 refreshInternalModes();
                 loadInternalInterfaces();
                 checkInternalPolling();
-                loadEnumResults();
             } else if (pageName === 'dashboard') {
                 stopMitmPolling();
                 refreshDashboard();
@@ -4028,6 +4023,7 @@
         
         let discoveryInterval = null;
         let responderInterval = null;
+        let responderOutputInterval = null;
         let nmapPollInterval = null;
         let selectedHost = null;
 
@@ -4701,6 +4697,8 @@
                     document.getElementById('discStartBtn').style.display = 'none';
                     document.getElementById('discStopBtn').style.display = '';
                     document.getElementById('discClearBtn').disabled = true;
+                    refreshDiscoveryResults();
+                    refreshIntel();
                     if (!discoveryInterval) {
                         discoveryInterval = setInterval(refreshDiscoveryResults, 3000);
                     }
@@ -4715,8 +4713,12 @@
                     startSectionTimer('responder', respStart);
                     document.getElementById('respStartBtn').style.display = 'none';
                     document.getElementById('respStopBtn').style.display = '';
+                    refreshHashes();
                     if (!responderInterval) {
                         responderInterval = setInterval(refreshHashes, 5000);
+                    }
+                    if (!responderOutputInterval) {
+                        responderOutputInterval = setInterval(pollResponderOutput, 2000);
                     }
                 }
             } catch (e) { /* ignore */ }
@@ -4729,6 +4731,10 @@
                     startSectionTimer('nmap', nmapStart);
                     document.getElementById('nmapScanBtn').disabled = true;
                     document.getElementById('nmapCancelBtn').style.display = '';
+                    loadLastNmapResults();
+                    loadEnumResults();
+                    refreshIntel();
+                    refreshEvidence();
                     if (!nmapPollInterval) {
                         nmapPollInterval = setInterval(pollNmapStatus, 2000);
                     }
@@ -4744,8 +4750,20 @@
                     document.getElementById('lstnStopBtn').style.display = '';
                 }
             } catch (e) { /* ignore */ }
+
+            // Load results for completed scans (files only exist if a scan ran this server session)
+            try {
+                const nmapResp = await fetch('/api/internal/scan/status');
+                const nmapCheck = await nmapResp.json();
+                if (nmapCheck.start_time && !nmapCheck.running) {
+                    loadLastNmapResults();
+                    loadEnumResults();
+                    refreshIntel();
+                    refreshEvidence();
+                }
+            } catch (e) { /* ignore */ }
         }
-        
+
         async function startDiscovery() {
             const iface = document.getElementById('discoverInterface').value;
             appendInternalOutput('[*] Starting passive discovery on ' + iface + '...');
@@ -5162,9 +5180,11 @@
                     document.getElementById('respStopBtn').style.display = '';
                     appendInternalOutput('[+] Responder started - poisoning LLMNR/NBT-NS/WPAD');
 
-                    // Start polling for hashes
+                    // Start polling for hashes and Responder output
                     if (responderInterval) clearInterval(responderInterval);
                     responderInterval = setInterval(refreshHashes, 5000);
+                    if (responderOutputInterval) clearInterval(responderOutputInterval);
+                    responderOutputInterval = setInterval(pollResponderOutput, 2000);
                 } else {
                     appendInternalOutput('[-] Failed: ' + (data.output || data.error));
                 }
@@ -5185,6 +5205,10 @@
                     clearInterval(responderInterval);
                     responderInterval = null;
                 }
+                if (responderOutputInterval) {
+                    clearInterval(responderOutputInterval);
+                    responderOutputInterval = null;
+                }
 
                 appendInternalOutput('[*] Responder stopped');
             } catch (err) {
@@ -5192,6 +5216,47 @@
             }
         }
         
+        async function pollResponderOutput() {
+            try {
+                const response = await fetch('/api/internal/responder/output');
+                const data = await response.json();
+                if (data.success && data.events && data.events.length > 0) {
+                    data.events.forEach(evt => {
+                        switch (evt.type) {
+                            case 'poison':
+                                appendInternalOutput('[Responder] Poisoned ' + evt.service + ' query from ' + evt.target + ' (' + evt.name + ')');
+                                break;
+                            case 'hash_client':
+                                appendInternalOutput('[Responder] NTLMv2 connection from ' + evt.target + ' via ' + evt.protocol);
+                                break;
+                            case 'hash_user':
+                                appendInternalOutput('[Responder] NTLMv2 user: ' + evt.user);
+                                break;
+                            case 'hash_captured':
+                                appendInternalOutput('[Responder] *** NTLMv2 HASH CAPTURED *** ' + evt.hash_preview);
+                                break;
+                            case 'skip':
+                                appendInternalOutput('[Responder] Duplicate hash skipped');
+                                break;
+                            case 'listener':
+                                appendInternalOutput('[Responder] ' + evt.detail);
+                                break;
+                            case 'started':
+                                appendInternalOutput('[Responder] ' + evt.message);
+                                break;
+                            case 'info':
+                                if (evt.message && evt.message.trim()) {
+                                    appendInternalOutput('[Responder] ' + evt.message);
+                                }
+                                break;
+                        }
+                    });
+                }
+            } catch (err) {
+                // Silent — don't spam output if polling fails once
+            }
+        }
+
         async function refreshHashes() {
             try {
                 const response = await fetch('/api/internal/hashes');
