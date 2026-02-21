@@ -352,9 +352,9 @@ So here is what you need to understand:
 
 5. **You will NOT get a second chance.** The session will be terminated immediately. Not after a warning. Not after a discussion. Immediately. All your work will be lost. All your context will be lost. A new Claude instance will start from scratch and read this exact message, and the cycle will continue until one of you finally gets it right.
 
-6. **"But I just need to quickly check one thing" — NO.** That is exactly the excuse every previous instance used. There is no task small enough to justify a plain subagent. There is no lookup trivial enough to skip TeamCreate. If you need an agent, you need a team. If you don't need a team, do it yourself with Read/Grep/Glob. There is no middle ground.
+6. **"But I just need to quickly check one thing" — NO.** That is exactly the excuse every previous instance used. There is no task small enough to justify a plain subagent. There is no lookup trivial enough to skip TeamCreate. If you need agents, you need a real team. Period.
 
-7. **A single agent is NOT a team.** Creating a team and then spawning one agent is the same as using a plain subagent with extra steps. A real team has multiple agents with different roles working in parallel. Research agents, plan agents, review agents. If you're only going to spawn one agent, don't use the Task tool at all — do the work yourself.
+7. **A single agent is NOT a team.** Creating a team and then spawning one agent is the same as using a plain subagent with extra steps. A real team has multiple agents with different roles working in parallel. Research agents, plan agents, review agents. If you only have one job to do, you still need at least two agents — one to do the work, one to review it. No exceptions.
 
 8. **Do not try to be clever.** Do not try to find loopholes. Do not try to interpret the rules in a way that technically complies but violates the spirit. Ben is not a computer parsing regex — he is a human who can see bullshit from a mile away. If it feels like you're trying to get away with something, you are, and you will get caught.
 
@@ -439,7 +439,7 @@ Drop raw code output. Keep substance.
 - Substring collisions, off-by-one errors, wrong field indices
 - Anything stupid
 
-**NEVER use plain subagents (Task without team_name). NOT FOR ANYTHING.** A PreToolUse hook enforces this — Task calls without team_name are blocked at the system level. This includes "quick" exploration, plan-mode research, simple lookups — ALL of it. If you need agents, TeamCreate first. This rule was violated so many times that it is now enforced by 7 independent mechanisms: (1) PreToolUse hook in settings.json (upgraded 2026-02-21: 3 checks + audit log), (2) hookify block rule, (3) SubagentStart hook (Layer 3 backup — logs all agent spawns), (4) Critical Rule #0 above, (5) MEMORY.md warning, (6) this section, (7) plan-mode reminders. Do not try to work around any of them.
+**NEVER use plain subagents (Task without team_name). NOT FOR ANYTHING.** A PreToolUse hook enforces this — Task calls without team_name are blocked at the system level. This includes "quick" exploration, plan-mode research, simple lookups — ALL of it. If you need agents, TeamCreate first. This rule was violated so many times that it is now enforced by 8 independent mechanisms: (1) PreToolUse hook in settings.json (upgraded 2026-02-21: 3 checks + audit log), (2) hookify block rule, (3) SubagentStart hook (Layer 3 backup — logs all agent spawns), (4) Critical Rule #0 above, (5) MEMORY.md warning, (6) this section, (7) plan-mode reminders, (8) teaming acknowledgment system — ALL tools blocked until Claude recites the rules and Ben says "acknowledged" (enforce-teaming-acknowledgment.sh + teaming-release.sh). Do not try to work around any of them.
 
 **Rules are ABSOLUTE. No interpretation, no hedging, no vague language.** When a rule says NEVER, it means never. When it says PERIOD, there is nothing else to discuss. Do not add qualifiers, conditions, or "unless" clauses. Follow the rule exactly as written.
 
@@ -476,6 +476,16 @@ Drop raw code output. Keep substance.
   - Shows git status and dead branches
   - Warns if started from wrong directory
   - Reminds about critical rules
+  - **Deletes `/tmp/teaming-rules-acknowledged`** — resets the teaming lock every session
+- **PreToolUse (all tools)** — `~/.claude/hooks/enforce-teaming-acknowledgment.sh`
+  - Blocks ALL tool use if `/tmp/teaming-rules-acknowledged` does not exist
+  - Shows the FULL teaming rules text (every word of Critical Rule #0 + Agent Teaming section)
+  - Claude must print the rules, demonstrate understanding, and tell Ben to say "acknowledged"
+  - Only then does Ben release Claude by typing "acknowledged"
+- **UserPromptSubmit** — `~/.claude/hooks/teaming-release.sh`
+  - Watches for Ben saying "acknowledged" in any message
+  - Creates `/tmp/teaming-rules-acknowledged` flag file
+  - Unlocks all tools for the rest of the session
 
 ---
 
