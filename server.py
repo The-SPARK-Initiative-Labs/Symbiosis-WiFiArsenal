@@ -364,6 +364,10 @@ smb_enum_lock = threading.Lock()
 snmp_enum_state = {'running': False, 'process': None, 'start_time': None, 'targets': []}
 snmp_enum_lock = threading.Lock()
 
+# Global state for default credential checking
+default_cred_state = {'running': False, 'process': None, 'start_time': None, 'results_count': 0}
+default_cred_lock = threading.Lock()
+
 # Global state for live wardrive scanning
 import sys
 sys.path.insert(0, '/home/ov3rr1d3/wifi_arsenal/wardrive_system/wardrive')
@@ -7448,6 +7452,157 @@ def internal_snmp_enum_stop():
             snmp_enum_state['process'] = None
         return jsonify({'success': True, 'message': 'SNMP enumeration stopped'})
     return jsonify({'success': False, 'error': 'No SNMP enumeration running'})
+
+
+# ============== DEFAULT CREDENTIAL CHECK ENDPOINTS ==============
+
+# Service-to-port mapping for auto-detection from nmap results
+DEFAULT_CRED_SERVICE_MAP = {
+    '22': 'ssh',
+    '23': 'telnet',
+    '21': 'ftp',
+    '80': 'http',
+    '443': 'https',
+    '8080': 'http',
+    '8443': 'https',
+    '445': 'smb',
+}
+
+@app.route('/api/internal/creds/default-check', methods=['POST'])
+def internal_default_cred_start():
+    """Start default credential check using Hydra against discovered hosts"""
+    global default_cred_state
+
+    with default_cred_lock:
+        if default_cred_state['running']:
+            return jsonify({'success': False, 'error': 'Default credential check already running'})
+
+    # Auto-detect targets from nmap results
+    target_specs = []
+    nmap_file = os.path.join(CAPTURE_DIR, 'nmap_results.json')
+    if os.path.exists(nmap_file):
+        try:
+            with open(nmap_file, 'r') as f:
+                nmap_data = json.load(f)
+            for host in nmap_data.get('hosts', []):
+                ip = host.get('ip', '')
+                if not ip or not re.match(r'^[0-9.]+$', ip):
+                    continue
+                for port_info in host.get('ports', []):
+                    port_str = str(port_info.get('port', ''))
+                    if port_str in DEFAULT_CRED_SERVICE_MAP:
+                        service = DEFAULT_CRED_SERVICE_MAP[port_str]
+                        spec = f"{ip}:{port_str}:{service}"
+                        if spec not in target_specs:
+                            target_specs.append(spec)
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    if not target_specs:
+        return jsonify({'success': False, 'error': 'No testable services found in nmap results (need SSH, HTTP, FTP, Telnet, or SMB)'})
+
+    results_file = os.path.join(CAPTURE_DIR, 'default_cred_results.json')
+    script = os.path.join(SCRIPT_DIR, 'internal', 'default_cred_check.sh')
+
+    def run_default_cred_check():
+        global default_cred_state
+        try:
+            # Clear stale results from previous run
+            if os.path.exists(results_file):
+                os.remove(results_file)
+            cmd = ['bash', script, results_file] + target_specs
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
+            with default_cred_lock:
+                default_cred_state['process'] = process
+            # Stream output for appendInternalOutput
+            for line in process.stdout:
+                line = line.strip()
+                if line:
+                    print(f"[DefaultCreds] {line}")
+            process.wait()
+            # Count results
+            if os.path.exists(results_file):
+                try:
+                    with open(results_file, 'r') as f:
+                        result_data = json.load(f)
+                    with default_cred_lock:
+                        default_cred_state['results_count'] = result_data.get('total_found', 0)
+                except (json.JSONDecodeError, IOError):
+                    pass
+        finally:
+            with default_cred_lock:
+                default_cred_state['running'] = False
+                default_cred_state['process'] = None
+
+    with default_cred_lock:
+        default_cred_state['running'] = True
+        default_cred_state['start_time'] = time.time()
+        default_cred_state['results_count'] = 0
+
+    thread = threading.Thread(target=run_default_cred_check)
+    thread.daemon = True
+    thread.start()
+
+    return jsonify({
+        'success': True,
+        'message': f'Default credential check started on {len(target_specs)} service(s)',
+        'target_specs': target_specs
+    })
+
+
+@app.route('/api/internal/creds/default-check/status', methods=['GET'])
+def internal_default_cred_status():
+    """Get default credential check status and results"""
+    with default_cred_lock:
+        running = default_cred_state['running']
+        start_time = default_cred_state['start_time']
+        results_count = default_cred_state['results_count']
+
+    elapsed = 0
+    if running and start_time:
+        elapsed = int(time.time() - start_time)
+
+    result = {
+        'running': running,
+        'elapsed': elapsed,
+        'start_time': start_time,
+        'results_count': results_count,
+        'results': None
+    }
+
+    results_file = os.path.join(CAPTURE_DIR, 'default_cred_results.json')
+    if os.path.exists(results_file):
+        try:
+            with open(results_file, 'r') as f:
+                result['results'] = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    return jsonify(result)
+
+
+@app.route('/api/internal/creds/default-check/stop', methods=['POST'])
+def internal_default_cred_stop():
+    """Stop running default credential check"""
+    global default_cred_state
+    with default_cred_lock:
+        proc = default_cred_state['process']
+    if proc:
+        try:
+            proc.terminate()
+            proc.wait(timeout=5)
+        except Exception:
+            proc.kill()
+        with default_cred_lock:
+            default_cred_state['running'] = False
+            default_cred_state['process'] = None
+        return jsonify({'success': True, 'message': 'Default credential check stopped'})
+    return jsonify({'success': False, 'error': 'No default credential check running'})
 
 
 # ============== ACCESS ENDPOINTS ==============

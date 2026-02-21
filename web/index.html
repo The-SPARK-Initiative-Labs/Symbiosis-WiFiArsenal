@@ -1813,6 +1813,13 @@
                             <span class="topbar-status" style="color: #ff0;" title="Number of NTLMv2 hashes captured by Responder">Hashes: <span id="hashCount">0</span></span>
                             <span id="respTimerDisplay" class="tool-timer"></span>
                         </div>
+                        <div class="topbar-tool-group" id="credCheckToolGroup" data-section="credCheck">
+                            <span class="topbar-label" style="color: #f80;">Cred Check</span>
+                            <button id="credCheckStartBtn" onclick="startDefaultCredCheck()" class="button tool-btn" title="Test default/factory credentials (admin/admin, root/root, etc.) on all discovered hosts using Hydra">▶ Check Defaults</button>
+                            <button id="credCheckStopBtn" onclick="stopDefaultCredCheck()" class="button danger tool-btn" style="display: none;" title="Stop default credential check">Stop</button>
+                            <span class="topbar-status" style="color: #f80;" title="Number of default credentials found">Found: <span id="defaultCredCount">0</span></span>
+                            <span id="credCheckTimerDisplay" class="tool-timer"></span>
+                        </div>
                     </div>
                 </div>
 
@@ -2326,6 +2333,7 @@
             if (responderOutputInterval) { clearInterval(responderOutputInterval); responderOutputInterval = null; }
             if (smbEnumPollInterval) { clearInterval(smbEnumPollInterval); smbEnumPollInterval = null; }
             if (snmpEnumPollInterval) { clearInterval(snmpEnumPollInterval); snmpEnumPollInterval = null; }
+            if (defaultCredPollInterval) { clearInterval(defaultCredPollInterval); defaultCredPollInterval = null; }
             // Clear all section timers
             for (var key in internalTimers) {
                 if (internalTimers[key].interval) { clearInterval(internalTimers[key].interval); internalTimers[key].interval = null; }
@@ -4034,12 +4042,14 @@
             nmap:      { interval: null, startTime: null },
             listener:  { interval: null, startTime: null },
             smbEnum:   { interval: null, startTime: null },
-            snmpEnum:  { interval: null, startTime: null }
+            snmpEnum:  { interval: null, startTime: null },
+            credCheck: { interval: null, startTime: null }
         };
 
         // Enum result caches + poll intervals
         var smbEnumPollInterval = null;
         var snmpEnumPollInterval = null;
+        var defaultCredPollInterval = null;
         var _smbEnumResults = {};
         var _snmpEnumResults = {};
 
@@ -4054,8 +4064,8 @@
             if (!t) return;
             if (t.interval) clearInterval(t.interval);
             t.startTime = startTimeMs;
-            var statusMap = { discovery: 'discTimerDisplay', responder: 'respTimerDisplay', nmap: null, listener: null, smbEnum: 'smbEnumStatus', snmpEnum: 'snmpEnumStatus' };
-            var labelMap = { discovery: 'Running', responder: 'Running', nmap: null, listener: null, smbEnum: 'Running', snmpEnum: 'Running' };
+            var statusMap = { discovery: 'discTimerDisplay', responder: 'respTimerDisplay', nmap: null, listener: null, smbEnum: 'smbEnumStatus', snmpEnum: 'snmpEnumStatus', credCheck: 'credCheckTimerDisplay' };
+            var labelMap = { discovery: 'Running', responder: 'Running', nmap: null, listener: null, smbEnum: 'Running', snmpEnum: 'Running', credCheck: 'Running' };
             var el = statusMap[section] ? document.getElementById(statusMap[section]) : null;
             // Add running glow to tool group
             var toolGroup = document.querySelector('.topbar-tool-group[data-section="' + section + '"]');
@@ -4064,7 +4074,7 @@
                 var elapsed = (Date.now() - t.startTime) / 1000;
                 if (el) {
                     el.textContent = labelMap[section] + ' ' + formatSectionElapsed(elapsed);
-                    el.style.color = section === 'responder' ? '#f00' : '#0f0';
+                    el.style.color = section === 'responder' ? '#f00' : (section === 'credCheck' ? '#f80' : '#0f0');
                 }
             }, 1000);
             // Immediate first update
@@ -4080,7 +4090,7 @@
             if (!t) return;
             if (t.interval) { clearInterval(t.interval); t.interval = null; }
             t.startTime = null;
-            var statusMap = { discovery: 'discTimerDisplay', responder: 'respTimerDisplay', nmap: null, listener: null, smbEnum: 'smbEnumStatus', snmpEnum: 'snmpEnumStatus' };
+            var statusMap = { discovery: 'discTimerDisplay', responder: 'respTimerDisplay', nmap: null, listener: null, smbEnum: 'smbEnumStatus', snmpEnum: 'snmpEnumStatus', credCheck: 'credCheckTimerDisplay' };
             var resetText = { smbEnum: 'Idle', snmpEnum: 'Idle' };
             var el = statusMap[section] ? document.getElementById(statusMap[section]) : null;
             if (el) {
@@ -4762,6 +4772,24 @@
                     refreshEvidence();
                 }
             } catch (e) { /* ignore */ }
+
+            // Restore default credential check state
+            try {
+                const credResp = await fetch('/api/internal/creds/default-check/status');
+                const credData = await credResp.json();
+                if (credData.running) {
+                    var credStart = credData.start_time ? credData.start_time * 1000 : Date.now();
+                    startSectionTimer('credCheck', credStart);
+                    document.getElementById('credCheckStartBtn').style.display = 'none';
+                    document.getElementById('credCheckStopBtn').style.display = '';
+                    if (!defaultCredPollInterval) {
+                        defaultCredPollInterval = setInterval(pollDefaultCredStatus, 3000);
+                    }
+                } else if (credData.results && credData.results.total_found > 0) {
+                    document.getElementById('defaultCredCount').textContent = credData.results.total_found;
+                    refreshHashes();
+                }
+            } catch (e) { /* ignore */ }
         }
 
         async function startDiscovery() {
@@ -5265,32 +5293,49 @@
                 if (data.success) {
                     const hashes = data.hashes || [];
                     document.getElementById('hashCount').textContent = hashes.length;
-                    
-                    if (hashes.length > 0) {
-                        let html = '';
-                        hashes.forEach((h, i) => {
-                            const status = h.cracked_password ? '✅ CRACKED' : '⏳ Captured';
-                            const statusColor = h.cracked_password ? '#0f0' : '#ff0';
-                            html += '<div style="padding: 5px; margin-bottom: 5px; border: 1px solid #333; background: #111;">';
-                            html += '<div style="display: flex; justify-content: space-between;">';
-                            html += '<span style="color: #0f0;">' + (h.domain || '') + '\\' + h.user + '</span>';
-                            html += '<span style="color: ' + statusColor + '; font-size: 10px;">' + status + '</span>';
+
+                    let html = '';
+                    hashes.forEach((h, i) => {
+                        const status = h.cracked_password ? '✅ CRACKED' : '⏳ Captured';
+                        const statusColor = h.cracked_password ? '#0f0' : '#ff0';
+                        html += '<div style="padding: 5px; margin-bottom: 5px; border: 1px solid #333; background: #111;">';
+                        html += '<div style="display: flex; justify-content: space-between;">';
+                        html += '<span style="color: #0f0;">' + (h.domain || '') + '\\' + h.user + '</span>';
+                        html += '<span style="color: ' + statusColor + '; font-size: 10px;">' + status + '</span>';
+                        html += '</div>';
+                        if (h.cracked_password) {
+                            html += '<div style="color: #ff0; font-family: monospace; font-size: 11px; margin-top: 3px;">Password: ' + h.cracked_password + '</div>';
+                            html += '<button onclick="useCredentials(\'' + h.user + '\', \'' + h.cracked_password + '\', \'' + (h.domain || 'WORKGROUP') + '\')" style="padding: 3px 8px; font-size: 9px; margin-top: 3px; background: #003300; border: 1px solid #006600; color: #0f0; cursor: pointer;">Use These</button>';
+                        } else {
+                            html += '<div style="display: flex; gap: 4px; margin-top: 3px;">';
+                            html += '<button onclick="saveHash(' + i + ')" style="padding: 3px 8px; font-size: 9px; background: #002233; border: 1px solid #006688; color: #0ff; cursor: pointer;" title="Save hash locally to captures/hashes/ for later cracking or evidence">💾 Save</button>';
+                            html += '<button onclick="sendHashToGlass(' + i + ')" style="padding: 3px 8px; font-size: 9px; background: #330033; border: 1px solid #660066; color: #f0f; cursor: pointer;" title="Upload hash to Glass for GPU cracking">Send to Glass</button>';
                             html += '</div>';
-                            if (h.cracked_password) {
-                                html += '<div style="color: #ff0; font-family: monospace; font-size: 11px; margin-top: 3px;">Password: ' + h.cracked_password + '</div>';
-                                html += '<button onclick="useCredentials(\'' + h.user + '\', \'' + h.cracked_password + '\', \'' + (h.domain || 'WORKGROUP') + '\')" style="padding: 3px 8px; font-size: 9px; margin-top: 3px; background: #003300; border: 1px solid #006600; color: #0f0; cursor: pointer;">Use These</button>';
-                            } else {
-                                html += '<div style="display: flex; gap: 4px; margin-top: 3px;">';
-                                html += '<button onclick="saveHash(' + i + ')" style="padding: 3px 8px; font-size: 9px; background: #002233; border: 1px solid #006688; color: #0ff; cursor: pointer;" title="Save hash locally to captures/hashes/ for later cracking or evidence">💾 Save</button>';
-                                html += '<button onclick="sendHashToGlass(' + i + ')" style="padding: 3px 8px; font-size: 9px; background: #330033; border: 1px solid #660066; color: #f0f; cursor: pointer;" title="Upload hash to Glass for GPU cracking">Send to Glass</button>';
+                        }
+                        html += '</div>';
+                    });
+
+                    // Also fetch default credential results and append below hashes
+                    try {
+                        const credRes = await fetch('/api/internal/creds/default-check/status');
+                        const credData = await credRes.json();
+                        if (credData.results) {
+                            var defaultHtml = renderDefaultCredResults(credData.results);
+                            if (defaultHtml) {
+                                html += '<div style="border-top: 1px solid #664400; margin-top: 8px; padding-top: 8px;">';
+                                html += '<div style="color: #f80; font-size: 10px; margin-bottom: 5px; font-weight: bold;">DEFAULT CREDENTIALS</div>';
+                                html += defaultHtml;
                                 html += '</div>';
                             }
-                            html += '</div>';
-                        });
-                        document.getElementById('credentialsList').innerHTML = html;
-                    }
+                            document.getElementById('defaultCredCount').textContent = credData.results.total_found || 0;
+                        }
+                    } catch (e) { /* ignore */ }
+
+                    var credListEl = document.getElementById('credentialsList');
+                    credListEl.textContent = '';
+                    credListEl.insertAdjacentHTML('beforeend', html || '<div style="color: #555;">No credentials captured yet...</div>');
                 }
-                
+
                 // Also update responder status (only if timer isn't managing it)
                 const statusRes = await fetch('/api/internal/responder/status');
                 const statusData = await statusRes.json();
@@ -5360,6 +5405,109 @@
             } catch (err) {
                 appendInternalOutput('[-] Error: ' + err.message);
             }
+        }
+
+        // ===== DEFAULT CREDENTIAL CHECK =====
+        async function startDefaultCredCheck() {
+            appendInternalOutput('[*] Starting default credential check on discovered hosts...');
+            try {
+                const response = await fetch('/api/internal/creds/default-check', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+                if (data.success) {
+                    appendInternalOutput('[+] ' + data.message);
+                    document.getElementById('credCheckStartBtn').style.display = 'none';
+                    document.getElementById('credCheckStopBtn').style.display = '';
+                    startSectionTimer('credCheck', Date.now());
+                    if (!defaultCredPollInterval) {
+                        defaultCredPollInterval = setInterval(pollDefaultCredStatus, 3000);
+                    }
+                } else {
+                    appendInternalOutput('[-] ' + data.error);
+                }
+            } catch (err) {
+                appendInternalOutput('[-] Error: ' + err.message);
+            }
+        }
+
+        async function stopDefaultCredCheck() {
+            try {
+                const response = await fetch('/api/internal/creds/default-check/stop', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+                if (data.success) {
+                    appendInternalOutput('[*] Default credential check stopped');
+                } else {
+                    appendInternalOutput('[-] ' + data.error);
+                }
+            } catch (err) {
+                appendInternalOutput('[-] Error: ' + err.message);
+            }
+            document.getElementById('credCheckStartBtn').style.display = '';
+            document.getElementById('credCheckStopBtn').style.display = 'none';
+            stopSectionTimer('credCheck');
+            if (defaultCredPollInterval) { clearInterval(defaultCredPollInterval); defaultCredPollInterval = null; }
+        }
+
+        async function pollDefaultCredStatus() {
+            try {
+                const response = await fetch('/api/internal/creds/default-check/status');
+                const data = await response.json();
+
+                // Update found count
+                document.getElementById('defaultCredCount').textContent = data.results_count || 0;
+
+                if (!data.running) {
+                    // Check completed
+                    document.getElementById('credCheckStartBtn').style.display = '';
+                    document.getElementById('credCheckStopBtn').style.display = 'none';
+                    stopSectionTimer('credCheck');
+                    if (defaultCredPollInterval) { clearInterval(defaultCredPollInterval); defaultCredPollInterval = null; }
+
+                    if (data.results && data.results.total_found > 0) {
+                        appendInternalOutput('[+] Default credential check complete — ' + data.results.total_found + ' valid credential(s) found!');
+                    } else if (data.results) {
+                        appendInternalOutput('[*] Default credential check complete — no default credentials found');
+                    } else {
+                        appendInternalOutput('[-] Default credential check ended without results (may have failed)');
+                    }
+                    // Refresh the credentials panel to show results
+                    refreshHashes();
+                }
+            } catch (err) {
+                // Silent — don't spam output if polling fails once
+            }
+        }
+
+        function renderDefaultCredResults(results) {
+            // Returns HTML for default cred results to append to credentials panel
+            if (!results || !results.targets) return '';
+            var html = '';
+            for (var ip in results.targets) {
+                var host = results.targets[ip];
+                if (!host.services) continue;
+                host.services.forEach(function(svc) {
+                    svc.credentials.forEach(function(cred) {
+                        if (cred.status === 'valid') {
+                            html += '<div style="padding: 5px; margin-bottom: 5px; border: 1px solid #664400; background: #111;">';
+                            html += '<div style="display: flex; justify-content: space-between;">';
+                            html += '<span style="color: #f80;">' + ip + ':' + svc.port + ' (' + svc.service + ')</span>';
+                            html += '<span style="color: #0f0; font-size: 10px; background: #003300; padding: 1px 6px; border-radius: 3px;">DEFAULT CREDS</span>';
+                            html += '</div>';
+                            html += '<div style="color: #ff0; font-family: monospace; font-size: 11px; margin-top: 3px;">' + cred.user + ' : ' + cred.pass + '</div>';
+                            html += '<button onclick="useCredentials(\'' + cred.user.replace(/'/g, "\\'") + '\', \'' + cred.pass.replace(/'/g, "\\'") + '\', \'WORKGROUP\')" style="padding: 3px 8px; font-size: 9px; margin-top: 3px; background: #332200; border: 1px solid #664400; color: #f80; cursor: pointer;" title="Load these credentials into the Credential Access form">Use These</button>';
+                            html += '</div>';
+                        }
+                    });
+                });
+            }
+            return html;
         }
 
         async function smbListShares() {
