@@ -242,7 +242,7 @@
         display: flex;
         align-items: center;
         gap: 10px;
-        flex-wrap: nowrap;
+        flex-wrap: wrap;
         padding: 3px 0;
     }
     .topbar-label {
@@ -269,6 +269,8 @@
         padding: 2px 8px;
         border-radius: 3px;
         border: 1px solid #1a1a1a;
+        min-width: 70px;
+        text-align: center;
     }
     /* Tool group instrument panels */
     .topbar-tool-group {
@@ -281,21 +283,25 @@
         border-radius: 4px;
         padding: 4px 10px;
         flex-shrink: 0;
+        min-width: 240px;
         position: relative;
         transition: border-color 0.3s, box-shadow 0.3s;
     }
     .topbar-tool-group.nmap { border-top-color: #4af; }
     .topbar-tool-group.resp { border-top-color: #ff0; }
+    .topbar-tool-group.cred-check { border-top-color: #f80; }
     .topbar-tool-group .topbar-label { font-size: 10px; }
     .tool-running { box-shadow: 0 0 6px rgba(0, 255, 0, 0.15); border-color: #0f0; }
     .tool-running.nmap { box-shadow: 0 0 6px rgba(68, 170, 255, 0.15); border-color: #4af; }
     .tool-running.resp { box-shadow: 0 0 6px rgba(255, 255, 0, 0.15); border-color: #ff0; }
+    .tool-running.cred-check { box-shadow: 0 0 6px rgba(255, 136, 0, 0.15); border-color: #f80; }
     .tool-timer {
         font-size: 10px;
         font-family: 'Courier New', monospace;
         color: #888;
         margin-left: auto;
         white-space: nowrap;
+        min-width: 75px;
     }
     .tool-btn {
         padding: 3px 8px;
@@ -1813,7 +1819,7 @@
                             <span class="topbar-status" style="color: #ff0;" title="Number of NTLMv2 hashes captured by Responder">Hashes: <span id="hashCount">0</span></span>
                             <span id="respTimerDisplay" class="tool-timer"></span>
                         </div>
-                        <div class="topbar-tool-group" id="credCheckToolGroup" data-section="credCheck">
+                        <div class="topbar-tool-group cred-check" id="credCheckToolGroup" data-section="credCheck">
                             <span class="topbar-label" style="color: #f80;">Cred Check</span>
                             <button id="credCheckStartBtn" onclick="startDefaultCredCheck()" class="button tool-btn" title="Test default/factory credentials (admin/admin, root/root, etc.) on all discovered hosts using Hydra">▶ Check Defaults</button>
                             <button id="credCheckStopBtn" onclick="stopDefaultCredCheck()" class="button danger tool-btn" style="display: none;" title="Stop default credential check">Stop</button>
