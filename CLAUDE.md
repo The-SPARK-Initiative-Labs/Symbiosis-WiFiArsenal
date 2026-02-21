@@ -439,7 +439,7 @@ Drop raw code output. Keep substance.
 - Substring collisions, off-by-one errors, wrong field indices
 - Anything stupid
 
-**NEVER use plain subagents (Task without team_name). NOT FOR ANYTHING.** A PreToolUse hook enforces this — Task calls without team_name are blocked at the system level. This includes "quick" exploration, plan-mode research, simple lookups — ALL of it. If you need agents, TeamCreate first. This rule was violated so many times that it is now enforced by 8 independent mechanisms: (1) PreToolUse hook in settings.json (upgraded 2026-02-21: 3 checks + audit log), (2) hookify block rule, (3) SubagentStart hook (Layer 3 backup — logs all agent spawns), (4) Critical Rule #0 above, (5) MEMORY.md warning, (6) this section, (7) plan-mode reminders, (8) teaming acknowledgment system — ALL tools blocked until Claude recites the rules and Ben says "acknowledged" (enforce-teaming-acknowledgment.sh + teaming-release.sh). Do not try to work around any of them.
+**NEVER use plain subagents (Task without team_name). NOT FOR ANYTHING.** A PreToolUse hook enforces this — Task calls without team_name are blocked at the system level. This includes "quick" exploration, plan-mode research, simple lookups — ALL of it. If you need agents, TeamCreate first. This rule was violated so many times that it is now enforced by 8 independent mechanisms: (1) PreToolUse hook in settings.json (upgraded 2026-02-21: 3 checks + audit log), (2) hookify block rule, (3) SubagentStart hook (Layer 3 backup — logs all agent spawns), (4) Critical Rule #0 above, (5) MEMORY.md warning, (6) this section, (7) plan-mode reminders, (8) teaming acknowledgment system — ALL tools blocked until Claude recites the rules and Ben says "go" (enforce-teaming-acknowledgment.sh + teaming-release.sh). Do not try to work around any of them.
 
 **Rules are ABSOLUTE. No interpretation, no hedging, no vague language.** When a rule says NEVER, it means never. When it says PERIOD, there is nothing else to discuss. Do not add qualifiers, conditions, or "unless" clauses. Follow the rule exactly as written.
 
@@ -480,10 +480,10 @@ Drop raw code output. Keep substance.
 - **PreToolUse (all tools)** — `~/.claude/hooks/enforce-teaming-acknowledgment.sh`
   - Blocks ALL tool use if `/tmp/teaming-rules-acknowledged` does not exist
   - Shows the FULL teaming rules text (every word of Critical Rule #0 + Agent Teaming section)
-  - Claude must print the rules, demonstrate understanding, and tell Ben to say "acknowledged"
-  - Only then does Ben release Claude by typing "acknowledged"
+  - Claude must print the rules, demonstrate understanding, and tell Ben to say "go"
+  - Only then does Ben release Claude by typing "go"
 - **UserPromptSubmit** — `~/.claude/hooks/teaming-release.sh`
-  - Watches for Ben saying "acknowledged" in any message
+  - Watches for Ben saying "go" in any message
   - Creates `/tmp/teaming-rules-acknowledged` flag file
   - Unlocks all tools for the rest of the session
 
