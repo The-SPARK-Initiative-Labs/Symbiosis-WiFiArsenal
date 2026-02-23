@@ -2507,6 +2507,16 @@ def glass_log():
         return jsonify({'success': False, 'error': str(e)})
 
 
+@app.route('/api/glass/restart', methods=['POST'])
+def glass_restart():
+    """Restart the Glass cracking server (watchdog brings it back)"""
+    try:
+        response = try_glass_request('post', '/restart', json={})
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/glass/cracked/clear', methods=['POST'])
 def glass_cracked_clear():
     """Clear cracked results from Glass (files + in-memory results)"""
@@ -2530,6 +2540,36 @@ def glass_queue_clear_completed():
         return jsonify(response.json())
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/glass/inbox/remove', methods=['POST'])
+def glass_inbox_remove():
+    """Remove a file from Glass inbox"""
+    try:
+        response = try_glass_request('post', '/inbox/remove', json=request.json)
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/glass/auto_start', methods=['GET'])
+def glass_auto_start():
+    """Get Glass auto-start status"""
+    try:
+        response = try_glass_request('get', '/auto_start')
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/glass/auto_start/toggle', methods=['POST'])
+def glass_auto_start_toggle():
+    """Toggle Glass auto-start on upload"""
+    try:
+        response = try_glass_request('post', '/auto_start/toggle', json={})
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/glass/results/pull', methods=['GET'])

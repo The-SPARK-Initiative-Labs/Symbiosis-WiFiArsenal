@@ -1347,7 +1347,14 @@
                 <span style="font-size: 1.2em;">🖥️ Glass Cracker</span>
                 <span id="glassConnectionStatus" style="margin-left: 15px; padding: 5px 10px; border-radius: 3px; background: #330000; color: #ff6600;">Checking...</span>
             </div>
-            <button class="button" onclick="checkGlassConnection()" style="padding: 5px 15px;" title="Test connection to Glass cracking server and update status">Refresh Connection</button>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #888; cursor: pointer;" title="When enabled, Glass automatically starts cracking hashes as soon as they are uploaded">
+                    <input type="checkbox" id="glassAutoStart" onchange="toggleGlassAutoStart()" title="When enabled, Glass automatically starts cracking hashes as soon as they are uploaded">
+                    Auto-Start
+                </label>
+                <button class="button" onclick="checkGlassConnection()" style="padding: 5px 15px;" title="Test connection to Glass cracking server and update status">Refresh Connection</button>
+                <button class="button" onclick="restartGlassServer()" style="padding: 2px 8px; font-size: 10px; color: #f44;" title="Restart the Glass cracking server — kills the process, watchdog brings it back in ~15 seconds. Use after deploying new code.">⟳ Restart</button>
+            </div>
         </div>
         
         <!-- Main Layout: Status + Controls -->
@@ -1508,9 +1515,21 @@
                 </div>
             </div>
             
+            <!-- Glass Inbox -->
+            <div style="margin-bottom: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                    <h3 style="margin: 0; font-size: 13px;">📥 Glass Inbox</h3>
+                    <div style="display: flex; gap: 4px;">
+                        <button onclick="refreshGlassInbox(true)" class="button" style="padding: 2px 8px; font-size: 10px;" title="Refresh inbox file list">🔄</button>
+                        <button onclick="deleteSelectedInbox()" class="button" style="padding: 2px 8px; font-size: 10px; color: #f44;" title="Delete selected files from Glass inbox">🗑 Delete</button>
+                    </div>
+                </div>
+                <div id="glassInboxList" class="output" style="max-height: 150px; font-size: 11px; padding: 0;">-</div>
+            </div>
+
             <!-- Glass Queue -->
             <div class="panel" style="flex: 1;">
-                <h2>📥 Glass Queue</h2>
+                <h2>📋 Glass Queue</h2>
                 <div style="display: flex; gap: 5px; margin-bottom: 10px;">
                     <button class="button" onclick="refreshGlassQueue()" title="Reload queue status from Glass">Refresh</button>
                     <button class="button" onclick="pauseGlassCrack()" style="background: #444400;" title="Pause current crack - saves checkpoint for later resume">⏸️ Pause</button>
@@ -2656,6 +2675,8 @@
                 checkGlassConnection();
                 loadHashFiles();
                 startGlassLivePolling();
+                loadGlassAutoStart();
+                refreshGlassInbox();
             } else if (pageName === 'mitm') {
                 startMitmPolling();
             } else if (pageName === 'internal') {
@@ -7232,6 +7253,30 @@ function monitorClients() {
         
         let glassPollingInterval = null;
         
+        async function toggleGlassAutoStart() {
+            try {
+                const response = await fetch('/api/glass/auto_start/toggle', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({})
+                });
+                const result = await response.json();
+                document.getElementById('glassAutoStart').checked = result.enabled;
+            } catch(e) {
+                console.error('Toggle auto-start failed:', e);
+            }
+        }
+
+        async function loadGlassAutoStart() {
+            try {
+                const response = await fetch('/api/glass/auto_start');
+                const result = await response.json();
+                document.getElementById('glassAutoStart').checked = result.enabled;
+            } catch(e) {
+                // Glass might be offline — leave unchecked
+            }
+        }
+
         async function checkGlassConnection() {
             const statusEl = document.getElementById('glassConnectionStatus');
             statusEl.textContent = 'Checking...';
@@ -7260,6 +7305,26 @@ function monitorClients() {
             }
         }
         
+        async function restartGlassServer() {
+            if (!confirm('Restart Glass cracking server? Any running crack will be interrupted. Server comes back in ~15 seconds.')) return;
+            try {
+                const response = await fetch('/api/glass/restart', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({})
+                });
+                const result = await response.json();
+                if (result.success) {
+                    logGlassActivity('⟳ Glass server restarting — wait ~15 seconds');
+                    document.getElementById('glassConnectionStatus').textContent = 'RESTARTING...';
+                    document.getElementById('glassConnectionStatus').style.color = '#ff0';
+                    document.getElementById('glassConnectionStatus').style.background = '#333300';
+                }
+            } catch(e) {
+                logGlassActivity('Restart failed: ' + e.message);
+            }
+        }
+
         function updateGlassStatus(status) {
             document.getElementById('glassCurrentFile2').textContent = status.file || '-';
             document.getElementById('glassStatusText2').textContent = status.status || 'Idle';
@@ -7468,10 +7533,12 @@ function monitorClients() {
             glassPollingInterval = setInterval(() => {
                 pollGlassStatus();
                 refreshGlassQueue();
+                refreshGlassInbox();
             }, 3000);
             // Immediate first poll
             pollGlassStatus();
             refreshGlassQueue();
+            refreshGlassInbox();
         }
         
         function stopGlassPolling() {
@@ -7667,6 +7734,54 @@ function monitorClients() {
             }
         }
         
+        async function refreshGlassInbox(force) {
+            const el = document.getElementById('glassInboxList');
+            // Skip refresh if user has checkboxes selected (prevents unchecking)
+            if (!force) {
+                const checked = document.querySelectorAll('.inbox-file-cb:checked');
+                if (checked.length > 0) return;
+            }
+            try {
+                const response = await fetch('/api/glass/inbox');
+                const result = await response.json();
+
+                if (result.files && result.files.length > 0) {
+                    el.innerHTML = result.files.map(f => {
+                        const name = escapeHtml(typeof f === 'string' ? f : f.file || f.name);
+                        return '<div style="display: flex; align-items: center; padding: 4px 5px; border-bottom: 1px solid #333; gap: 5px;">' +
+                            '<input type="checkbox" class="inbox-file-cb" value="' + name + '" data-filename="' + name + '" title="Select for deletion">' +
+                            '<div style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + name + '">' + name + '</div>' +
+                        '</div>';
+                    }).join('');
+                } else {
+                    el.textContent = 'Inbox empty';
+                }
+            } catch(e) {
+                el.textContent = 'Error loading inbox';
+            }
+        }
+
+        async function deleteSelectedInbox() {
+            const checkboxes = document.querySelectorAll('.inbox-file-cb:checked');
+            if (checkboxes.length === 0) return;
+
+            if (!confirm('Delete ' + checkboxes.length + ' file(s) from Glass inbox?')) return;
+
+            for (const cb of checkboxes) {
+                try {
+                    await fetch('/api/glass/inbox/remove', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({filename: cb.value})
+                    });
+                } catch(e) {
+                    console.error('Failed to remove:', cb.value, e);
+                }
+            }
+
+            refreshGlassInbox(true);
+        }
+
         async function refreshGlassQueue() {
             const currentEl = document.getElementById('glassCurrentJob');
             const queueEl = document.getElementById('glassQueueList');
