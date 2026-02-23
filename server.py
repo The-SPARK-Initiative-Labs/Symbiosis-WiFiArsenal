@@ -6410,6 +6410,94 @@ def internal_discover_clear():
         return jsonify({'success': False, 'error': str(e)})
 
 
+@app.route('/api/internal/scan/clear', methods=['POST'])
+def internal_scan_clear():
+    """Clear nmap scan results"""
+    global nmap_scan_state
+    try:
+        with nmap_scan_lock:
+            if nmap_scan_state['running']:
+                return jsonify({'success': False, 'error': 'Scan is still running'})
+            nmap_scan_state = {'running': False, 'process': None, 'start_time': None, 'subnet': None}
+        results_file = os.path.join(CAPTURE_DIR, 'nmap_results.json')
+        if os.path.exists(results_file):
+            os.remove(results_file)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/internal/responder/clear', methods=['POST'])
+def internal_responder_clear():
+    """Clear responder hash session tracking"""
+    try:
+        with responder_state_lock:
+            responder_state['start_time'] = None
+            responder_state['log_position'] = 0
+            responder_state['hash_file_positions'] = {}
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/internal/enum/clear', methods=['POST'])
+def internal_enum_clear():
+    """Clear SMB and SNMP enumeration results"""
+    try:
+        with smb_enum_lock:
+            if smb_enum_state['running']:
+                return jsonify({'success': False, 'error': 'SMB enumeration is still running'})
+        with snmp_enum_lock:
+            if snmp_enum_state['running']:
+                return jsonify({'success': False, 'error': 'SNMP enumeration is still running'})
+        for fname in ['smb_enum_results.json', 'snmp_enum_results.json']:
+            fpath = os.path.join(CAPTURE_DIR, fname)
+            if os.path.exists(fpath):
+                os.remove(fpath)
+        with smb_enum_lock:
+            smb_enum_state['start_time'] = None
+        with snmp_enum_lock:
+            snmp_enum_state['start_time'] = None
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/internal/creds/defaults/clear', methods=['POST'])
+def internal_creds_defaults_clear():
+    """Clear default credential check results"""
+    try:
+        results_file = os.path.join(CAPTURE_DIR, 'default_creds_results.json')
+        if os.path.exists(results_file):
+            os.remove(results_file)
+        with default_cred_lock:
+            if not default_cred_state['running']:
+                default_cred_state['results_count'] = 0
+                default_cred_state['start_time'] = None
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/internal/creds/spray/clear', methods=['POST'])
+def internal_creds_spray_clear():
+    """Clear credential spray results"""
+    try:
+        results_file = os.path.join(CAPTURE_DIR, 'cred_spray_results.json')
+        if os.path.exists(results_file):
+            os.remove(results_file)
+        with cred_spray_lock:
+            if not cred_spray_state['running']:
+                cred_spray_state['process'] = None
+                cred_spray_state['results_count'] = 0
+                cred_spray_state['start_time'] = None
+                cred_spray_state['user'] = ''
+                cred_spray_state['domain'] = ''
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
 @app.route('/api/internal/scan', methods=['POST'])
 def internal_scan():
     """Start async nmap scan on subnet"""

@@ -2105,7 +2105,10 @@
                     <div class="internal-left">
                         <div class="internal-left-header">
                             <h3>Hosts</h3>
-                            <span id="hostCountBadge" class="host-count-badge" title="Number of discovered hosts">0</span>
+                            <div style="display: flex; align-items: center; gap: 4px;">
+                                <span id="hostCountBadge" class="host-count-badge" title="Number of discovered hosts">0</span>
+                                <button onclick="clearHosts()" class="button" style="padding: 2px 6px; font-size: 9px; color: #f44;" title="Clear all discovered hosts and scan results">CLR</button>
+                            </div>
                         </div>
                         <div class="enum-action-bar">
                             <div class="enum-btn-row">
@@ -2156,7 +2159,10 @@
 
                             <!-- Enumeration Intel -->
                             <div id="enumResultsSection" class="attack-section section-enum" style="display: none;">
-                                <label class="attack-section-label enum">Enumeration Intel</label>
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <label class="attack-section-label enum">Enumeration Intel</label>
+                                    <button onclick="clearEnum()" class="button" style="padding: 2px 6px; font-size: 9px; color: #f44;" title="Clear all SMB and SNMP enumeration results">CLR</button>
+                                </div>
                                 <div id="enumResultsContent" style="font-size: 11px;"></div>
                             </div>
 
@@ -2219,7 +2225,10 @@
                         <div class="right-section creds">
                             <div class="right-section-header">
                                 <h3 style="color: #ff0;">🔑 Credentials</h3>
-                                <button onclick="refreshHashes()" class="button" style="padding: 2px 8px; font-size: 10px;" title="Refresh captured credentials">🔄</button>
+                                <div style="display: flex; gap: 4px;">
+                                    <button onclick="refreshHashes()" class="button" style="padding: 2px 8px; font-size: 10px;" title="Refresh captured credentials">🔄</button>
+                                    <button onclick="clearCredentials()" class="button" style="padding: 2px 6px; font-size: 9px; color: #f44;" title="Clear all captured hashes and default credential results">CLR</button>
+                                </div>
                             </div>
                             <div id="credentialsList" class="right-section-body">
                                 <div style="color: #555;">No credentials captured yet...</div>
@@ -5309,6 +5318,52 @@
                     displayNmapResults(data.results);
                 }
             } catch (e) { /* ignore */ }
+        }
+
+        // --- Clear functions for Internal page panels ---
+
+        async function clearHosts() {
+            if (!confirm('Clear all discovered hosts and scan results?')) return;
+            try {
+                await fetch('/api/internal/discover/clear', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
+                await fetch('/api/internal/scan/clear', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
+                const dr = document.getElementById('discoveryResults');
+                dr.textContent = '';
+                const empty = document.createElement('div');
+                empty.style.cssText = 'color:#555;text-align:center;padding:20px;';
+                empty.textContent = 'No hosts discovered';
+                dr.appendChild(empty);
+                document.getElementById('hostCountBadge').textContent = '0';
+            } catch(e) { console.error('Clear hosts failed:', e); }
+        }
+
+        async function clearCredentials() {
+            if (!confirm('Clear all captured hashes and default credential results?')) return;
+            try {
+                await fetch('/api/internal/responder/clear', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
+                await fetch('/api/internal/creds/defaults/clear', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
+                const cl = document.getElementById('credentialsList');
+                cl.textContent = '';
+                const empty = document.createElement('div');
+                empty.style.cssText = 'color:#555;text-align:center;padding:20px;';
+                empty.textContent = 'No credentials captured';
+                cl.appendChild(empty);
+                const hc = document.getElementById('hashCount');
+                if (hc) hc.textContent = '0';
+            } catch(e) { console.error('Clear creds failed:', e); }
+        }
+
+        async function clearEnum() {
+            if (!confirm('Clear all enumeration results (SMB + SNMP)?')) return;
+            try {
+                await fetch('/api/internal/enum/clear', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
+                const ec = document.getElementById('enumResultsContent');
+                ec.textContent = '';
+                const empty = document.createElement('div');
+                empty.style.cssText = 'color:#555;text-align:center;padding:20px;';
+                empty.textContent = 'No enumeration data';
+                ec.appendChild(empty);
+            } catch(e) { console.error('Clear enum failed:', e); }
         }
 
         function displayNmapResults(results) {
