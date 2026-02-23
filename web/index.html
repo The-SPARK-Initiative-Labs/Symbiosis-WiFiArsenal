@@ -1430,22 +1430,21 @@
                     <!-- WPA Stages (7 stages) -->
                     <div id="wpaStageButtons" style="display: flex; gap: 5px; flex-wrap: wrap;">
                         <button class="button" onclick="runGlassStage(1)" style="flex: 1; min-width: 40px;" title="Stage 1: WiFi Quick Wins - Top 4800 WiFi passwords + router defaults (seconds)">1</button>
-                        <button class="button" onclick="runGlassStage(2)" style="flex: 1; min-width: 40px;" title="Stage 2: Common + Rules - 10k common + darkweb 10k with best64 rules (minutes)">2</button>
-                        <button class="button" onclick="runGlassStage('3a')" style="flex: 1; min-width: 40px;" title="Stage 3a: Extended + Rules - Xato 100k + Ashley Madison with best64 rules (10-30 min)">3a</button>
-                        <button class="button" onclick="runGlassStage('3b')" style="flex: 1; min-width: 40px;" title="Stage 3b: Common + OneRuleToRuleThemAll - 10k words × 52k rules (~2 hours)">3b</button>
-                        <button class="button" onclick="runGlassStage('4a')" style="flex: 1; min-width: 40px;" title="Stage 4a: RockYou 2024 straight - 146GB wordlist, no rules (~30 hours)">4a</button>
-                        <button class="button" onclick="runGlassStage('4b')" style="flex: 1; min-width: 40px;" title="Stage 4b: RockYou 2024 + best64 rules - 146GB × 77 rules (~7 days)">4b</button>
-                        <button class="button" onclick="runGlassStage(5)" style="flex: 1; min-width: 40px;" title="Stage 5: Deep Dive - all_in_one + dive rules (days+)">5</button>
+                        <button class="button" onclick="runGlassStage(2)" style="flex: 1; min-width: 40px;" title="Stage 2: Common + Rules - 10k common + darkweb with best64 rules (minutes)">2</button>
+                        <button class="button" onclick="runGlassStage(3)" style="flex: 1; min-width: 40px;" title="Stage 3: Extended + Rules - Xato 100k + Ashley Madison with best64 (10-30 min)">3</button>
+                        <button class="button" onclick="runGlassStage(4)" style="flex: 1; min-width: 40px;" title="Stage 4: Common + OneRuleToRuleThemAll - 10k words x 52k rules (~2 hours)">4</button>
+                        <button class="button" onclick="runGlassStage(5)" style="flex: 1; min-width: 40px;" title="Stage 5: RockYou 2024 straight - 146GB wordlist, no rules (~30 hours)">5</button>
+                        <button class="button" onclick="runGlassStage(6)" style="flex: 1; min-width: 40px;" title="Stage 6: RockYou 2024 + best64 rules (~7 days)">6</button>
+                        <button class="button" onclick="runGlassStage(7)" style="flex: 1; min-width: 40px;" title="Stage 7: Deep Dive - all_in_one + dive rules (days+)">7</button>
                     </div>
                     <!-- NTLMv2 Stages (8 stages) -->
                     <div id="ntlmv2StageButtons" style="display: none; gap: 5px; flex-wrap: wrap;">
                         <button class="button" onclick="runGlassStage(1)" style="flex: 1; min-width: 40px;" title="Stage 1: Common passwords - top 10k + best64 rules (seconds)">1</button>
                         <button class="button" onclick="runGlassStage(2)" style="flex: 1; min-width: 40px;" title="Stage 2: Extended wordlists - Xato 100k + Ashley Madison with best64 (minutes)">2</button>
-                        <button class="button" onclick="runGlassStage('3a')" style="flex: 1; min-width: 40px;" title="Stage 3a: Common + OneRuleToRuleThemAll - 10k × 52k rules (~30 min)">3a</button>
-                        <button class="button" onclick="runGlassStage('3b')" style="flex: 1; min-width: 40px;" title="Stage 3b: Extended + OneRuleToRuleThemAll - 100k × 52k rules (~2 hours)">3b</button>
-                        <button class="button" onclick="runGlassStage(4)" style="flex: 1; min-width: 40px;" title="Stage 4: RockYou 2024 straight - 146GB wordlist, no rules (~8 hours)">4</button>
-                        <button class="button" onclick="runGlassStage(5)" style="flex: 1; min-width: 40px;" title="Stage 5: Mask attacks - ?a?a?a?a?a?a?a?a, TestLab99 pattern, company patterns (~hours)">5</button>
-                        <button class="button" onclick="runGlassStage(6)" style="flex: 1; min-width: 40px;" title="Stage 6: Hybrid attacks - wordlist + ?d?d?d?d appended (~hours)">6</button>
+                        <button class="button" onclick="runGlassStage(3)" style="flex: 1; min-width: 40px;" title="Stage 3: Common + OneRuleToRuleThemAll - 10k x 52k rules (~30 min)">3</button>
+                        <button class="button" onclick="runGlassStage(4)" style="flex: 1; min-width: 40px;" title="Stage 4: Extended + OneRuleToRuleThemAll - 100k x 52k rules (~2 hours)">4</button>
+                        <button class="button" onclick="runGlassStage(5)" style="flex: 1; min-width: 40px;" title="Stage 5: Mask attacks - common patterns, TestLab99 pattern, company names (~hours)">5</button>
+                        <button class="button" onclick="runGlassStage(6)" style="flex: 1; min-width: 40px;" title="Stage 6: Hybrid attacks - wordlist + digits appended (~hours)">6</button>
                         <button class="button" onclick="runGlassStage(7)" style="flex: 1; min-width: 40px;" title="Stage 7: RockYou 2024 + best64 rules (~3 days)">7</button>
                         <button class="button" onclick="runGlassStage(8)" style="flex: 1; min-width: 40px;" title="Stage 8: Deep Dive - all_in_one + dive rules (days+)">8</button>
                     </div>
@@ -6535,6 +6534,11 @@
                     checkbox.value = cap.name;
                     checkbox.style.marginRight = '10px';
                     
+                    const isNtlm = cap.name.endsWith('.txt');
+                    const badge = document.createElement('span');
+                    badge.textContent = isNtlm ? 'NTLMv2' : 'WPA';
+                    badge.style.cssText = 'font-size:9px;padding:1px 4px;border-radius:2px;margin-right:6px;color:#000;font-weight:bold;background:' + (isNtlm ? '#f90' : '#0f0') + ';';
+
                     const span = document.createElement('span');
                     span.textContent = cap.name + ' (' + cap.size + ')';
                     span.onclick = (e) => {
@@ -6551,6 +6555,7 @@
                     };
                     
                     label.appendChild(checkbox);
+                    label.appendChild(badge);
                     label.appendChild(span);
                     list.appendChild(label);
                 });
@@ -6574,7 +6579,7 @@
                 const response = await fetch('/api/captures/browse', { method: 'POST' });
                 const result = await response.json();
                 if (!result.success) {
-                    logGlassActivity('Error: ' + result.output);
+                    logGlassActivity('Error: ' + (result.error || result.output));
                 }
             } catch (error) {
                 logGlassActivity('Error opening folder: ' + error);
@@ -7365,7 +7370,7 @@ function monitorClients() {
                     logGlassActivity('✓ Stage ' + stage + ' started');
                     startGlassPolling();
                 } else {
-                    logGlassActivity('✗ Error: ' + result.output);
+                    logGlassActivity('✗ Error: ' + (result.error || result.output || 'Unknown error'));
                 }
             } catch (error) {
                 logGlassActivity('✗ Connection error: ' + error.message);
@@ -7392,13 +7397,13 @@ function monitorClients() {
                     logGlassActivity('✓ Auto-Escalate started — all stages will run until cracked');
                     startGlassPolling();
                 } else {
-                    logGlassActivity('✗ Error: ' + result.output);
+                    logGlassActivity('✗ Error: ' + (result.error || result.output || 'Unknown error'));
                 }
             } catch (error) {
                 logGlassActivity('✗ Connection error: ' + error.message);
             }
         }
-        
+
         async function startGlassQueue() {
             logGlassActivity('▶️ Starting next in queue...');
             try {
@@ -7574,7 +7579,7 @@ function monitorClients() {
                     // Start polling for status
                     localCrackPoll = setInterval(pollLocalCrack, 1500);
                 } else {
-                    logGlassActivity('⚠️ Error: ' + result.output);
+                    logGlassActivity('⚠️ Error: ' + (result.error || result.output || 'Unknown error'));
                 }
             } catch (error) {
                 logGlassActivity('⚠️ Error: ' + error);
@@ -7655,7 +7660,7 @@ function monitorClients() {
                     logGlassActivity('✓ Uploaded to Glass inbox');
                     refreshGlassQueue();
                 } else {
-                    logGlassActivity('✗ Upload failed: ' + result.output);
+                    logGlassActivity('✗ Upload failed: ' + (result.error || result.output || 'Unknown error'));
                 }
             } catch (error) {
                 logGlassActivity('✗ Connection error: ' + error.message);
