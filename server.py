@@ -368,6 +368,10 @@ snmp_enum_lock = threading.Lock()
 default_cred_state = {'running': False, 'process': None, 'start_time': None, 'results_count': 0}
 default_cred_lock = threading.Lock()
 
+# Global state for credential spray
+cred_spray_state = {'running': False, 'process': None, 'start_time': None, 'results_count': 0, 'user': '', 'domain': ''}
+cred_spray_lock = threading.Lock()
+
 # Global state for live wardrive scanning
 import sys
 sys.path.insert(0, '/home/ov3rr1d3/wifi_arsenal/wardrive_system/wardrive')
@@ -2423,6 +2427,120 @@ def glass_start_file():
         return jsonify(response.json())
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/glass/queue/clear', methods=['POST'])
+def glass_queue_clear():
+    """Clear all files from Glass inbox and processing queue"""
+    try:
+        response = try_glass_request('post', '/queue/clear', json={})
+        return jsonify(response.json())
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/glass/results/all', methods=['GET'])
+def glass_results_all():
+    """Get all cracked results from Glass"""
+    try:
+        response = try_glass_request('get', '/results/all')
+        return jsonify(response.json())
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/glass/failed/list', methods=['GET'])
+def glass_failed_list():
+    """Get list of failed cracking jobs from Glass"""
+    try:
+        response = try_glass_request('get', '/failed/list')
+        return jsonify(response.json())
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/glass/failed/retry', methods=['POST'])
+def glass_failed_retry():
+    """Retry a failed cracking job on Glass"""
+    try:
+        data = request.json or {}
+        response = try_glass_request('post', '/failed/retry', json=data)
+        return jsonify(response.json())
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/glass/failed/clear', methods=['POST'])
+def glass_failed_clear():
+    """Clear all failed jobs from Glass"""
+    try:
+        response = try_glass_request('post', '/failed/clear', json={})
+        return jsonify(response.json())
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/glass/wordlists', methods=['GET'])
+def glass_wordlists():
+    """Get available wordlists from Glass"""
+    try:
+        response = try_glass_request('get', '/wordlists')
+        return jsonify(response.json())
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/glass/log', methods=['GET'])
+def glass_log():
+    """Get Glass cracking log"""
+    try:
+        response = try_glass_request('get', '/log')
+        return jsonify(response.json())
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/glass/cracked/clear', methods=['POST'])
+def glass_cracked_clear():
+    """Clear cracked results from Glass"""
+    try:
+        response = try_glass_request('post', '/cracked/clear', json={})
+        return jsonify(response.json())
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/glass/queue/clear-completed', methods=['POST'])
+def glass_queue_clear_completed():
+    """Clear completed/stale items from Glass queue"""
+    try:
+        response = try_glass_request('post', '/queue/clear-completed', json={})
+        return jsonify(response.json())
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/glass/results/pull', methods=['GET'])
+def glass_results_pull():
+    """Pull all cracked results from Glass and cache locally"""
+    cache_path = os.path.join(CAPTURE_DIR, 'cracked_results.json')
+    try:
+        response = try_glass_request('get', '/results/all')
+        if response.status_code == 200:
+            results = response.json()
+            with open(cache_path, 'w') as f:
+                json.dump(results, f, indent=2)
+            return jsonify(results)
+        else:
+            if os.path.exists(cache_path):
+                with open(cache_path, 'r') as f:
+                    return jsonify(json.load(f))
+            return jsonify({'success': False, 'results': [], 'error': 'Glass offline'})
+    except Exception as e:
+        if os.path.exists(cache_path):
+            with open(cache_path, 'r') as f:
+                return jsonify(json.load(f))
+        return jsonify({'success': False, 'results': [], 'error': str(e)})
 
 
 # ========== WARDRIVING ENDPOINTS ==========
@@ -7603,6 +7721,240 @@ def internal_default_cred_stop():
             default_cred_state['process'] = None
         return jsonify({'success': True, 'message': 'Default credential check stopped'})
     return jsonify({'success': False, 'error': 'No default credential check running'})
+
+
+# ============== CREDENTIAL SPRAY ENDPOINTS ==============
+
+@app.route('/api/internal/creds/spray', methods=['POST'])
+def internal_cred_spray_start():
+    """Start credential spray — test a cracked credential against all SMB hosts"""
+    global cred_spray_state
+
+    with cred_spray_lock:
+        if cred_spray_state['running']:
+            return jsonify({'success': False, 'error': 'Credential spray already running'})
+
+    data = request.json or {}
+    username = data.get('user', '').strip()
+    password = data.get('password', '').strip()
+    domain = data.get('domain', 'WORKGROUP').strip() or 'WORKGROUP'
+    targets = data.get('targets', [])
+
+    if not username:
+        return jsonify({'success': False, 'error': 'Username is required'})
+    if not password:
+        return jsonify({'success': False, 'error': 'Password is required'})
+
+    # If no targets provided, auto-detect from nmap results (hosts with port 445)
+    if not targets:
+        nmap_file = os.path.join(CAPTURE_DIR, 'nmap_results.json')
+        if os.path.exists(nmap_file):
+            try:
+                with open(nmap_file, 'r') as f:
+                    nmap_data = json.load(f)
+                for host in nmap_data.get('hosts', []):
+                    ip = host.get('ip', '')
+                    if not ip or not re.match(r'^[0-9.]+$', ip):
+                        continue
+                    targets.append(ip)
+            except (json.JSONDecodeError, IOError):
+                pass
+
+    if not targets:
+        return jsonify({'success': False, 'error': 'No targets found — run Nmap first'})
+
+    # Validate all target IPs
+    for ip in targets:
+        if not re.match(r'^[0-9.]+$', ip):
+            return jsonify({'success': False, 'error': f'Invalid IP: {ip}'})
+
+    results_file = os.path.join(CAPTURE_DIR, 'cred_spray_results.json')
+    script = os.path.join(SCRIPT_DIR, 'internal', 'cred_spray.sh')
+
+    def run_cred_spray():
+        global cred_spray_state
+        try:
+            # Clear stale results
+            if os.path.exists(results_file):
+                os.remove(results_file)
+            cmd = ['bash', script, results_file, username, password, domain] + targets
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
+            with cred_spray_lock:
+                cred_spray_state['process'] = process
+            for line in process.stdout:
+                line = line.strip()
+                if line:
+                    print(f"[CredSpray] {line}")
+            process.wait()
+            # Count results
+            if os.path.exists(results_file):
+                try:
+                    with open(results_file, 'r') as f:
+                        result_data = json.load(f)
+                    with cred_spray_lock:
+                        cred_spray_state['results_count'] = result_data.get('total_success', 0)
+                except (json.JSONDecodeError, IOError):
+                    pass
+        finally:
+            with cred_spray_lock:
+                cred_spray_state['running'] = False
+                cred_spray_state['process'] = None
+
+    with cred_spray_lock:
+        cred_spray_state['running'] = True
+        cred_spray_state['start_time'] = time.time()
+        cred_spray_state['results_count'] = 0
+        cred_spray_state['user'] = username
+        cred_spray_state['domain'] = domain
+
+    thread = threading.Thread(target=run_cred_spray)
+    thread.daemon = True
+    thread.start()
+
+    return jsonify({
+        'success': True,
+        'message': f'Credential spray started on {len(targets)} target(s)',
+        'targets_count': len(targets)
+    })
+
+
+@app.route('/api/internal/creds/spray/status', methods=['GET'])
+def internal_cred_spray_status():
+    """Get credential spray status and results"""
+    with cred_spray_lock:
+        running = cred_spray_state['running']
+        start_time = cred_spray_state['start_time']
+        results_count = cred_spray_state['results_count']
+        spray_user = cred_spray_state.get('user', '')
+        spray_domain = cred_spray_state.get('domain', '')
+
+    elapsed = 0
+    if running and start_time:
+        elapsed = int(time.time() - start_time)
+
+    result = {
+        'running': running,
+        'elapsed': elapsed,
+        'start_time': start_time,
+        'results_count': results_count,
+        'user': spray_user,
+        'domain': spray_domain,
+        'results': None
+    }
+
+    results_file = os.path.join(CAPTURE_DIR, 'cred_spray_results.json')
+    if os.path.exists(results_file):
+        try:
+            with open(results_file, 'r') as f:
+                result['results'] = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    return jsonify(result)
+
+
+@app.route('/api/internal/creds/spray/stop', methods=['POST'])
+def internal_cred_spray_stop():
+    """Stop running credential spray"""
+    global cred_spray_state
+    with cred_spray_lock:
+        proc = cred_spray_state['process']
+    if proc:
+        try:
+            proc.terminate()
+            proc.wait(timeout=5)
+        except Exception:
+            proc.kill()
+        with cred_spray_lock:
+            cred_spray_state['running'] = False
+            cred_spray_state['process'] = None
+        return jsonify({'success': True, 'message': 'Credential spray stopped'})
+    return jsonify({'success': False, 'error': 'No credential spray running'})
+
+
+# ============== RESPONDER POISONING STATUS ==============
+
+@app.route('/api/internal/responder/poisoning-status', methods=['GET'])
+def internal_responder_poisoning_status():
+    """Get Responder poisoning statistics from discovery results"""
+    discovery_file = os.path.join(CAPTURE_DIR, 'discovery_results.json')
+
+    llmnr = []
+    nbns = []
+    wpad = []
+    hash_count = 0
+
+    if os.path.exists(discovery_file):
+        try:
+            with open(discovery_file, 'r') as f:
+                disc_data = json.load(f)
+            llmnr = disc_data.get('llmnr', [])
+            nbns = disc_data.get('nbns', [])
+            wpad = disc_data.get('wpad', [])
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    # Get hash count from responder status
+    responder_log_dir = '/usr/share/responder/logs'
+    with responder_state_lock:
+        hash_file_positions = responder_state.get('hash_file_positions', {})
+        has_session = responder_state.get('start_time') is not None
+
+    if os.path.isdir(responder_log_dir):
+        for fname in os.listdir(responder_log_dir):
+            if 'NTLMv2' not in fname and 'NTLMv1' not in fname:
+                continue
+            fpath = os.path.join(responder_log_dir, fname)
+            if not os.path.isfile(fpath):
+                continue
+            try:
+                with open(fpath, 'rb') as f:
+                    if has_session and fname in hash_file_positions:
+                        f.seek(hash_file_positions[fname])
+                    elif has_session and fname not in hash_file_positions:
+                        pass  # New file this session — count all
+                    content = f.read().decode('utf-8', errors='replace')
+                    for line in content.splitlines():
+                        line = line.strip()
+                        if line and not line.startswith('#'):
+                            hash_count += 1
+            except OSError:
+                pass
+
+    # Build recent queries list (last 10 from each protocol)
+    recent = []
+    for entry in llmnr[-10:]:
+        if isinstance(entry, dict):
+            recent.append({'protocol': 'LLMNR', 'source': entry.get('source', ''), 'name': entry.get('name', '')})
+        elif isinstance(entry, str):
+            recent.append({'protocol': 'LLMNR', 'source': '', 'name': entry})
+    for entry in nbns[-10:]:
+        if isinstance(entry, dict):
+            recent.append({'protocol': 'NBT-NS', 'source': entry.get('source', ''), 'name': entry.get('name', '')})
+        elif isinstance(entry, str):
+            recent.append({'protocol': 'NBT-NS', 'source': '', 'name': entry})
+    for entry in wpad[-10:]:
+        if isinstance(entry, dict):
+            recent.append({'protocol': 'WPAD', 'source': entry.get('source', ''), 'name': entry.get('name', '')})
+        elif isinstance(entry, str):
+            recent.append({'protocol': 'WPAD', 'source': '', 'name': entry})
+
+    # Sort by most recent and limit to 10
+    recent = recent[-10:]
+
+    return jsonify({
+        'llmnr_count': len(llmnr),
+        'nbns_count': len(nbns),
+        'wpad_count': len(wpad),
+        'total_poisoned': len(llmnr) + len(nbns) + len(wpad),
+        'hashes_captured': hash_count,
+        'recent_queries': recent
+    })
 
 
 # ============== ACCESS ENDPOINTS ==============

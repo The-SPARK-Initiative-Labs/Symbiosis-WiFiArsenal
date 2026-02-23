@@ -13,7 +13,7 @@ if [ -z "$TARGET_SPECS" ]; then
 fi
 
 TMPDIR=$(mktemp -d /tmp/default_cred_XXXXXX)
-trap "rm -rf $TMPDIR" EXIT
+trap 'rm -rf "$TMPDIR"' EXIT
 
 # --- Credential lists per service type (embedded, never in server.py or config files) ---
 

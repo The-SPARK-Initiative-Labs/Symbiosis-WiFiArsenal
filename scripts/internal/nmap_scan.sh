@@ -18,13 +18,14 @@ fi
 
 echo "[*] Phase 1: Host discovery on $TARGET"
 
-# Phase 1: Ping sweep with multiple methods to beat AP isolation
+# Phase 1: Ping sweep with multiple methods
 # -sn = no port scan, just host discovery
 # -PE = ICMP echo (ping)
 # -PP = ICMP timestamp
 # -PA80,443 = TCP ACK to common ports (gets through some firewalls)
-# --disable-arp-ping = skip ARP broadcast (broken by AP isolation)
-sudo nmap -sn -PE -PP -PA80,443 --disable-arp-ping \
+# ARP + ICMP together — ARP is fastest on local subnet, ICMP is backup
+# 120s timeout so it never hangs forever
+sudo timeout 120 nmap -sn -PE -PP -PA80,443 \
     $IFACE_OPT -oX "$PING_XML" "$TARGET" 2>/dev/null
 
 # Extract alive IPs from ping sweep

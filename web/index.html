@@ -260,7 +260,7 @@
         margin: 0 4px;
         flex-shrink: 0;
     }
-    /* [6] Top bar status pills with background + border */
+    /* [6] Top bar status pills (used by adapter row) */
     .topbar-status {
         font-size: 11px;
         color: #666;
@@ -269,40 +269,178 @@
         padding: 2px 8px;
         border-radius: 3px;
         border: 1px solid #1a1a1a;
-        min-width: 70px;
-        text-align: center;
     }
-    /* Tool group instrument panels */
-    .topbar-tool-group {
-        display: flex;
-        align-items: center;
+    /* Tool grid — 2xN instrument card layout */
+    .tool-grid-wrapper {
+        display: none;
+        overflow: hidden;
+        transition: max-height 0.2s ease;
+    }
+    .tool-grid-wrapper.expanded {
+        display: block;
+    }
+    .tool-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
         gap: 6px;
+        padding: 6px 0 0 0;
+    }
+    .tools-toggle {
+        margin-left: auto;
+        padding: 2px 8px;
+        font-size: 10px;
+        background: #0a0a0a;
+        border: 1px solid #1a1a1a;
+        color: #0f0;
+        cursor: pointer;
+        border-radius: 3px;
+        white-space: nowrap;
+        font-family: 'Courier New', monospace;
+    }
+    .tools-toggle:hover { background: #111; border-color: #003300; }
+    .tools-toggle .active-count {
+        color: #ff0;
+        font-weight: bold;
+    }
+    .tool-card {
         background: #060606;
         border: 1px solid #1a1a1a;
-        border-top: 2px solid #0f0;
         border-radius: 4px;
-        padding: 4px 10px;
-        flex-shrink: 0;
-        min-width: 240px;
-        position: relative;
+        display: flex;
+        flex-direction: column;
         transition: border-color 0.3s, box-shadow 0.3s;
     }
-    .topbar-tool-group.nmap { border-top-color: #4af; }
-    .topbar-tool-group.resp { border-top-color: #ff0; }
-    .topbar-tool-group.cred-check { border-top-color: #f80; }
-    .topbar-tool-group .topbar-label { font-size: 10px; }
-    .tool-running { box-shadow: 0 0 6px rgba(0, 255, 0, 0.15); border-color: #0f0; }
-    .tool-running.nmap { box-shadow: 0 0 6px rgba(68, 170, 255, 0.15); border-color: #4af; }
-    .tool-running.resp { box-shadow: 0 0 6px rgba(255, 255, 0, 0.15); border-color: #ff0; }
-    .tool-running.cred-check { box-shadow: 0 0 6px rgba(255, 136, 0, 0.15); border-color: #f80; }
-    .tool-timer {
+    /* Accent top borders per tool */
+    .tool-card[data-tool="discovery"] { border-top: 2px solid #0f0; }
+    .tool-card[data-tool="nmap"]      { border-top: 2px solid #4af; }
+    .tool-card[data-tool="responder"] { border-top: 2px solid #ff0; }
+    .tool-card[data-tool="credcheck"] { border-top: 2px solid #f80; }
+    .tool-card[data-tool="spray"]     { border-top: 2px solid #c0f; }
+    /* Running state glow */
+    .tool-card.tool-running[data-tool="discovery"] { box-shadow: 0 0 8px rgba(0,255,0,0.12); border-color: #0a3a0a; }
+    .tool-card.tool-running[data-tool="nmap"]      { box-shadow: 0 0 8px rgba(68,170,255,0.12); border-color: #0a2a3a; }
+    .tool-card.tool-running[data-tool="responder"] { box-shadow: 0 0 8px rgba(255,255,0,0.12); border-color: #3a3a0a; }
+    .tool-card.tool-running[data-tool="credcheck"] { box-shadow: 0 0 8px rgba(255,136,0,0.12); border-color: #3a2a0a; }
+    .tool-card.tool-running[data-tool="spray"]     { box-shadow: 0 0 8px rgba(192,0,255,0.12); border-color: #2a0a3a; }
+    /* Card header row */
+    .tool-card-header {
+        display: flex;
+        align-items: center;
+        padding: 5px 10px 4px;
+        gap: 6px;
+    }
+    /* Status dot */
+    .tool-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #333;
+        flex-shrink: 0;
+    }
+    .tool-card.tool-running .tool-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+    .tool-card.tool-running[data-tool="discovery"] .tool-dot { background: #0f0; }
+    .tool-card.tool-running[data-tool="nmap"]      .tool-dot { background: #4af; }
+    .tool-card.tool-running[data-tool="responder"] .tool-dot { background: #ff0; }
+    .tool-card.tool-running[data-tool="credcheck"] .tool-dot { background: #f80; }
+    .tool-card.tool-running[data-tool="spray"]     .tool-dot { background: #c0f; }
+    @keyframes pulse-dot {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+    }
+    /* Tool name in header */
+    .tool-card-name {
+        font-size: 10px;
+        font-weight: bold;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+    .tool-card[data-tool="discovery"] .tool-card-name { color: #0f0; }
+    .tool-card[data-tool="nmap"]      .tool-card-name { color: #4af; }
+    .tool-card[data-tool="responder"] .tool-card-name { color: #ff0; }
+    .tool-card[data-tool="credcheck"] .tool-card-name { color: #f80; }
+    .tool-card[data-tool="spray"]     .tool-card-name { color: #c0f; }
+    /* Timer pushed right */
+    .tool-card-timer {
         font-size: 10px;
         font-family: 'Courier New', monospace;
-        color: #888;
+        color: #555;
         margin-left: auto;
         white-space: nowrap;
         min-width: 75px;
+        text-align: right;
     }
+    .tool-card.tool-running .tool-card-timer { color: #888; }
+    /* Accent divider below header */
+    .tool-card-divider { height: 1px; margin: 0 10px; }
+    .tool-card[data-tool="discovery"] .tool-card-divider { background: #0a2a0a; }
+    .tool-card[data-tool="nmap"]      .tool-card-divider { background: #0a1a2a; }
+    .tool-card[data-tool="responder"] .tool-card-divider { background: #2a2a0a; }
+    .tool-card[data-tool="credcheck"] .tool-card-divider { background: #2a1a0a; }
+    .tool-card[data-tool="spray"]     .tool-card-divider { background: #1a0a2a; }
+    /* Card body — controls + buttons */
+    .tool-card-body {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 10px 6px;
+    }
+    /* Stat pills inside cards */
+    .tool-card-stat {
+        font-size: 10px;
+        color: #666;
+        background: #0a0a0a;
+        padding: 2px 8px;
+        border-radius: 3px;
+        border: 1px solid #1a1a1a;
+        white-space: nowrap;
+        min-width: 70px;
+        text-align: center;
+    }
+    /* Poisoning status sub-row inside Responder card */
+    .poison-status-row {
+        display: none;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 10px 5px;
+        font-size: 9px;
+    }
+    .poison-pill {
+        color: #cc0;
+        background: #1a1a00;
+        padding: 1px 6px;
+        border-radius: 3px;
+        border: 1px solid #2a2a0a;
+        white-space: nowrap;
+        font-family: 'Courier New', monospace;
+    }
+    .poison-total {
+        margin-left: auto;
+        color: #ff0;
+        font-weight: bold;
+        font-size: 10px;
+    }
+    /* Spray card credential inputs row */
+    .spray-inputs {
+        display: none;
+        gap: 4px;
+        padding: 4px 10px 6px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    .spray-inputs input {
+        width: 90px;
+        padding: 2px 5px;
+        background: #0a001a;
+        border: 1px solid #2a0a3a;
+        color: #c0f;
+        font-size: 10px;
+        font-family: 'Courier New', monospace;
+        border-radius: 2px;
+    }
+    .spray-inputs input::placeholder { color: #4a2a5a; }
+    /* Legacy compat — JS uses .topbar-tool-group in querySelector */
+    .topbar-tool-group { /* keep for JS compat, no styles needed */ }
     .tool-btn {
         padding: 3px 8px;
         font-size: 10px;
@@ -1222,6 +1360,7 @@
                 <!-- Current File -->
                 <div style="margin-bottom: 15px;">
                     <strong>File:</strong> <span id="glassCurrentFile2" style="color: #ff6600;">-</span>
+                    <span id="glassHashMode" style="margin-left: 10px; padding: 2px 8px; border-radius: 3px; background: #333; color: #aaa; font-size: 11px; font-weight: bold;">-</span>
                 </div>
                 
                 <!-- Progress Bar -->
@@ -1288,7 +1427,8 @@
                 <!-- Stage Buttons -->
                 <div style="margin-bottom: 15px;">
                     <div style="color: #888; margin-bottom: 5px; font-size: 12px;">RUN SPECIFIC STAGE:</div>
-                    <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                    <!-- WPA Stages (7 stages) -->
+                    <div id="wpaStageButtons" style="display: flex; gap: 5px; flex-wrap: wrap;">
                         <button class="button" onclick="runGlassStage(1)" style="flex: 1; min-width: 40px;" title="Stage 1: WiFi Quick Wins - Top 4800 WiFi passwords + router defaults (seconds)">1</button>
                         <button class="button" onclick="runGlassStage(2)" style="flex: 1; min-width: 40px;" title="Stage 2: Common + Rules - 10k common + darkweb 10k with best64 rules (minutes)">2</button>
                         <button class="button" onclick="runGlassStage('3a')" style="flex: 1; min-width: 40px;" title="Stage 3a: Extended + Rules - Xato 100k + Ashley Madison with best64 rules (10-30 min)">3a</button>
@@ -1296,6 +1436,18 @@
                         <button class="button" onclick="runGlassStage('4a')" style="flex: 1; min-width: 40px;" title="Stage 4a: RockYou 2024 straight - 146GB wordlist, no rules (~30 hours)">4a</button>
                         <button class="button" onclick="runGlassStage('4b')" style="flex: 1; min-width: 40px;" title="Stage 4b: RockYou 2024 + best64 rules - 146GB × 77 rules (~7 days)">4b</button>
                         <button class="button" onclick="runGlassStage(5)" style="flex: 1; min-width: 40px;" title="Stage 5: Deep Dive - all_in_one + dive rules (days+)">5</button>
+                    </div>
+                    <!-- NTLMv2 Stages (8 stages) -->
+                    <div id="ntlmv2StageButtons" style="display: none; gap: 5px; flex-wrap: wrap;">
+                        <button class="button" onclick="runGlassStage(1)" style="flex: 1; min-width: 40px;" title="Stage 1: Common passwords - top 10k + best64 rules (seconds)">1</button>
+                        <button class="button" onclick="runGlassStage(2)" style="flex: 1; min-width: 40px;" title="Stage 2: Extended wordlists - Xato 100k + Ashley Madison with best64 (minutes)">2</button>
+                        <button class="button" onclick="runGlassStage('3a')" style="flex: 1; min-width: 40px;" title="Stage 3a: Common + OneRuleToRuleThemAll - 10k × 52k rules (~30 min)">3a</button>
+                        <button class="button" onclick="runGlassStage('3b')" style="flex: 1; min-width: 40px;" title="Stage 3b: Extended + OneRuleToRuleThemAll - 100k × 52k rules (~2 hours)">3b</button>
+                        <button class="button" onclick="runGlassStage(4)" style="flex: 1; min-width: 40px;" title="Stage 4: RockYou 2024 straight - 146GB wordlist, no rules (~8 hours)">4</button>
+                        <button class="button" onclick="runGlassStage(5)" style="flex: 1; min-width: 40px;" title="Stage 5: Mask attacks - ?a?a?a?a?a?a?a?a, TestLab99 pattern, company patterns (~hours)">5</button>
+                        <button class="button" onclick="runGlassStage(6)" style="flex: 1; min-width: 40px;" title="Stage 6: Hybrid attacks - wordlist + ?d?d?d?d appended (~hours)">6</button>
+                        <button class="button" onclick="runGlassStage(7)" style="flex: 1; min-width: 40px;" title="Stage 7: RockYou 2024 + best64 rules (~3 days)">7</button>
+                        <button class="button" onclick="runGlassStage(8)" style="flex: 1; min-width: 40px;" title="Stage 8: Deep Dive - all_in_one + dive rules (days+)">8</button>
                     </div>
                 </div>
                 
@@ -1309,8 +1461,8 @@
                 </div>
                 
                 <!-- Stage Info -->
-                <div style="margin-top: 15px; padding: 10px; background: #0a0a0a; border: 1px solid #333; font-size: 11px; color: #666;">
-                    <div><strong style="color: #888;">Stage Info:</strong></div>
+                <div id="wpaStageInfo" style="margin-top: 15px; padding: 10px; background: #0a0a0a; border: 1px solid #333; font-size: 11px; color: #666;">
+                    <div><strong style="color: #888;">WPA Stages (7):</strong></div>
                     <div>1: WiFi quick wins - top 4800 WiFi + router defaults (seconds)</div>
                     <div>2: Common + best64 rules (minutes)</div>
                     <div>3a: Extended + best64 rules (10-30 min)</div>
@@ -1318,6 +1470,18 @@
                     <div>4a: RockYou 2024 straight (~30 hours)</div>
                     <div>4b: RockYou 2024 + best64 (~7 days)</div>
                     <div>5: all_in_one + dive rules (days+)</div>
+                </div>
+                <div id="ntlmv2StageInfo" style="display: none; margin-top: 15px; padding: 10px; background: #0a0a0a; border: 1px solid #333; font-size: 11px; color: #666;">
+                    <div><strong style="color: #888;">NTLMv2 Stages (8):</strong></div>
+                    <div>1: Common passwords + best64 rules (seconds)</div>
+                    <div>2: Extended wordlists + best64 (minutes)</div>
+                    <div>3a: Common + OneRule (52k rules, ~30 min)</div>
+                    <div>3b: Extended + OneRule (~2 hours)</div>
+                    <div>4: RockYou 2024 straight (~8 hours)</div>
+                    <div>5: Mask attacks - brute force + patterns (~hours)</div>
+                    <div>6: Hybrid attacks - wordlist + digits (~hours)</div>
+                    <div>7: RockYou 2024 + best64 (~3 days)</div>
+                    <div>8: Deep dive - all_in_one + dive rules (days+)</div>
                 </div>
             </div>
         </div>
@@ -1352,6 +1516,7 @@
                     <button class="button" onclick="refreshGlassQueue()" title="Reload queue status from Glass">Refresh</button>
                     <button class="button" onclick="pauseGlassCrack()" style="background: #444400;" title="Pause current crack - saves checkpoint for later resume">⏸️ Pause</button>
                     <button class="button" onclick="resumeGlassCrack()" style="background: #004400;" title="Resume paused crack from checkpoint">▶️ Resume</button>
+                    <button class="button danger" onclick="clearGlassQueue()" title="Remove all waiting files from Glass queue">Clear Queue</button>
                 </div>
                 
                 <!-- Current Job -->
@@ -1373,7 +1538,54 @@
             <h2>📜 Activity Log</h2>
             <div id="glassActivityLog" class="output" style="max-height: 150px; font-size: 11px;">Waiting for activity...</div>
         </div>
-        
+
+        <!-- Cracked Results -->
+        <div class="panel">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2 onclick="toggleCrackPanel('crackedResultsBody')" style="cursor: pointer;" title="Click to expand/collapse cracked results">
+                    🔓 Cracked Results <span id="crackedResultsToggle">▼</span>
+                </h2>
+                <div style="display: flex; gap: 5px;">
+                    <button class="button" onclick="pullCrackedResults()" title="Pull all cracked results from Glass server">Pull Results</button>
+                    <button class="button danger" onclick="clearCrackedFiles()" title="Delete cracked hash files from Glass (keeps results in memory)">Clear Files</button>
+                </div>
+            </div>
+            <div id="crackedResultsBody" class="output" style="max-height: 300px; font-size: 11px;">Click Pull Results to load...</div>
+        </div>
+
+        <!-- Failed Jobs -->
+        <div class="panel">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2 onclick="toggleCrackPanel('failedJobsBody')" style="cursor: pointer;" title="Click to expand/collapse failed jobs">
+                    ❌ Failed Jobs <span id="failedJobsToggle">▼</span>
+                </h2>
+                <div style="display: flex; gap: 5px;">
+                    <button class="button" onclick="loadFailedJobs()" title="Refresh the list of failed cracking jobs">Refresh</button>
+                    <button class="button danger" onclick="clearAllFailed()" title="Delete all failed hash files from Glass">Clear All</button>
+                </div>
+            </div>
+            <div id="failedJobsBody" class="output" style="max-height: 200px; font-size: 11px;">Click Refresh to load...</div>
+        </div>
+
+        <!-- Diagnostics -->
+        <div class="panel">
+            <h2 onclick="toggleCrackPanel('diagnosticsBody')" style="cursor: pointer;" title="Click to expand/collapse diagnostics tools">
+                🔧 Diagnostics <span id="diagnosticsToggle">▶</span>
+            </h2>
+            <div id="diagnosticsBody" style="display: none;">
+                <!-- Wordlist Health -->
+                <div style="margin-bottom: 15px;">
+                    <button class="button" onclick="checkWordlists()" title="Check all wordlists and rules on Glass for availability and file size">Check Wordlists</button>
+                    <div id="wordlistHealth" style="margin-top: 10px; font-size: 11px;"></div>
+                </div>
+                <!-- Glass Log -->
+                <div>
+                    <button class="button" onclick="loadGlassLog()" title="Load last 200 lines of Glass server debug log">Load Log</button>
+                    <div id="glassLogOutput" class="output" style="max-height: 300px; font-size: 10px; margin-top: 10px; font-family: monospace;"></div>
+                </div>
+            </div>
+        </div>
+
         </div><!-- End page-cracking -->
         
         <!-- Page: Evil Portal -->
@@ -1790,42 +2002,99 @@
                         <button class="button tool-btn" onclick="setInternalMode('monitor')" title="Set to monitor mode for passive capture">Monitor</button>
                         <button class="button tool-btn" onclick="setInternalMode('managed')" title="Set to managed mode to join a network">Managed</button>
                         <button class="button tool-btn" onclick="refreshInternalModes()" title="Refresh interface status">↻ Refresh</button>
+                        <button class="tools-toggle" id="toolsToggleBtn" onclick="toggleToolPanel()" title="Show/hide tool controls (Discovery, Nmap, Responder, Cred Check, Spray)">Tools ▼ <span class="active-count" id="activeToolBadge"></span></button>
                     </div>
-                    <!-- Row 2: Tool Control Strip — three instrument panels -->
-                    <div class="internal-topbar-row">
-                        <div class="topbar-tool-group" id="discToolGroup" data-section="discovery">
-                            <span class="topbar-label" style="color: #0f0;">Discovery</span>
-                            <select id="discoverInterface" onchange="onInterfaceChange()" class="tool-select" title="Network interface to monitor — auto-fills subnet and LHOST">
-                                <option value="alfa0">alfa0</option>
-                                <option value="alfa1">alfa1</option>
-                                <option value="eth0">eth0</option>
-                                <option value="wlan0">wlan0</option>
-                            </select>
-                            <button id="discStartBtn" onclick="startDiscovery()" class="button tool-btn" title="Start passive network monitoring">▶ Start</button>
-                            <button id="discStopBtn" onclick="stopDiscovery()" class="button danger tool-btn" style="display: none;" title="Stop discovery">Stop</button>
-                            <button id="discClearBtn" onclick="clearDiscovery()" class="button tool-btn" title="Clear discovery results">Clear</button>
-                            <span id="discTimerDisplay" class="tool-timer"></span>
+                    <!-- Collapsible Tool Control Grid -->
+                    <div class="tool-grid-wrapper" id="toolGridWrapper">
+                    <div class="tool-grid">
+                        <!-- Discovery Card -->
+                        <div class="tool-card topbar-tool-group" id="discToolGroup" data-tool="discovery" data-section="discovery">
+                            <div class="tool-card-header">
+                                <span class="tool-dot"></span>
+                                <span class="tool-card-name">Discovery</span>
+                                <span id="discTimerDisplay" class="tool-card-timer"></span>
+                            </div>
+                            <div class="tool-card-divider"></div>
+                            <div class="tool-card-body">
+                                <select id="discoverInterface" onchange="onInterfaceChange()" class="tool-select" title="Network interface to monitor — auto-fills subnet and LHOST">
+                                    <option value="alfa0">alfa0</option>
+                                    <option value="alfa1">alfa1</option>
+                                    <option value="eth0">eth0</option>
+                                    <option value="wlan0">wlan0</option>
+                                </select>
+                                <button id="discStartBtn" onclick="startDiscovery()" class="button tool-btn" title="Start passive network monitoring">▶ Start</button>
+                                <button id="discStopBtn" onclick="stopDiscovery()" class="button danger tool-btn" style="display: none;" title="Stop discovery">Stop</button>
+                                <button id="discClearBtn" onclick="clearDiscovery()" class="button tool-btn" title="Clear discovery results">Clear</button>
+                            </div>
                         </div>
-                        <div class="topbar-tool-group nmap" id="nmapToolGroup" data-section="nmap">
-                            <span class="topbar-label" style="color: #4af;">Nmap</span>
-                            <input type="text" id="nmapSubnet" placeholder="192.168.1.0/24" value="192.168.1.0/24" class="tool-input" title="Subnet to scan with nmap">
-                            <button id="nmapScanBtn" onclick="nmapScan()" class="button tool-btn" title="Run nmap host discovery and port scan on subnet">🔎 Scan</button>
-                            <button id="nmapCancelBtn" onclick="stopNmapScan()" class="button danger tool-btn" style="display: none;" title="Cancel running nmap scan">Cancel</button>
+                        <!-- Nmap Card -->
+                        <div class="tool-card topbar-tool-group" id="nmapToolGroup" data-tool="nmap" data-section="nmap">
+                            <div class="tool-card-header">
+                                <span class="tool-dot"></span>
+                                <span class="tool-card-name">Nmap</span>
+                                <span id="nmapTimerDisplay" class="tool-card-timer"></span>
+                            </div>
+                            <div class="tool-card-divider"></div>
+                            <div class="tool-card-body">
+                                <input type="text" id="nmapSubnet" placeholder="192.168.1.0/24" value="192.168.1.0/24" class="tool-input" title="Subnet to scan with nmap">
+                                <button id="nmapScanBtn" onclick="nmapScan()" class="button tool-btn" title="Run nmap host discovery and port scan on subnet">🔎 Scan</button>
+                                <button id="nmapCancelBtn" onclick="stopNmapScan()" class="button danger tool-btn" style="display: none;" title="Cancel running nmap scan">Cancel</button>
+                            </div>
                         </div>
-                        <div class="topbar-tool-group resp" id="respToolGroup" data-section="responder">
-                            <span class="topbar-label" style="color: #ff0;">Responder</span>
-                            <button id="respStartBtn" onclick="startResponder()" class="button tool-btn" title="Start Responder — poison LLMNR/NBT-NS/WPAD to capture NTLMv2 hashes">▶ Start</button>
-                            <button id="respStopBtn" onclick="stopResponder()" class="button danger tool-btn" style="display: none;" title="Stop Responder">Stop</button>
-                            <span class="topbar-status" style="color: #ff0;" title="Number of NTLMv2 hashes captured by Responder">Hashes: <span id="hashCount">0</span></span>
-                            <span id="respTimerDisplay" class="tool-timer"></span>
+                        <!-- Responder Card -->
+                        <div class="tool-card topbar-tool-group" id="respToolGroup" data-tool="responder" data-section="responder">
+                            <div class="tool-card-header">
+                                <span class="tool-dot"></span>
+                                <span class="tool-card-name">Responder</span>
+                                <span id="respTimerDisplay" class="tool-card-timer"></span>
+                            </div>
+                            <div class="tool-card-divider"></div>
+                            <div class="tool-card-body">
+                                <span class="tool-card-stat" style="color: #ff0;" title="Number of NTLMv2 hashes captured by Responder">Hashes: <span id="hashCount">0</span></span>
+                                <button id="respStartBtn" onclick="startResponder()" class="button tool-btn" title="Start Responder — poison LLMNR/NBT-NS/WPAD to capture NTLMv2 hashes">▶ Start</button>
+                                <button id="respStopBtn" onclick="stopResponder()" class="button danger tool-btn" style="display: none;" title="Stop Responder">Stop</button>
+                            </div>
+                            <div id="poisonStatusRow" class="poison-status-row" title="Live poisoning statistics — how many protocol queries Responder is intercepting">
+                                <span class="poison-pill" title="LLMNR queries poisoned">LLMNR: <span id="poisonLlmnr">0</span></span>
+                                <span class="poison-pill" title="NBT-NS queries poisoned">NBT-NS: <span id="poisonNbns">0</span></span>
+                                <span class="poison-pill" title="WPAD proxy requests intercepted">WPAD: <span id="poisonWpad">0</span></span>
+                                <span class="poison-total" title="Total queries poisoned across all protocols">Total: <span id="poisonTotal">0</span></span>
+                            </div>
                         </div>
-                        <div class="topbar-tool-group cred-check" id="credCheckToolGroup" data-section="credCheck">
-                            <span class="topbar-label" style="color: #f80;">Cred Check</span>
-                            <button id="credCheckStartBtn" onclick="startDefaultCredCheck()" class="button tool-btn" title="Test default/factory credentials (admin/admin, root/root, etc.) on all discovered hosts using Hydra">▶ Check Defaults</button>
-                            <button id="credCheckStopBtn" onclick="stopDefaultCredCheck()" class="button danger tool-btn" style="display: none;" title="Stop default credential check">Stop</button>
-                            <span class="topbar-status" style="color: #f80;" title="Number of default credentials found">Found: <span id="defaultCredCount">0</span></span>
-                            <span id="credCheckTimerDisplay" class="tool-timer"></span>
+                        <!-- Cred Check Card -->
+                        <div class="tool-card topbar-tool-group" id="credCheckToolGroup" data-tool="credcheck" data-section="credCheck">
+                            <div class="tool-card-header">
+                                <span class="tool-dot"></span>
+                                <span class="tool-card-name">Cred Check</span>
+                                <span id="credCheckTimerDisplay" class="tool-card-timer"></span>
+                            </div>
+                            <div class="tool-card-divider"></div>
+                            <div class="tool-card-body">
+                                <span class="tool-card-stat" style="color: #f80;" title="Number of default credentials found">Found: <span id="defaultCredCount">0</span></span>
+                                <button id="credCheckStartBtn" onclick="startDefaultCredCheck()" class="button tool-btn" title="Test default/factory credentials (admin/admin, root/root, etc.) on all discovered hosts using Hydra">▶ Check Defaults</button>
+                                <button id="credCheckStopBtn" onclick="stopDefaultCredCheck()" class="button danger tool-btn" style="display: none;" title="Stop default credential check">Stop</button>
+                            </div>
                         </div>
+                        <!-- Credential Spray Card -->
+                        <div class="tool-card topbar-tool-group" id="sprayToolGroup" data-tool="spray" data-section="spray">
+                            <div class="tool-card-header">
+                                <span class="tool-dot"></span>
+                                <span class="tool-card-name">Cred Spray</span>
+                                <span id="sprayTimerDisplay" class="tool-card-timer"></span>
+                            </div>
+                            <div class="tool-card-divider"></div>
+                            <div class="tool-card-body">
+                                <span class="tool-card-stat" style="color: #c0f;" title="Number of hosts where credentials worked">Hits: <span id="sprayHitCount">0</span></span>
+                                <button id="sprayStartBtn" onclick="startCredSpray()" class="button tool-btn" title="Spray a cracked credential against all discovered hosts via SMB, SSH, RDP, WinRM">▶ Spray</button>
+                                <button id="sprayStopBtn" onclick="stopCredSpray()" class="button danger tool-btn" style="display: none;" title="Stop credential spray">Stop</button>
+                            </div>
+                            <div id="sprayInputs" class="spray-inputs" title="Enter credentials to spray — username, password, and domain">
+                                <input type="text" id="sprayUser" placeholder="username" title="Username to spray">
+                                <input type="text" id="sprayPass" placeholder="password" title="Password to spray">
+                                <input type="text" id="sprayDomain" placeholder="WORKGROUP" value="WORKGROUP" title="Domain or workgroup name">
+                            </div>
+                        </div>
+                    </div>
                     </div>
                 </div>
 
@@ -2340,6 +2609,8 @@
             if (smbEnumPollInterval) { clearInterval(smbEnumPollInterval); smbEnumPollInterval = null; }
             if (snmpEnumPollInterval) { clearInterval(snmpEnumPollInterval); snmpEnumPollInterval = null; }
             if (defaultCredPollInterval) { clearInterval(defaultCredPollInterval); defaultCredPollInterval = null; }
+            if (sprayPollInterval) { clearInterval(sprayPollInterval); sprayPollInterval = null; }
+            if (poisoningStatusInterval) { clearInterval(poisoningStatusInterval); poisoningStatusInterval = null; }
             // Clear all section timers
             for (var key in internalTimers) {
                 if (internalTimers[key].interval) { clearInterval(internalTimers[key].interval); internalTimers[key].interval = null; }
@@ -4034,7 +4305,7 @@
         }
         
         // ============== INTERNAL ATTACK FUNCTIONS ==============
-        
+
         let discoveryInterval = null;
         let responderInterval = null;
         let responderOutputInterval = null;
@@ -4049,13 +4320,16 @@
             listener:  { interval: null, startTime: null },
             smbEnum:   { interval: null, startTime: null },
             snmpEnum:  { interval: null, startTime: null },
-            credCheck: { interval: null, startTime: null }
+            credCheck: { interval: null, startTime: null },
+            spray:     { interval: null, startTime: null }
         };
 
         // Enum result caches + poll intervals
         var smbEnumPollInterval = null;
         var snmpEnumPollInterval = null;
         var defaultCredPollInterval = null;
+        var sprayPollInterval = null;
+        var poisoningStatusInterval = null;
         var _smbEnumResults = {};
         var _snmpEnumResults = {};
 
@@ -4070,8 +4344,8 @@
             if (!t) return;
             if (t.interval) clearInterval(t.interval);
             t.startTime = startTimeMs;
-            var statusMap = { discovery: 'discTimerDisplay', responder: 'respTimerDisplay', nmap: null, listener: null, smbEnum: 'smbEnumStatus', snmpEnum: 'snmpEnumStatus', credCheck: 'credCheckTimerDisplay' };
-            var labelMap = { discovery: 'Running', responder: 'Running', nmap: null, listener: null, smbEnum: 'Running', snmpEnum: 'Running', credCheck: 'Running' };
+            var statusMap = { discovery: 'discTimerDisplay', responder: 'respTimerDisplay', nmap: null, listener: null, smbEnum: 'smbEnumStatus', snmpEnum: 'snmpEnumStatus', credCheck: 'credCheckTimerDisplay', spray: 'sprayTimerDisplay' };
+            var labelMap = { discovery: 'Running', responder: 'Running', nmap: null, listener: null, smbEnum: 'Running', snmpEnum: 'Running', credCheck: 'Running', spray: 'Spraying' };
             var el = statusMap[section] ? document.getElementById(statusMap[section]) : null;
             // Add running glow to tool group
             var toolGroup = document.querySelector('.topbar-tool-group[data-section="' + section + '"]');
@@ -4080,7 +4354,7 @@
                 var elapsed = (Date.now() - t.startTime) / 1000;
                 if (el) {
                     el.textContent = labelMap[section] + ' ' + formatSectionElapsed(elapsed);
-                    el.style.color = section === 'responder' ? '#f00' : (section === 'credCheck' ? '#f80' : '#0f0');
+                    el.style.color = section === 'responder' ? '#f00' : (section === 'credCheck' ? '#f80' : (section === 'spray' ? '#c0f' : '#0f0'));
                 }
             }, 1000);
             // Immediate first update
@@ -4096,7 +4370,7 @@
             if (!t) return;
             if (t.interval) { clearInterval(t.interval); t.interval = null; }
             t.startTime = null;
-            var statusMap = { discovery: 'discTimerDisplay', responder: 'respTimerDisplay', nmap: null, listener: null, smbEnum: 'smbEnumStatus', snmpEnum: 'snmpEnumStatus', credCheck: 'credCheckTimerDisplay' };
+            var statusMap = { discovery: 'discTimerDisplay', responder: 'respTimerDisplay', nmap: null, listener: null, smbEnum: 'smbEnumStatus', snmpEnum: 'snmpEnumStatus', credCheck: 'credCheckTimerDisplay', spray: 'sprayTimerDisplay' };
             var resetText = { smbEnum: 'Idle', snmpEnum: 'Idle' };
             var el = statusMap[section] ? document.getElementById(statusMap[section]) : null;
             if (el) {
@@ -4123,6 +4397,36 @@
                     setStatus('IDLE', false);
                 }
             }
+            // Update toggle button badge
+            var badge = document.getElementById('activeToolBadge');
+            if (badge) badge.textContent = count > 0 ? '(' + count + ')' : '';
+            // Auto-expand tool panel when tools are active
+            if (count > 0) {
+                var wrapper = document.getElementById('toolGridWrapper');
+                if (wrapper && !wrapper.classList.contains('expanded')) {
+                    wrapper.classList.add('expanded');
+                    updateToolsToggleText(true, count);
+                }
+            }
+        }
+
+        function updateToolsToggleText(expanded, count) {
+            var btn = document.getElementById('toolsToggleBtn');
+            if (!btn) return;
+            var arrow = expanded ? '▲' : '▼';
+            var badgeText = count > 0 ? ' (' + count + ')' : '';
+            btn.firstChild.textContent = 'Tools ' + arrow;
+            var badge = document.getElementById('activeToolBadge');
+            if (badge) badge.textContent = badgeText;
+        }
+
+        function toggleToolPanel() {
+            var wrapper = document.getElementById('toolGridWrapper');
+            if (!wrapper) return;
+            var isExpanded = wrapper.classList.toggle('expanded');
+            var count = 0;
+            for (var key in internalTimers) { if (internalTimers[key].interval) count++; }
+            updateToolsToggleText(isExpanded, count);
         }
 
         function getHostIcon(deviceType, os) {
@@ -4736,6 +5040,7 @@
                     if (!responderOutputInterval) {
                         responderOutputInterval = setInterval(pollResponderOutput, 2000);
                     }
+                    startPoisoningPolling();
                 }
             } catch (e) { /* ignore */ }
 
@@ -4794,6 +5099,26 @@
                 } else if (credData.results && credData.results.total_found > 0) {
                     document.getElementById('defaultCredCount').textContent = credData.results.total_found;
                     refreshHashes();
+                }
+            } catch (e) { /* ignore */ }
+
+            // Restore credential spray state
+            try {
+                const sprayResp = await fetch('/api/internal/creds/spray/status');
+                const sprayData = await sprayResp.json();
+                if (sprayData.running) {
+                    var sprayStart = sprayData.start_time ? sprayData.start_time * 1000 : Date.now();
+                    startSectionTimer('spray', sprayStart);
+                    document.getElementById('sprayStartBtn').style.display = 'none';
+                    document.getElementById('sprayStopBtn').style.display = '';
+                    document.getElementById('sprayInputs').style.display = 'flex';
+                    if (sprayData.user) document.getElementById('sprayUser').value = sprayData.user;
+                    if (sprayData.domain) document.getElementById('sprayDomain').value = sprayData.domain;
+                    if (!sprayPollInterval) {
+                        sprayPollInterval = setInterval(pollSprayStatus, 3000);
+                    }
+                } else if (sprayData.results && sprayData.results.total_success > 0) {
+                    document.getElementById('sprayHitCount').textContent = sprayData.results.total_success;
                 }
             } catch (e) { /* ignore */ }
         }
@@ -5214,11 +5539,12 @@
                     document.getElementById('respStopBtn').style.display = '';
                     appendInternalOutput('[+] Responder started - poisoning LLMNR/NBT-NS/WPAD');
 
-                    // Start polling for hashes and Responder output
+                    // Start polling for hashes, Responder output, and poisoning stats
                     if (responderInterval) clearInterval(responderInterval);
                     responderInterval = setInterval(refreshHashes, 5000);
                     if (responderOutputInterval) clearInterval(responderOutputInterval);
                     responderOutputInterval = setInterval(pollResponderOutput, 2000);
+                    startPoisoningPolling();
                 } else {
                     appendInternalOutput('[-] Failed: ' + (data.output || data.error));
                 }
@@ -5243,6 +5569,7 @@
                     clearInterval(responderOutputInterval);
                     responderOutputInterval = null;
                 }
+                stopPoisoningPolling();
 
                 appendInternalOutput('[*] Responder stopped');
             } catch (err) {
@@ -5508,12 +5835,170 @@
                             html += '</div>';
                             html += '<div style="color: #ff0; font-family: monospace; font-size: 11px; margin-top: 3px;">' + cred.user + ' : ' + cred.pass + '</div>';
                             html += '<button onclick="useCredentials(\'' + cred.user.replace(/'/g, "\\'") + '\', \'' + cred.pass.replace(/'/g, "\\'") + '\', \'WORKGROUP\')" style="padding: 3px 8px; font-size: 9px; margin-top: 3px; background: #332200; border: 1px solid #664400; color: #f80; cursor: pointer;" title="Load these credentials into the Credential Access form">Use These</button>';
+                            html += ' <button onclick="useCredentialsForSpray(\'' + cred.user.replace(/'/g, "\\'") + '\', \'' + cred.pass.replace(/'/g, "\\'") + '\', \'WORKGROUP\')" style="padding: 3px 8px; font-size: 9px; margin-top: 3px; background: #1a0a2a; border: 1px solid #3a1a5a; color: #c0f; cursor: pointer;" title="Load these credentials into the Spray tool to test against all hosts">Spray These</button>';
                             html += '</div>';
                         }
                     });
                 });
             }
             return html;
+        }
+
+        // ===== CREDENTIAL SPRAY =====
+        function useCredentialsForSpray(user, pass, domain) {
+            document.getElementById('sprayUser').value = user;
+            document.getElementById('sprayPass').value = pass;
+            document.getElementById('sprayDomain').value = domain || 'WORKGROUP';
+            document.getElementById('sprayInputs').style.display = 'flex';
+            appendInternalOutput('[*] Loaded credentials for spray: ' + user);
+        }
+
+        async function startCredSpray() {
+            var user = document.getElementById('sprayUser').value.trim();
+            var pass = document.getElementById('sprayPass').value.trim();
+            var domain = document.getElementById('sprayDomain').value.trim() || 'WORKGROUP';
+
+            if (!user || !pass) {
+                // Show inputs if hidden, prompt user
+                document.getElementById('sprayInputs').style.display = 'flex';
+                appendInternalOutput('[-] Enter username and password to spray');
+                return;
+            }
+
+            appendInternalOutput('[*] Starting credential spray — user: ' + user + ', domain: ' + domain + '...');
+            try {
+                const response = await fetch('/api/internal/creds/spray', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user: user, password: pass, domain: domain })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    appendInternalOutput('[+] ' + data.message);
+                    document.getElementById('sprayStartBtn').style.display = 'none';
+                    document.getElementById('sprayStopBtn').style.display = '';
+                    startSectionTimer('spray', Date.now());
+                    if (!sprayPollInterval) {
+                        sprayPollInterval = setInterval(pollSprayStatus, 3000);
+                    }
+                } else {
+                    appendInternalOutput('[-] ' + data.error);
+                }
+            } catch (err) {
+                appendInternalOutput('[-] Error: ' + err.message);
+            }
+        }
+
+        async function stopCredSpray() {
+            try {
+                const response = await fetch('/api/internal/creds/spray/stop', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+                if (data.success) {
+                    appendInternalOutput('[*] Credential spray stopped');
+                } else {
+                    appendInternalOutput('[-] ' + data.error);
+                }
+            } catch (err) {
+                appendInternalOutput('[-] Error: ' + err.message);
+            }
+            document.getElementById('sprayStartBtn').style.display = '';
+            document.getElementById('sprayStopBtn').style.display = 'none';
+            stopSectionTimer('spray');
+            if (sprayPollInterval) { clearInterval(sprayPollInterval); sprayPollInterval = null; }
+        }
+
+        async function pollSprayStatus() {
+            try {
+                const response = await fetch('/api/internal/creds/spray/status');
+                const data = await response.json();
+
+                document.getElementById('sprayHitCount').textContent = data.results_count || 0;
+
+                if (!data.running) {
+                    document.getElementById('sprayStartBtn').style.display = '';
+                    document.getElementById('sprayStopBtn').style.display = 'none';
+                    stopSectionTimer('spray');
+                    if (sprayPollInterval) { clearInterval(sprayPollInterval); sprayPollInterval = null; }
+
+                    if (data.results) {
+                        var successes = data.results.total_success || 0;
+                        var targets = data.results.total_targets || 0;
+                        if (successes > 0) {
+                            appendInternalOutput('[+] Credential spray complete — ' + successes + ' successful auth(s) across ' + targets + ' target(s)!');
+                        } else {
+                            appendInternalOutput('[*] Credential spray complete — no valid logins found on ' + targets + ' target(s)');
+                        }
+                        renderSprayResults(data.results);
+                    } else {
+                        appendInternalOutput('[-] Credential spray ended without results');
+                    }
+                }
+            } catch (err) {
+                // Silent
+            }
+        }
+
+        function renderSprayResults(results) {
+            if (!results || !results.targets) return;
+            var output = document.getElementById('internalOutput');
+            var div = document.createElement('div');
+            div.style.cssText = 'margin-top: 8px; border-top: 1px solid #2a0a3a; padding-top: 6px;';
+            var header = document.createElement('div');
+            header.style.cssText = 'color: #c0f; font-size: 10px; font-weight: bold; margin-bottom: 4px;';
+            header.textContent = 'SPRAY RESULTS';
+            div.appendChild(header);
+            for (var ip in results.targets) {
+                var t = results.targets[ip];
+                var hostname = t.hostname || ip;
+                for (var proto in t.protocols) {
+                    var p = t.protocols[proto];
+                    var isSuccess = p.status === 'success';
+                    var row = document.createElement('div');
+                    row.style.cssText = 'padding: 3px 8px; font-size: 11px; font-family: monospace; color: ' + (isSuccess ? '#0f0' : '#f44') + ';';
+                    var text = (isSuccess ? '✓' : '✗') + ' ' + ip + ' (' + hostname + ') — ' + proto.toUpperCase() + ':' + p.port;
+                    if (p.admin) text += ' [ADMIN]';
+                    row.textContent = text;
+                    div.appendChild(row);
+                }
+            }
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        // ===== RESPONDER POISONING STATUS =====
+        async function pollPoisoningStatus() {
+            try {
+                const response = await fetch('/api/internal/responder/poisoning-status');
+                const data = await response.json();
+
+                document.getElementById('poisonLlmnr').textContent = data.llmnr_count || 0;
+                document.getElementById('poisonNbns').textContent = data.nbns_count || 0;
+                document.getElementById('poisonWpad').textContent = data.wpad_count || 0;
+                document.getElementById('poisonTotal').textContent = data.total_poisoned || 0;
+            } catch (err) {
+                // Silent
+            }
+        }
+
+        function startPoisoningPolling() {
+            document.getElementById('poisonStatusRow').style.display = 'flex';
+            if (!poisoningStatusInterval) {
+                pollPoisoningStatus();
+                poisoningStatusInterval = setInterval(pollPoisoningStatus, 3000);
+            }
+        }
+
+        function stopPoisoningPolling() {
+            document.getElementById('poisonStatusRow').style.display = 'none';
+            if (poisoningStatusInterval) { clearInterval(poisoningStatusInterval); poisoningStatusInterval = null; }
+            document.getElementById('poisonLlmnr').textContent = '0';
+            document.getElementById('poisonNbns').textContent = '0';
+            document.getElementById('poisonWpad').textContent = '0';
+            document.getElementById('poisonTotal').textContent = '0';
         }
 
         async function smbListShares() {
@@ -5962,213 +6447,13 @@
         let selectedCrackFile = null;  // Track which file is selected for cracking
         let lastUploadedFile = null;  // Track last file uploaded to Glass
         
-        async function startCracking() {
-            const output = document.getElementById('crackOutput');
-            
-            setStatus('CRACKING...', true);
-            updateAttackOutput('Starting cracking process...\n');
-            
-            try {
-                const requestBody = {};
-                if (selectedCrackFile) {
-                    requestBody.filename = selectedCrackFile;
-                }
-                
-                const response = await fetch('/api/crack/start', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestBody)
-                });
-                
-                const result = await response.json();
-                updateAttackOutput(result.output);
-                
-                if (result.success) {
-                    // Start polling for status
-                    crackingInterval = setInterval(updateCrackStatus, 2000);
-                }
-            } catch (error) {
-                updateAttackOutput(`Error: ${error.message}`);
-                setStatus('IDLE', false);
-            }
-        }
+        // Dead code removed: startCracking(), updateCrackStatus(), stopCracking()
+        // These referenced non-existent DOM elements (crackOutput, crackStatusText, etc.)
         
-        async function updateCrackStatus() {
-            try {
-                const response = await fetch('/api/crack/status');
-                const result = await response.json();
-                
-                document.getElementById('crackStatusText').textContent = result.status;
-                document.getElementById('crackDevice').textContent = result.device;
-                document.getElementById('crackProgress').textContent = result.progress;
-                document.getElementById('crackSpeed').textContent = result.speed;
-                document.getElementById('crackETA').textContent = result.time_remaining;
-                
-                if (!result.running) {
-                    // Cracking finished
-                    clearInterval(crackingInterval);
-                    crackingInterval = null;
-                    setStatus('IDLE', false);
-                    document.getElementById('crackOutput').textContent += '\n\n' + result.status;
-                }
-            } catch (error) {
-                console.error('Error updating crack status:', error);
-            }
-        }
+        // Dead code removed: sendToGlass(), checkGlassStatus(), getGlassResult()
+        // Replaced by sendSelectedToGlass(), pollGlassStatus(), updateGlassStatus()
         
-        async function stopCracking() {
-            const output = document.getElementById('crackOutput');
-            
-            try {
-                const response = await fetch('/api/crack/stop', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({})
-                });
-                
-                const result = await response.json();
-                updateAttackOutput(result.output);
-                
-                if (crackingInterval) {
-                    clearInterval(crackingInterval);
-                    crackingInterval = null;
-                }
-                
-                setStatus('IDLE', false);
-            } catch (error) {
-                updateAttackOutput(`Error: ${error.message}`);
-            }
-        }
-        
-        async function sendToGlass() {
-            const output = document.getElementById('crackOutput');
-            const checkedBoxes = document.querySelectorAll('.capture-checkbox:checked');
-            if (checkedBoxes.length === 0) {
-                updateAttackOutput('Please check a hash file first');
-                return;
-            }
-            const selectedCrackFile = checkedBoxes[0].value;
-            setStatus('UPLOADING TO GLASS...', true);
-            updateAttackOutput(`Uploading ${selectedCrackFile} to Glass...\n`);
-            
-            try {
-                const response = await fetch('/api/glass/upload', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ filename: selectedCrackFile })
-                });
-                
-                const result = await response.json();
-                updateAttackOutput(result.output);
-                
-                if (result.success) {
-                    // Track uploaded file and show indicator
-                    lastUploadedFile = selectedCrackFile;
-                    document.getElementById('glassCurrentFile').textContent = lastUploadedFile;
-                    
-                    // Start checking Glass status
-                    setTimeout(checkGlassStatus, 3000);
-                }
-                
-                setStatus('IDLE', false);
-            } catch (error) {
-                updateAttackOutput(`Error: ${error.message}`);
-                setStatus('IDLE', false);
-            }
-        }
-        
-        async function checkGlassStatus() {
-            try {
-                const response = await fetch('/api/glass/status');
-                const result = await response.json();
-                
-                document.getElementById('glassStatusText').textContent = result.status || '-';
-                document.getElementById('glassProgress').textContent = result.progress || '-';
-                document.getElementById('glassSpeed').textContent = result.speed || '-';
-                document.getElementById('glassETA').textContent = result.eta || '-';
-                
-                if (result.running) {
-                    setStatus('GLASS CRACKING', true);
-                }
-            } catch (error) {
-                document.getElementById('glassStatusText').textContent = `Error: ${error.message}`;
-            }
-        }
-        
-        async function getGlassResult() {
-            const output = document.getElementById('crackOutput');
-            
-            // Use manually selected file if available, otherwise use last uploaded
-            const fileToCheck = selectedCrackFile || lastUploadedFile;
-            
-            if (!fileToCheck) {
-                updateAttackOutput('No file selected and no recent upload to Glass');
-                return;
-            }
-            
-            try {
-                const response = await fetch(`/api/glass/result?filename=${fileToCheck}`);
-                const result = await response.json();
-                
-                if (result.success) {
-                    updateAttackOutput(`=== GLASS RESULT ===\n\n${result.result}`);
-                    
-                    // Clear indicator after successful result retrieval
-                    if (fileToCheck === lastUploadedFile) {
-                        document.getElementById('glassCurrentFile').textContent = '-';
-                        lastUploadedFile = null;
-                    }
-                } else {
-                    updateAttackOutput(result.output);
-                }
-            } catch (error) {
-                updateAttackOutput(`Error: ${error.message}`);
-            }
-        }
-        
-        async function loadCaptures() {
-            const list = document.getElementById('captureList');
-            list.innerHTML = 'Loading...';
-            
-            try {
-                const response = await fetch('/api/captures');
-                const result = await response.json();
-                
-                if (result.captures.length === 0) {
-                    list.innerHTML = 'No captures found.';
-                    return;
-                }
-                
-                list.innerHTML = '';
-                result.captures.forEach(cap => {
-                    const label = document.createElement('label');
-                    label.style.cursor = 'pointer';
-                    label.style.display = 'block';
-                    label.style.padding = '2px 5px';
-                    
-                    const checkbox = document.createElement('input');
-                    checkbox.type = 'checkbox';
-                    checkbox.className = 'capture-checkbox';
-                    checkbox.value = cap.name;
-                    checkbox.style.marginRight = '10px';
-                    
-                    const filenameSpan = document.createElement('span');
-                    filenameSpan.textContent = `${cap.name} (${cap.size})`;
-                    filenameSpan.style.cursor = 'pointer';
-                    filenameSpan.className = 'crack-selectable';
-                    filenameSpan.onclick = (e) => {
-                        e.stopPropagation();
-                        selectForCracking(cap.name);
-                    };
-                    
-                    label.appendChild(checkbox);
-                    label.appendChild(filenameSpan);
-                    list.appendChild(label);
-                });
-            } catch (error) {
-                list.innerHTML = `Error: ${error.message}`;
-            }
-        }
+        // Dead code removed: loadHashFiles() — replaced by loadHashFiles()
         
         async function loadHashFiles() {
             // Load only .hc22000 files for Cracking page
@@ -6227,21 +6512,7 @@
             document.querySelectorAll('.capture-checkbox').forEach(cb => cb.checked = false);
         }
         
-        function selectForCracking(filename) {
-            selectedCrackFile = filename;
-            
-            // Highlight selected file
-            document.querySelectorAll('.crack-selectable').forEach(span => {
-                span.style.fontWeight = 'normal';
-                span.style.color = '#00ff00';
-            });
-            
-            event.target.style.fontWeight = 'bold';
-            event.target.style.color = '#00ff00';
-            
-            // Update crack output to show selected file
-            document.getElementById('crackOutput').textContent = `Selected for cracking: ${filename}\n\nClick Start Cracking to begin.`;
-        }
+        // Dead code removed: selectForCracking() — referenced non-existent crackOutput element
         
         async function browseCaptures() {
             try {
@@ -6279,7 +6550,7 @@
                 document.getElementById('captureList').innerHTML = result.output;
                 
                 // Reload list after 2 seconds
-                setTimeout(loadCaptures, 2000);
+                setTimeout(loadHashFiles, 2000);
             } catch (error) {
                 document.getElementById('captureList').innerHTML = `Error: ${error.message}`;
             }
@@ -6335,7 +6606,7 @@
             showOutput(summary, 'captureList');
             
             // Refresh list to show new .hc22000 files
-            setTimeout(() => loadCaptures(), 1000);
+            setTimeout(() => loadHashFiles(), 1000);
         }
         
         async function importCapture() {
@@ -6365,7 +6636,7 @@
                 fileInput.value = '';
                 
                 // Reload list after 2 seconds
-                setTimeout(loadCaptures, 2000);
+                setTimeout(loadHashFiles, 2000);
             } catch (error) {
                 list.innerHTML = `Error: ${error.message}`;
             }
@@ -6748,7 +7019,7 @@
         }
         // Load captures on page load
         window.addEventListener('load', function() {
-            loadCaptures();
+            loadHashFiles();
         });
     
 // Store last intel results for client targeting
@@ -6932,31 +7203,55 @@ function monitorClients() {
         function updateGlassStatus(status) {
             document.getElementById('glassCurrentFile2').textContent = status.file || '-';
             document.getElementById('glassStatusText2').textContent = status.status || 'Idle';
-            // Parse stage from status string and add description
+
+            // Hash mode badge
+            const modeEl = document.getElementById('glassHashMode');
+            if (status.hash_mode === '5600' || status.hash_mode === 5600) {
+                modeEl.textContent = 'NTLMv2';
+                modeEl.style.background = '#440044';
+                modeEl.style.color = '#ff88ff';
+                // Toggle stage buttons
+                document.getElementById('wpaStageButtons').style.display = 'none';
+                document.getElementById('ntlmv2StageButtons').style.display = 'flex';
+                document.getElementById('wpaStageInfo').style.display = 'none';
+                document.getElementById('ntlmv2StageInfo').style.display = 'block';
+            } else if (status.hash_mode === '22000' || status.hash_mode === 22000) {
+                modeEl.textContent = 'WPA';
+                modeEl.style.background = '#004400';
+                modeEl.style.color = '#88ff88';
+                document.getElementById('wpaStageButtons').style.display = 'flex';
+                document.getElementById('ntlmv2StageButtons').style.display = 'none';
+                document.getElementById('wpaStageInfo').style.display = 'block';
+                document.getElementById('ntlmv2StageInfo').style.display = 'none';
+            } else if (!status.file || status.file === '-') {
+                modeEl.textContent = '-';
+                modeEl.style.background = '#333';
+                modeEl.style.color = '#aaa';
+                // Show WPA by default when idle
+                document.getElementById('wpaStageButtons').style.display = 'flex';
+                document.getElementById('ntlmv2StageButtons').style.display = 'none';
+                document.getElementById('wpaStageInfo').style.display = 'block';
+                document.getElementById('ntlmv2StageInfo').style.display = 'none';
+            }
+
+            // Stage display with X/Y format
             let stageDisplay = '-';
-            if (status.status && status.status.startsWith('Stage ')) {
+            if (status.stage_num && status.total_stages) {
+                stageDisplay = 'Stage ' + status.stage_num + '/' + status.total_stages;
+            } else if (status.status && status.status.startsWith('Stage ')) {
                 const stageNum = status.status.split(':')[0].replace('Stage ', '');
-                const stageDescs = {
-                    '1': '1 - Common (~1m)',
-                    '2': '2 - Expanded (~10m)',
-                    '3a': '3a - Rules (~1h)',
-                    '3b': '3b - More rules (~2h)',
-                    '4a': '4a - RockYou (~30h)',
-                    '4b': '4b - RockYou+rules (~7d)',
-                    '5': '5 - Exhaustive (weeks)'
-                };
-                stageDisplay = stageDescs[stageNum] || stageNum;
+                stageDisplay = stageNum;
             }
             document.getElementById('glassStageText').textContent = status.stage || stageDisplay;
             document.getElementById('glassSpeedText').textContent = status.speed || '-';
             document.getElementById('glassETAText').textContent = status.eta || '-';
             document.getElementById('glassElapsedText').textContent = status.elapsed || '-';
-            
+
             // Progress bar
             const progress = parseFloat(status.progress) || 0;
             document.getElementById('glassProgressBar').style.width = progress + '%';
             document.getElementById('glassProgressText').textContent = progress.toFixed(1) + '%';
-            
+
             // Show cracked password if found
             if (status.password) {
                 document.getElementById('crackedPasswordBox').style.display = 'block';
@@ -7039,7 +7334,7 @@ function monitorClients() {
                 const result = await response.json();
 
                 if (result.success) {
-                    logGlassActivity('✓ Auto-Escalate started (Stages 1-5)');
+                    logGlassActivity('✓ Auto-Escalate started — all stages will run until cracked');
                     startGlassPolling();
                 } else {
                     logGlassActivity('✗ Error: ' + result.output);
@@ -7477,11 +7772,310 @@ function monitorClients() {
             logEl.innerHTML = '[' + time + '] ' + message + '\n' + logEl.innerHTML;
         }
         
+        // ========== NEW CRACKING PANEL FUNCTIONS ==========
+
+        function toggleCrackPanel(panelId) {
+            const body = document.getElementById(panelId);
+            const toggleId = panelId.replace('Body', 'Toggle');
+            const toggle = document.getElementById(toggleId);
+            if (body.style.display === 'none') {
+                body.style.display = '';
+                if (toggle) toggle.textContent = '\u25BC';
+            } else {
+                body.style.display = 'none';
+                if (toggle) toggle.textContent = '\u25B6';
+            }
+        }
+
+        async function clearGlassQueue() {
+            if (!confirm('Clear all waiting files from Glass queue?')) return;
+            logGlassActivity('Clearing Glass queue...');
+            try {
+                const response = await fetch('/api/glass/queue/clear', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({})
+                });
+                const result = await response.json();
+                if (result.success) {
+                    logGlassActivity('Queue cleared - ' + (result.removed || 0) + ' files removed');
+                    refreshGlassQueue();
+                } else {
+                    logGlassActivity('Error: ' + (result.error || 'Failed to clear queue'));
+                }
+            } catch (error) {
+                logGlassActivity('Connection error: ' + error.message);
+            }
+        }
+
+        async function pullCrackedResults() {
+            const body = document.getElementById('crackedResultsBody');
+            body.textContent = 'Loading results from Glass...';
+            logGlassActivity('Pulling cracked results...');
+            try {
+                const response = await fetch('/api/glass/results/pull');
+                const result = await response.json();
+                if (result.success && result.results) {
+                    const results = result.results;
+                    if (results.length === 0) {
+                        body.textContent = 'No cracked results yet.';
+                        logGlassActivity('No cracked results found');
+                        return;
+                    }
+                    // Build table using DOM methods
+                    body.textContent = '';
+                    const table = document.createElement('table');
+                    table.style.cssText = 'width: 100%; border-collapse: collapse;';
+                    const thead = document.createElement('tr');
+                    thead.style.cssText = 'color: #888; border-bottom: 1px solid #333;';
+                    ['File', 'Password', 'Method'].forEach(h => {
+                        const th = document.createElement('th');
+                        th.style.cssText = 'text-align: left; padding: 4px;';
+                        th.textContent = h;
+                        thead.appendChild(th);
+                    });
+                    table.appendChild(thead);
+                    results.forEach(r => {
+                        const tr = document.createElement('tr');
+                        tr.style.borderBottom = '1px solid #1a1a1a';
+                        const tdFile = document.createElement('td');
+                        tdFile.style.cssText = 'padding: 4px; color: #ff6600; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
+                        tdFile.textContent = r.file || r.filename || '-';
+                        tdFile.title = r.file || r.filename || '-';
+                        const tdPw = document.createElement('td');
+                        tdPw.style.cssText = 'padding: 4px; font-weight: bold;';
+                        if (r.password) {
+                            tdPw.style.color = '#00ff00';
+                            tdPw.textContent = r.password;
+                        } else {
+                            tdPw.style.color = '#666';
+                            tdPw.textContent = 'Not cracked';
+                        }
+                        const tdMethod = document.createElement('td');
+                        tdMethod.style.cssText = 'padding: 4px; color: #888;';
+                        tdMethod.textContent = r.method || r.stage || '-';
+                        tr.appendChild(tdFile);
+                        tr.appendChild(tdPw);
+                        tr.appendChild(tdMethod);
+                        table.appendChild(tr);
+                    });
+                    body.appendChild(table);
+                    logGlassActivity('Loaded ' + results.length + ' cracked results');
+                } else {
+                    body.textContent = 'Error: ' + (result.error || 'Unknown error');
+                    logGlassActivity('Error pulling results');
+                }
+            } catch (error) {
+                body.textContent = 'Connection error: ' + error.message;
+                logGlassActivity('Connection error: ' + error.message);
+            }
+        }
+
+        async function clearCrackedFiles() {
+            if (!confirm('Delete cracked hash files from Glass? (Results stay in memory until Glass restarts)')) return;
+            logGlassActivity('Clearing cracked files...');
+            try {
+                const response = await fetch('/api/glass/cracked/clear', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({})
+                });
+                const result = await response.json();
+                if (result.success) {
+                    logGlassActivity('Cracked files cleared');
+                } else {
+                    logGlassActivity('Error: ' + (result.error || 'Failed'));
+                }
+            } catch (error) {
+                logGlassActivity('Connection error: ' + error.message);
+            }
+        }
+
+        async function loadFailedJobs() {
+            const body = document.getElementById('failedJobsBody');
+            body.textContent = 'Loading failed jobs...';
+            try {
+                const response = await fetch('/api/glass/failed/list');
+                const result = await response.json();
+                if (result.success && result.files) {
+                    if (result.files.length === 0) {
+                        body.textContent = 'No failed jobs.';
+                        return;
+                    }
+                    body.textContent = '';
+                    result.files.forEach(f => {
+                        const fname = typeof f === 'string' ? f : (f.file || f.filename || String(f));
+                        const row = document.createElement('div');
+                        row.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-bottom: 1px solid #1a1a1a;';
+                        const nameSpan = document.createElement('span');
+                        nameSpan.style.cssText = 'color: #ff6600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%;';
+                        nameSpan.textContent = fname;
+                        nameSpan.title = fname;
+                        // Add hash mode badge
+                        if (fname.endsWith('.hc22000')) {
+                            const badge = document.createElement('span');
+                            badge.style.cssText = 'background: #004400; color: #88ff88; padding: 1px 5px; border-radius: 2px; font-size: 9px; margin-left: 5px;';
+                            badge.textContent = 'WPA';
+                            nameSpan.appendChild(badge);
+                        } else if (fname.endsWith('.txt')) {
+                            const badge = document.createElement('span');
+                            badge.style.cssText = 'background: #440044; color: #ff88ff; padding: 1px 5px; border-radius: 2px; font-size: 9px; margin-left: 5px;';
+                            badge.textContent = 'NTLMv2';
+                            nameSpan.appendChild(badge);
+                        }
+                        const btnGroup = document.createElement('span');
+                        const retryBtn = document.createElement('button');
+                        retryBtn.className = 'button';
+                        retryBtn.style.cssText = 'padding: 2px 8px; font-size: 10px; margin-right: 3px;';
+                        retryBtn.textContent = 'Retry';
+                        retryBtn.title = 'Move back to inbox and retry cracking';
+                        retryBtn.onclick = () => retryFailedJob(fname);
+                        const delBtn = document.createElement('button');
+                        delBtn.className = 'button danger';
+                        delBtn.style.cssText = 'padding: 2px 8px; font-size: 10px;';
+                        delBtn.textContent = 'Delete';
+                        delBtn.title = 'Permanently delete this failed hash file';
+                        delBtn.onclick = () => deleteFailedJob(fname);
+                        btnGroup.appendChild(retryBtn);
+                        btnGroup.appendChild(delBtn);
+                        row.appendChild(nameSpan);
+                        row.appendChild(btnGroup);
+                        body.appendChild(row);
+                    });
+                    logGlassActivity(result.files.length + ' failed jobs loaded');
+                } else {
+                    body.textContent = 'Error: ' + (result.error || 'Unknown error');
+                }
+            } catch (error) {
+                body.textContent = 'Connection error: ' + error.message;
+                logGlassActivity('Connection error: ' + error.message);
+            }
+        }
+
+        async function retryFailedJob(filename) {
+            logGlassActivity('Retrying: ' + filename);
+            try {
+                const response = await fetch('/api/glass/failed/retry', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({filename: filename})
+                });
+                const result = await response.json();
+                if (result.success) {
+                    logGlassActivity('Moved back to inbox: ' + filename);
+                    loadFailedJobs();
+                    refreshGlassQueue();
+                } else {
+                    logGlassActivity('Error: ' + (result.error || 'Failed'));
+                }
+            } catch (error) {
+                logGlassActivity('Connection error: ' + error.message);
+            }
+        }
+
+        async function deleteFailedJob(filename) {
+            if (!confirm('Delete failed job: ' + filename + '?')) return;
+            logGlassActivity('Deleting: ' + filename);
+            try {
+                const response = await fetch('/api/glass/failed/delete', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({filename: filename})
+                });
+                const result = await response.json();
+                if (result.success) {
+                    logGlassActivity('Deleted: ' + filename);
+                    loadFailedJobs();
+                } else {
+                    logGlassActivity('Error: ' + (result.error || 'Failed'));
+                }
+            } catch (error) {
+                logGlassActivity('Connection error: ' + error.message);
+            }
+        }
+
+        async function clearAllFailed() {
+            if (!confirm('Delete ALL failed hash files from Glass?')) return;
+            logGlassActivity('Clearing all failed jobs...');
+            try {
+                const response = await fetch('/api/glass/failed/clear', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({})
+                });
+                const result = await response.json();
+                if (result.success) {
+                    logGlassActivity('All failed jobs cleared - ' + (result.removed || 0) + ' files removed');
+                    loadFailedJobs();
+                } else {
+                    logGlassActivity('Error: ' + (result.error || 'Failed'));
+                }
+            } catch (error) {
+                logGlassActivity('Connection error: ' + error.message);
+            }
+        }
+
+        async function checkWordlists() {
+            const health = document.getElementById('wordlistHealth');
+            health.textContent = 'Checking wordlists on Glass...';
+            logGlassActivity('Checking wordlists...');
+            try {
+                const response = await fetch('/api/glass/wordlists');
+                const result = await response.json();
+                if (result.success && result.wordlists) {
+                    health.textContent = '';
+                    result.wordlists.forEach(w => {
+                        const name = w.name || w.file || '-';
+                        const exists = w.exists !== false;
+                        const size = w.size || '';
+                        const row = document.createElement('div');
+                        row.style.padding = '3px 0';
+                        row.style.color = exists ? '#00ff00' : '#ff0000';
+                        let text = (exists ? '\uD83D\uDFE2 ' : '\uD83D\uDD34 ') + name;
+                        if (exists && size) text += ' (' + size + ')';
+                        if (!exists) text += ' MISSING';
+                        row.textContent = text;
+                        health.appendChild(row);
+                    });
+                    logGlassActivity('Wordlist check complete');
+                } else {
+                    health.textContent = 'Error: ' + (result.error || 'Unknown error');
+                }
+            } catch (error) {
+                health.textContent = 'Connection error: ' + error.message;
+                logGlassActivity('Connection error: ' + error.message);
+            }
+        }
+
+        async function loadGlassLog() {
+            const logOut = document.getElementById('glassLogOutput');
+            logOut.textContent = 'Loading Glass log...';
+            logGlassActivity('Loading Glass debug log...');
+            try {
+                const response = await fetch('/api/glass/log');
+                const result = await response.json();
+                if (result.success) {
+                    const lines = result.log || result.lines || '';
+                    const pre = document.createElement('pre');
+                    pre.style.cssText = 'margin: 0; white-space: pre-wrap; word-break: break-all;';
+                    pre.textContent = typeof lines === 'string' ? lines : lines.join('\n');
+                    logOut.textContent = '';
+                    logOut.appendChild(pre);
+                    logGlassActivity('Glass log loaded');
+                } else {
+                    logOut.textContent = 'Error: ' + (result.error || 'Unknown error');
+                }
+            } catch (error) {
+                logOut.textContent = 'Connection error: ' + error.message;
+                logGlassActivity('Connection error: ' + error.message);
+            }
+        }
+
         // Glass initialization handled by switchPage('cracking') which calls:
         // - checkGlassConnection()
         // - loadHashFiles()
         // - startGlassLivePolling() - which refreshes queue every 3s
-        
+
         // ========== END GLASS FUNCTIONS ==========
 
         // ========== WARDRIVING FUNCTIONS ==========
