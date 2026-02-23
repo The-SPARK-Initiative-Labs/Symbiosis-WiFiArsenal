@@ -1754,9 +1754,16 @@ def delete_captures():
     failed = []
     
     for filename in files:
-        # Security: only allow deleting from captures directory
-        filepath = os.path.join(CAPTURE_DIR, os.path.basename(filename))
-        
+        # Security: only allow deleting from captures directory (including hashes subdir)
+        safe_name = os.path.basename(filename)
+        filepath = os.path.join(CAPTURE_DIR, safe_name)
+
+        # Also check hashes subdirectory for NTLMv2 .txt files
+        if not os.path.exists(filepath):
+            alt_path = os.path.join(CAPTURE_DIR, 'hashes', safe_name)
+            if os.path.exists(alt_path):
+                filepath = alt_path
+
         if not os.path.exists(filepath):
             failed.append(f"{filename} (not found)")
             continue
@@ -2502,9 +2509,14 @@ def glass_log():
 
 @app.route('/api/glass/cracked/clear', methods=['POST'])
 def glass_cracked_clear():
-    """Clear cracked results from Glass"""
+    """Clear cracked results from Glass (files + in-memory results)"""
     try:
         response = try_glass_request('post', '/cracked/clear', json={})
+        # Also clear in-memory results cache
+        try:
+            try_glass_request('post', '/results/clear', json={})
+        except Exception:
+            pass
         return jsonify(response.json())
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})

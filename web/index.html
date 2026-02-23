@@ -7943,6 +7943,7 @@ function monitorClients() {
                 const result = await response.json();
                 if (result.success) {
                     logGlassActivity('Cracked files cleared');
+                    pullCrackedResults();
                 } else {
                     logGlassActivity('Error: ' + (result.error || 'Failed'));
                 }
@@ -7957,13 +7958,14 @@ function monitorClients() {
             try {
                 const response = await fetch('/api/glass/failed/list');
                 const result = await response.json();
-                if (result.success && result.files) {
-                    if (result.files.length === 0) {
+                if (result.success && (result.failed || result.files)) {
+                    const items = result.failed || result.files;
+                    if (items.length === 0) {
                         body.textContent = 'No failed jobs.';
                         return;
                     }
                     body.textContent = '';
-                    result.files.forEach(f => {
+                    items.forEach(f => {
                         const fname = typeof f === 'string' ? f : (f.file || f.filename || String(f));
                         const row = document.createElement('div');
                         row.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; border-bottom: 1px solid #1a1a1a;';
@@ -8002,7 +8004,7 @@ function monitorClients() {
                         row.appendChild(btnGroup);
                         body.appendChild(row);
                     });
-                    logGlassActivity(result.files.length + ' failed jobs loaded');
+                    logGlassActivity(items.length + ' failed jobs loaded');
                 } else {
                     body.textContent = 'Error: ' + (result.error || 'Unknown error');
                 }
