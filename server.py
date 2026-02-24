@@ -6481,12 +6481,22 @@ def internal_scan_clear():
 
 @app.route('/api/internal/responder/clear', methods=['POST'])
 def internal_responder_clear():
-    """Clear responder hash session tracking"""
+    """Clear responder hash session — snapshots current file positions so old hashes are hidden"""
     try:
+        # Snapshot current positions in all hash files so refreshHashes() skips everything before now
+        responder_log_dir = '/usr/share/responder/logs'
+        new_positions = {}
+        if os.path.isdir(responder_log_dir):
+            for fname in os.listdir(responder_log_dir):
+                if 'NTLMv2' not in fname and 'NTLMv1' not in fname:
+                    continue
+                fpath = os.path.join(responder_log_dir, fname)
+                if os.path.isfile(fpath):
+                    new_positions[fname] = os.path.getsize(fpath)
         with responder_state_lock:
-            responder_state['start_time'] = None
+            responder_state['start_time'] = time.time()  # Keep session active
             responder_state['log_position'] = 0
-            responder_state['hash_file_positions'] = {}
+            responder_state['hash_file_positions'] = new_positions
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -7112,10 +7122,135 @@ def internal_get_hashes():
             except Exception:
                 continue
 
+    # Deduplicate by user+domain — keep first, count duplicates
+    seen = {}
+    deduped = []
+    for h in hashes:
+        key = (h['user'].lower(), h['domain'].lower())
+        if key not in seen:
+            seen[key] = 0
+            deduped.append(h)
+        seen[key] += 1
+
+    # Add capture_count to each deduped hash
+    for h in deduped:
+        key = (h['user'].lower(), h['domain'].lower())
+        h['capture_count'] = seen.get(key, 1)
+
+    hashes = deduped
+
+    # Cross-reference with Glass cracked results and local saved files
+    if hashes:
+        # Load Glass cracked results (cached or fresh)
+        glass_results = _load_glass_cracked_results()
+
+        # Check Glass queue for files actually on Glass right now
+        glass_queue_files = _load_glass_queue_files()
+
+        for h in hashes:
+            user_lower = h['user'].lower()
+            domain_lower = h['domain'].lower()
+
+            # Check sent_to_glass: is this user+domain actually in Glass queue/processing right now?
+            # Filenames on Glass look like: 20260223_221831_testlab (MicrosoftAccount) NTLMv2 Feb23.txt
+            safe_user = re.sub(r'[^a-zA-Z0-9@._-]', '_', user_lower)[:50]
+            h['sent_to_glass'] = any(
+                safe_user in f.lower() and (not domain_lower or domain_lower in f.lower())
+                for f in glass_queue_files
+            )
+
+            # Check Glass results for cracked password
+            h['cracked_password'] = None
+            h['cracked_at'] = None
+            for result in glass_results:
+                result_file = result.get('file', '').lower()
+                # Match: filename starts with "user " and contains domain
+                if (result_file.startswith(user_lower + ' ') and
+                        (not domain_lower or f'({domain_lower})' in result_file) and
+                        result.get('password')):
+                    h['cracked_password'] = result['password']
+                    h['cracked_at'] = result.get('cracked_at', '')
+                    break
+
     return jsonify({
         'success': True,
         'hashes': hashes
     })
+
+
+def _load_glass_cracked_results():
+    """Load Glass cracked results from cache or fetch fresh from Glass.
+    Returns list of {file, password, cracked_at} dicts."""
+    cache_path = os.path.join(CAPTURE_DIR, 'cracked_results.json')
+    cache_max_age = 60  # seconds
+
+    # Check if cache is fresh enough
+    if os.path.exists(cache_path):
+        try:
+            cache_age = time.time() - os.path.getmtime(cache_path)
+            if cache_age < cache_max_age:
+                with open(cache_path, 'r') as f:
+                    data = json.load(f)
+                return data.get('results', []) if isinstance(data, dict) else []
+        except Exception:
+            pass
+
+    # Try fetching fresh results from Glass
+    try:
+        response = try_glass_request('get', '/results/all')
+        if response.status_code == 200:
+            data = response.json()
+            # Cache the results
+            try:
+                with open(cache_path, 'w') as f:
+                    json.dump(data, f, indent=2)
+            except Exception:
+                pass
+            return data.get('results', []) if isinstance(data, dict) else []
+    except Exception:
+        pass
+
+    # Glass offline — fall back to stale cache
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, 'r') as f:
+                data = json.load(f)
+            return data.get('results', []) if isinstance(data, dict) else []
+        except Exception:
+            pass
+
+    return []
+
+
+_glass_queue_cache = {'files': [], 'time': 0}
+
+def _load_glass_queue_files():
+    """Get list of filenames currently on Glass (inbox + processing).
+    Cached for 10 seconds to avoid hammering Glass on every refresh."""
+    if time.time() - _glass_queue_cache['time'] < 10:
+        return _glass_queue_cache['files']
+
+    try:
+        response = try_glass_request('get', '/queue')
+        if response.status_code == 200:
+            data = response.json()
+            files = []
+            # Current job
+            if data.get('current') and data['current'].get('file'):
+                files.append(data['current']['file'])
+            # Waiting queue
+            for item in data.get('waiting', []):
+                f = item.get('file') if isinstance(item, dict) else item
+                if f:
+                    files.append(f)
+            _glass_queue_cache['files'] = files
+            _glass_queue_cache['time'] = time.time()
+            return files
+    except Exception:
+        pass
+
+    return _glass_queue_cache['files']  # Return stale cache if Glass offline
+    return []
 
 
 def make_hash_filename(user='unknown', domain='', hash_type='NTLMv2'):
@@ -7126,6 +7261,23 @@ def make_hash_filename(user='unknown', domain='', hash_type='NTLMv2'):
     if safe_domain:
         return f'{safe_user} ({safe_domain}) {hash_type} {ts}.txt'
     return f'{safe_user} {hash_type} {ts}.txt'
+
+
+def _cleanup_old_hash_files(hash_dir, user, domain, hash_type):
+    """Remove old hash files for the same user+domain so we don't get duplicates.
+    Matches by sanitized user + domain prefix in the filename."""
+    safe_user = re.sub(r'[^a-zA-Z0-9@._-]', '_', user)[:50]
+    safe_domain = re.sub(r'[^a-zA-Z0-9._-]', '_', domain)[:30] if domain else ''
+    if safe_domain:
+        prefix = f'{safe_user} ({safe_domain}) {hash_type}'
+    else:
+        prefix = f'{safe_user} {hash_type}'
+    for fname in os.listdir(hash_dir):
+        if fname.startswith(prefix) and fname.endswith('.txt'):
+            try:
+                os.remove(os.path.join(hash_dir, fname))
+            except Exception:
+                pass
 
 
 @app.route('/api/internal/hashes/save', methods=['POST'])
@@ -7142,6 +7294,10 @@ def internal_save_hash():
 
     hash_dir = os.path.join(CAPTURE_DIR, 'hashes')
     os.makedirs(hash_dir, exist_ok=True)
+
+    # Remove old files for same user+domain before saving new one
+    _cleanup_old_hash_files(hash_dir, user, domain, hash_type)
+
     filename = make_hash_filename(user, domain, hash_type)
     hash_file = os.path.join(hash_dir, filename)
 
@@ -7169,36 +7325,30 @@ def internal_send_hash_to_glass():
     if not hash_string:
         return jsonify({'success': False, 'error': 'No hash provided'})
 
-    # Save hash to file with readable name
-    hash_dir = os.path.join(CAPTURE_DIR, 'hashes')
-    os.makedirs(hash_dir, exist_ok=True)
+    # Upload directly to Glass — no local file saved (Save button is for that)
     filename = make_hash_filename(user, domain, hash_type)
-    hash_file = os.path.join(hash_dir, filename)
+    glass_confirmed = False
+    glass_msg = ''
     try:
-        with open(hash_file, 'w') as f:
-            f.write(hash_string)
-
-        # Upload to Glass for cracking
-        glass_msg = ''
-        try:
-            with open(hash_file, 'rb') as f:
-                file_data = f.read()
-            files = {'file': (os.path.basename(hash_file), file_data, 'application/octet-stream')}
-            response = try_glass_request('post', '/upload', files=files)
-            if response.status_code == 200:
-                glass_msg = 'Hash uploaded to Glass for cracking'
-            else:
-                glass_msg = f'Hash saved locally (Glass upload failed: {response.status_code})'
-        except Exception:
-            glass_msg = 'Hash saved locally (Glass unreachable)'
-
-        return jsonify({
-            'success': True,
-            'message': glass_msg,
-            'file': hash_file
-        })
+        file_data = hash_string.encode('utf-8')
+        files = {'file': (filename, file_data, 'application/octet-stream')}
+        response = try_glass_request('post', '/upload', files=files)
+        if response.status_code == 200:
+            glass_msg = 'Hash uploaded to Glass for cracking'
+            glass_confirmed = True
+        elif response.status_code == 409:
+            glass_msg = 'Already on Glass (duplicate)'
+            glass_confirmed = True
+        else:
+            glass_msg = f'Glass upload failed: {response.status_code}'
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        glass_msg = f'Glass unreachable: {e}'
+
+    return jsonify({
+        'success': glass_confirmed,
+        'message': glass_msg,
+        'glass_confirmed': glass_confirmed
+    })
 
 
 

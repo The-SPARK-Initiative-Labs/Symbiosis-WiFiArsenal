@@ -1507,7 +1507,7 @@
                 </div>
                 <div id="captureList" class="output" style="max-height: 200px; font-size: 11px;">Loading...</div>
                 <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 5px;">
-                    <button class="button" onclick="sendSelectedToGlass()" style="width: 100%; background: #442200;" title="Upload selected .hc22000 file to Glass inbox for cracking">📤 Send Selected to Glass</button>
+                    <button class="button" onclick="sendSelectedToGlass()" style="width: 100%; background: #442200;" title="Upload selected hash file to Glass for cracking">📤 Send Selected to Glass</button>
                     <div style="display: flex; gap: 5px;">
                         <button class="button" onclick="crackOnShadowframe()" style="flex: 1; background: #002244;" title="Quick crack locally using top WPA passwords and 8-digit numeric - takes under 5 minutes">💻 Crack on Sh4d0wFr4m3</button>
                         <button class="button danger" onclick="stopLocalCrack()" style="flex: 1;" title="Stop local cracking">Stop</button>
@@ -1515,18 +1515,6 @@
                 </div>
             </div>
             
-            <!-- Glass Inbox -->
-            <div style="margin-bottom: 10px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                    <h3 style="margin: 0; font-size: 13px;">📥 Glass Inbox</h3>
-                    <div style="display: flex; gap: 4px;">
-                        <button onclick="refreshGlassInbox(true)" class="button" style="padding: 2px 8px; font-size: 10px;" title="Refresh inbox file list">🔄</button>
-                        <button onclick="deleteSelectedInbox()" class="button" style="padding: 2px 8px; font-size: 10px; color: #f44;" title="Delete selected files from Glass inbox">🗑 Delete</button>
-                    </div>
-                </div>
-                <div id="glassInboxList" class="output" style="max-height: 150px; font-size: 11px; padding: 0;">-</div>
-            </div>
-
             <!-- Glass Queue -->
             <div class="panel" style="flex: 1;">
                 <h2>📋 Glass Queue</h2>
@@ -2245,6 +2233,7 @@
                                 <h3 style="color: #ff0;">🔑 Credentials</h3>
                                 <div style="display: flex; gap: 4px;">
                                     <button onclick="refreshHashes()" class="button" style="padding: 2px 8px; font-size: 10px;" title="Refresh captured credentials">🔄</button>
+                                    <button onclick="syncGlassResults(event)" class="button" style="padding: 2px 6px; font-size: 9px; color: #f0f;" title="Pull latest cracked results from Glass">Sync</button>
                                     <button onclick="clearCredentials()" class="button" style="padding: 2px 6px; font-size: 9px; color: #f44;" title="Clear all captured hashes and default credential results">CLR</button>
                                 </div>
                             </div>
@@ -2676,7 +2665,6 @@
                 loadHashFiles();
                 startGlassLivePolling();
                 loadGlassAutoStart();
-                refreshGlassInbox();
             } else if (pageName === 'mitm') {
                 startMitmPolling();
             } else if (pageName === 'internal') {
@@ -5693,31 +5681,46 @@
             }
         }
 
+        var glassSyncCounter = 0;
+        var _lastHashes = []; // Store hashes for index-based credential lookup
+
         async function refreshHashes() {
+            // Every 3rd call, also pull cracked results from Glass (~15s at 5s polling)
+            glassSyncCounter++;
+            if (glassSyncCounter % 3 === 0) {
+                try { await fetch('/api/glass/results/pull'); } catch(e) { /* Glass offline */ }
+            }
             try {
                 const response = await fetch('/api/internal/hashes');
                 const data = await response.json();
                 
                 if (data.success) {
                     const hashes = data.hashes || [];
+                    _lastHashes = hashes; // Store for index-based credential lookup
                     document.getElementById('hashCount').textContent = hashes.length;
 
                     let html = '';
                     hashes.forEach((h, i) => {
                         const status = h.cracked_password ? '✅ CRACKED' : '⏳ Captured';
                         const statusColor = h.cracked_password ? '#0f0' : '#ff0';
+                        const safeUser = escapeHtml(h.user || '');
+                        const safeDomain = escapeHtml(h.domain || '');
                         html += '<div style="padding: 5px; margin-bottom: 5px; border: 1px solid #333; background: #111;">';
                         html += '<div style="display: flex; justify-content: space-between;">';
-                        html += '<span style="color: #0f0;">' + (h.domain || '') + '\\' + h.user + '</span>';
+                        html += '<span style="color: #0f0;">' + safeDomain + '\\' + safeUser + '</span>';
                         html += '<span style="color: ' + statusColor + '; font-size: 10px;">' + status + '</span>';
                         html += '</div>';
                         if (h.cracked_password) {
-                            html += '<div style="color: #ff0; font-family: monospace; font-size: 11px; margin-top: 3px;">Password: ' + h.cracked_password + '</div>';
-                            html += '<button onclick="useCredentials(\'' + h.user + '\', \'' + h.cracked_password + '\', \'' + (h.domain || 'WORKGROUP') + '\')" style="padding: 3px 8px; font-size: 9px; margin-top: 3px; background: #003300; border: 1px solid #006600; color: #0f0; cursor: pointer;">Use These</button>';
+                            html += '<div style="color: #ff0; font-family: monospace; font-size: 11px; margin-top: 3px;">Password: ' + escapeHtml(h.cracked_password) + '</div>';
+                            html += '<button onclick="useCrackedCreds(' + i + ')" style="padding: 3px 8px; font-size: 9px; margin-top: 3px; background: #003300; border: 1px solid #006600; color: #0f0; cursor: pointer;" title="Load these cracked credentials into the attack fields">Use These</button>';
                         } else {
                             html += '<div style="display: flex; gap: 4px; margin-top: 3px;">';
                             html += '<button onclick="saveHash(' + i + ')" style="padding: 3px 8px; font-size: 9px; background: #002233; border: 1px solid #006688; color: #0ff; cursor: pointer;" title="Save hash locally to captures/hashes/ for later cracking or evidence">💾 Save</button>';
-                            html += '<button onclick="sendHashToGlass(' + i + ')" style="padding: 3px 8px; font-size: 9px; background: #330033; border: 1px solid #660066; color: #f0f; cursor: pointer;" title="Upload hash to Glass for GPU cracking">Send to Glass</button>';
+                            if (h.sent_to_glass) {
+                                html += '<span style="color: #666; font-size: 9px; padding: 3px 8px;" title="Hash already uploaded to Glass for cracking">📤 On Glass</span>';
+                            } else {
+                                html += '<button onclick="sendHashToGlass(' + i + ')" style="padding: 3px 8px; font-size: 9px; background: #330033; border: 1px solid #660066; color: #f0f; cursor: pointer;" title="Upload hash to Glass for GPU cracking">Send to Glass</button>';
+                            }
                             html += '</div>';
                         }
                         html += '</div>';
@@ -5755,7 +5758,37 @@
                 console.error('Hash refresh error:', err);
             }
         }
-        
+
+        async function syncGlassResults(evt) {
+            try {
+                var btn = evt ? evt.target : null;
+                if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+                const res = await fetch('/api/glass/results/pull');
+                const data = await res.json();
+                if (data.results && data.results.length > 0) {
+                    appendInternalOutput('[Glass] Pulled ' + data.results.length + ' cracked result(s)');
+                } else if (btn) {
+                    appendInternalOutput('[Glass] No cracked results found');
+                }
+                await refreshHashes();
+                if (btn) { btn.textContent = 'Sync'; btn.disabled = false; }
+            } catch(e) {
+                console.error('Glass sync error:', e);
+                if (evt) { appendInternalOutput('[Glass] Sync failed — Glass may be offline'); }
+                var btn2 = evt ? evt.target : null;
+                if (btn2) { btn2.textContent = 'Sync'; btn2.disabled = false; }
+            }
+        }
+
+        function useCrackedCreds(index) {
+            var h = _lastHashes[index];
+            if (!h || !h.cracked_password) return;
+            document.getElementById('attackUser').value = h.user;
+            document.getElementById('attackPass').value = h.cracked_password;
+            document.getElementById('attackDomain').value = h.domain || 'WORKGROUP';
+            appendInternalOutput('[+] Credentials loaded: ' + (h.domain || 'WORKGROUP') + '\\' + h.user);
+        }
+
         function useCredentials(user, pass, domain) {
             document.getElementById('attackUser').value = user;
             document.getElementById('attackPass').value = pass;
@@ -5780,6 +5813,7 @@
                     
                     if (sendData.success) {
                         appendInternalOutput('[+] ' + (sendData.message || 'Hash sent to Glass for cracking'));
+                        await refreshHashes();
                     } else {
                         appendInternalOutput('[-] Failed to send hash: ' + sendData.error);
                     }
@@ -5788,7 +5822,7 @@
                 appendInternalOutput('[-] Error: ' + err.message);
             }
         }
-        
+
         async function saveHash(index) {
             try {
                 const response = await fetch('/api/internal/hashes');
@@ -5806,6 +5840,7 @@
 
                     if (saveData.success) {
                         appendInternalOutput('[+] ' + (saveData.message || 'Hash saved locally'));
+                        await refreshHashes();
                     } else {
                         appendInternalOutput('[-] Save failed: ' + saveData.error);
                     }
@@ -7533,12 +7568,10 @@ function monitorClients() {
             glassPollingInterval = setInterval(() => {
                 pollGlassStatus();
                 refreshGlassQueue();
-                refreshGlassInbox();
             }, 3000);
             // Immediate first poll
             pollGlassStatus();
             refreshGlassQueue();
-            refreshGlassInbox();
         }
         
         function stopGlassPolling() {
@@ -7724,7 +7757,7 @@ function monitorClients() {
                 const result = await response.json();
                 
                 if (result.success) {
-                    logGlassActivity('✓ Uploaded to Glass inbox');
+                    logGlassActivity('✓ Uploaded to Glass queue');
                     refreshGlassQueue();
                 } else {
                     logGlassActivity('✗ Upload failed: ' + (result.error || result.output || 'Unknown error'));
@@ -7734,53 +7767,6 @@ function monitorClients() {
             }
         }
         
-        async function refreshGlassInbox(force) {
-            const el = document.getElementById('glassInboxList');
-            // Skip refresh if user has checkboxes selected (prevents unchecking)
-            if (!force) {
-                const checked = document.querySelectorAll('.inbox-file-cb:checked');
-                if (checked.length > 0) return;
-            }
-            try {
-                const response = await fetch('/api/glass/inbox');
-                const result = await response.json();
-
-                if (result.files && result.files.length > 0) {
-                    el.innerHTML = result.files.map(f => {
-                        const name = escapeHtml(typeof f === 'string' ? f : f.file || f.name);
-                        return '<div style="display: flex; align-items: center; padding: 4px 5px; border-bottom: 1px solid #333; gap: 5px;">' +
-                            '<input type="checkbox" class="inbox-file-cb" value="' + name + '" data-filename="' + name + '" title="Select for deletion">' +
-                            '<div style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + name + '">' + name + '</div>' +
-                        '</div>';
-                    }).join('');
-                } else {
-                    el.textContent = 'Inbox empty';
-                }
-            } catch(e) {
-                el.textContent = 'Error loading inbox';
-            }
-        }
-
-        async function deleteSelectedInbox() {
-            const checkboxes = document.querySelectorAll('.inbox-file-cb:checked');
-            if (checkboxes.length === 0) return;
-
-            if (!confirm('Delete ' + checkboxes.length + ' file(s) from Glass inbox?')) return;
-
-            for (const cb of checkboxes) {
-                try {
-                    await fetch('/api/glass/inbox/remove', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({filename: cb.value})
-                    });
-                } catch(e) {
-                    console.error('Failed to remove:', cb.value, e);
-                }
-            }
-
-            refreshGlassInbox(true);
-        }
 
         async function refreshGlassQueue() {
             const currentEl = document.getElementById('glassCurrentJob');
@@ -8202,9 +8188,9 @@ function monitorClients() {
                 if (result.success && result.wordlists) {
                     health.textContent = '';
                     result.wordlists.forEach(w => {
-                        const name = w.name || w.file || '-';
+                        const name = w.desc || w.name || w.file || '-';
                         const exists = w.exists !== false;
-                        const size = w.size || '';
+                        const size = w.size_str || '';
                         const row = document.createElement('div');
                         row.style.padding = '3px 0';
                         row.style.color = exists ? '#00ff00' : '#ff0000';
@@ -8214,6 +8200,25 @@ function monitorClients() {
                         row.textContent = text;
                         health.appendChild(row);
                     });
+                    if (result.rules && result.rules.length > 0) {
+                        const sep = document.createElement('div');
+                        sep.style.cssText = 'border-top: 1px solid #333; margin: 5px 0; padding-top: 3px; color: #888; font-size: 10px;';
+                        sep.textContent = 'RULES:';
+                        health.appendChild(sep);
+                        result.rules.forEach(r => {
+                            const name = r.desc || r.name || r.file || '-';
+                            const exists = r.exists !== false;
+                            const size = r.size_str || '';
+                            const row = document.createElement('div');
+                            row.style.padding = '3px 0';
+                            row.style.color = exists ? '#00ff00' : '#ff0000';
+                            let text = (exists ? '\uD83D\uDFE2 ' : '\uD83D\uDD34 ') + name;
+                            if (exists && size) text += ' (' + size + ')';
+                            if (!exists) text += ' MISSING';
+                            row.textContent = text;
+                            health.appendChild(row);
+                        });
+                    }
                     logGlassActivity('Wordlist check complete');
                 } else {
                     health.textContent = 'Error: ' + (result.error || 'Unknown error');
