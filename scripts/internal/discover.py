@@ -10,6 +10,8 @@ import sys
 import time
 import signal
 import threading
+import ipaddress
+import subprocess
 from datetime import datetime
 from collections import defaultdict
 
@@ -43,6 +45,7 @@ discoveries = {
 
 seen_queries = set()  # Dedupe
 lock = threading.Lock()
+local_subnet = None  # Set at startup — only packets from this subnet are processed
 
 def save_results():
     """Save discoveries to JSON file"""
@@ -86,22 +89,37 @@ def add_vulnerability(vuln_type, target, details, severity="medium", attack=None
         discoveries["vulnerabilities"].append(vuln)
         print(f"[!] VULN: {vuln_type} - {target} - {details}")
 
+def is_on_subnet(ip_str):
+    """Check if an IP belongs to the interface's subnet. Drop everything else."""
+    if local_subnet is None:
+        return True  # No subnet info — allow all (fallback)
+    try:
+        return ipaddress.ip_address(ip_str) in local_subnet
+    except ValueError:
+        return False
+
 def process_packet(pkt):
     """Analyze each packet for interesting data"""
-    
-    # ARP - host discovery
+
+    # ARP - host discovery (filter by subnet)
     if ARP in pkt:
-        if pkt[ARP].op == 2:  # ARP reply
-            add_host(pkt[ARP].psrc, pkt[ARP].hwsrc)
-        elif pkt[ARP].op == 1:  # ARP request
-            add_host(pkt[ARP].psrc, pkt[ARP].hwsrc)
-    
+        arp_src = pkt[ARP].psrc
+        if is_on_subnet(arp_src):
+            if pkt[ARP].op == 2:  # ARP reply
+                add_host(arp_src, pkt[ARP].hwsrc)
+            elif pkt[ARP].op == 1:  # ARP request
+                add_host(arp_src, pkt[ARP].hwsrc)
+
     # Skip if no IP layer
     if IP not in pkt:
         return
-    
+
     src_ip = pkt[IP].src
     dst_ip = pkt[IP].dst
+
+    # Drop packets from outside our subnet (cross-network bleed)
+    if not is_on_subnet(src_ip):
+        return
     
     # LLMNR (UDP 5355) - Poisonable
     if UDP in pkt and pkt[UDP].dport == 5355:
@@ -352,7 +370,26 @@ def main():
         sys.exit(1)
     
     interface = sys.argv[1]
-    
+
+    # Detect subnet from interface IP — only traffic from this subnet is kept
+    global local_subnet
+    try:
+        result = subprocess.run(['ip', '-4', 'addr', 'show', interface],
+                               capture_output=True, text=True, timeout=5)
+        for line in result.stdout.split('\n'):
+            line = line.strip()
+            if line.startswith('inet '):
+                cidr = line.split()[1]  # e.g. "192.168.0.103/24"
+                local_subnet = ipaddress.ip_network(cidr, strict=False)
+                break
+    except Exception:
+        pass
+
+    if local_subnet:
+        print(f"[*] Subnet filter: {local_subnet} (only traffic from this range)")
+    else:
+        print("[!] Could not detect subnet — all traffic will be captured (no filter)")
+
     print(f"[*] Starting passive discovery on {interface}")
     print(f"[*] Results: {OUTPUT_FILE}")
     print("[*] Press Ctrl+C to stop\n")
