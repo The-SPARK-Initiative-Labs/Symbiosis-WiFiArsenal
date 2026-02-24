@@ -25,7 +25,7 @@ You must:
 
 ---
 
-## Current Status (as of 2026-02-20)
+## Current Status (as of 2026-02-24)
 
 ### DONE
 - **V1 Map Filters** (2026-02-05) - all 6 categories working. **DO NOT touch filter code.**
@@ -45,25 +45,32 @@ You must:
 - **License + Tags** (2026-02-11) - AGPL-3.0 license file, v1.2.0 and v1.5.0 git tags (Issue #3)
 - **Claude Code Setup** (2026-02-11) - 10 plugins, MCP server, hooks, settings (Issue #5 Parts 1-5)
 - **Issue #7 Step 0** (2026-02-14) - security fixes, nmap button, relay stop, intel panel, Glass upload
-- **Issue #7 Step 1 Part A** (2026-02-15) - async nmap, adapter bar, polling fix, status timer
-- **Issue #7 Step 1 Part B** (2026-02-15) - 5-panel pentest workstation layout, bug fixes, visual polish
+- **Issue #7 Step 1A** (2026-02-15) - async nmap, adapter bar, polling fix, status timer
+- **Issue #7 Step 1B** (2026-02-15) - 5-panel pentest workstation layout, bug fixes, visual polish
 - **Issue #7 Step 1C** (2026-02-15) - auto-detect interfaces, device classification (classify_device with 6-tier cascade), interface auto-fill
 - **Issue #7 UI Wiring Fix** (2026-02-16) - per-section timers, button toggles, security fixes, PID tracking, Responder flags
 - **Issue #7 Step 1D** (2026-02-17) - SMB + SNMP enumeration scripts, 6 API endpoints, auto-detect targets, authenticated enum mode
 - **Issue #7 Step 1E** (2026-02-18) - 10 enum JS functions, timer integration, topbar redesign, enum in left panel, hash API fixed
 - **Issue #7 Step 2A** (2026-02-20) - Responder output streaming, session-scoped data, stale data cleanup, regex timestamp fix
 - **Issue #7 Step 2B** (2026-02-20) - Glass NTLMv2 upload (sidecar mode detection), Save button, readable hash filenames, Glass auto-escalate UI fix
+- **Issue #7 Step 2C** (2026-02-22) - Default credential checking with Hydra
+- **Issue #7 Step 2D** (2026-02-22) - Credential spray script (netexec), state variables, API endpoints
+- **Issue #26 — Clear Buttons** (2026-02-22) - CLR buttons on Internal page panels (hosts, credentials, enumeration)
+- **Issue #25 — Cracking Page Rewiring** (2026-02-23) - Rewired for new Glass backend (stages, NTLMv2 badges, error handling)
+- **Issue #19 — Glass Auto-Start** (2026-02-23) - Auto-crack on upload, inbox management, restart button
+- **Issue #20 — Glass Results Integration** (2026-02-24) - Live queue check (replaces tracking file), cracked results cross-reference, sync button, hash dedup, direct upload (no local files)
+- **Glass Bug Fixes** (2026-02-24) - Queue display field mismatch, STOPPED file blocking auto-start, CLR button snapshot fix, XSS escaping
 
 ### Current Priorities
 See `roadmap.md` for the full development roadmap.
 Location: `~/.claude/projects/-home-ov3rr1d3-wifi-arsenal/memory/roadmap.md`
-- **Issue #7 — Internal Network page** — Steps 0-1E + 2A DONE. Next: Step 2B (Glass NTLMv2 upload). Test lab is live.
+- **Issue #27 — Build real test lab** — proper small business network (router + Windows PC + printer) for full attack chain testing. Ben sets up hardware, then we validate every Internal page tool.
+- **Issue #24** — Full audit: Internal Network page + Glass integration end-to-end
+- **Issue #23** — Create separate GitHub repo for Glass Cracker
 - **v1.6.0 — Field Ready** — full Arsenal audit (all 8 pages), fix all bugs, map performance, auto-tag by SSID
 - **v1.7.0 — Business Intelligence** — vulnerability density map, client evidence export, historical comparison
 - **Issue #9** — Switch Operator from API key to Claude Max (embed Claude Code in Page 8 via xterm.js)
 - **Issue #18** — Glass Cracker UI needs full controls (mirror Arsenal cracking page)
-- **Issue #19** — Glass auto-start toggle (auto-crack on upload)
-- **Issue #20** — Arsenal needs to pull cracked passwords back from Glass
 - **Issue #21** — In-app field guide (plain English explanations of everything)
 
 ### Future: Managed Client Remote Access Agent
@@ -96,6 +103,7 @@ WiFi Arsenal is a comprehensive WiFi penetration testing platform on Kali Linux.
 - LAN admin/file server: `http://192.168.1.7:5002`
 
 **Glass Server Architecture:**
+- **Pipeline verified working (2026-02-24):** Upload → auto-start → crack → results pull all functional. Key past bugs: STOPPED file persists and blocks auto-start (now cleared on upload+startup), queue endpoint returns `waiting` not `queue` (Glass UI fixed), tracking file was a lie (now queries Glass live with 10s cache).
 - Two Flask servers, both auto-start on boot via `C:\sparklabs\start_services.ps1`
 - **Port 5001** — Cracking server (`C:\cracking\glass_server.py`): receives hash files, queues them, runs hashcat with 7-stage escalation, reports GPU stats/progress
 - **Port 5002** — Admin/file manager (`C:\sparklabs\sparklabs_admin.py`): file browser, user auth, contact form
@@ -287,8 +295,10 @@ WiFi Arsenal is a comprehensive WiFi penetration testing platform on Kali Linux.
 ### Test Lab (hackme network)
 - TP-Link router, SSID "hackme", subnet 192.168.0.0/24
 - Windows 11 target laptop on the network (Intel NIC, ports 135/139/445 open). IPs are DHCP — scan to find it, don't assume a specific address.
+- Printer (default creds, SNMP) — connected to hackme network
 - Kali connects via alfa1 in managed mode
 - **Windows firewall gotcha:** Default "Public" profile blocks all ports. Must be set to "Private" for SMB. Domain-joined business machines do this automatically — test lab quirk only.
+- **Responder `\\badname` gotcha:** Typing `\\badname` in Explorer does NOT auto-send NTLM creds. It pops a credential dialog because the host doesn't exist. Whatever you type is made-up creds, not the user's real password. For real hashes, need automatic NTLM traffic from a Private network with file sharing enabled. See Issue #27 for proper test lab setup.
 
 ---
 
