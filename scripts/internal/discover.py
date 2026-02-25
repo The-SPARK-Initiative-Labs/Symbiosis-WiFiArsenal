@@ -390,13 +390,42 @@ def main():
     else:
         print("[!] Could not detect subnet — all traffic will be captured (no filter)")
 
-    print(f"[*] Starting passive discovery on {interface}")
+    print(f"[*] Starting discovery on {interface}")
     print(f"[*] Results: {OUTPUT_FILE}")
-    print("[*] Press Ctrl+C to stop\n")
-    
+
     # Create running flag
     with open(RUNNING_FLAG, 'w') as f:
         f.write(str(os.getpid()))
+
+    # Active host scan — ping sweep then read ARP table for MACs
+    if local_subnet:
+        print(f"[*] Scanning {local_subnet}...")
+        try:
+            # Ping sweep — fast parallel scan, works even when router blocks L2 broadcast
+            result = subprocess.run(
+                ['nmap', '-sn', '-n', '--min-rate', '300', str(local_subnet)],
+                capture_output=True, text=True, timeout=30
+            )
+            # Parse nmap ping sweep output for IPs and MACs
+            current_ip = None
+            for line in result.stdout.split('\n'):
+                if 'Nmap scan report for' in line:
+                    current_ip = line.split()[-1]
+                elif 'MAC Address:' in line and current_ip:
+                    mac = line.split()[2]
+                    add_host(current_ip, mac)
+                    print(f"[+] Found: {current_ip} ({mac})")
+                    current_ip = None
+                elif current_ip and ('Host is up' in line):
+                    # Our own IP won't have a MAC line — add it without MAC
+                    pass
+            save_results()
+            host_count = len(discoveries['hosts'])
+            print(f"[*] Scan done — {host_count} hosts found")
+        except Exception as e:
+            print(f"[!] Host scan failed: {e}")
+
+    print("[*] Switching to passive monitoring...\n")
     
     # Signal handler
     signal.signal(signal.SIGINT, signal_handler)
