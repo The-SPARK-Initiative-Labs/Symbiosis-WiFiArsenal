@@ -312,16 +312,18 @@
     }
     /* Accent top borders per tool */
     .tool-card[data-tool="discovery"] { border-top: 2px solid #0f0; }
-    .tool-card[data-tool="nmap"]      { border-top: 2px solid #4af; }
+    .tool-card[data-tool="scan"]      { border-top: 2px solid #4af; }
     .tool-card[data-tool="responder"] { border-top: 2px solid #ff0; }
     .tool-card[data-tool="credcheck"] { border-top: 2px solid #f80; }
     .tool-card[data-tool="spray"]     { border-top: 2px solid #c0f; }
+    .tool-card[data-tool="coerce"]    { border-top: 2px solid #f44; }
     /* Running state glow */
     .tool-card.tool-running[data-tool="discovery"] { box-shadow: 0 0 8px rgba(0,255,0,0.12); border-color: #0a3a0a; }
-    .tool-card.tool-running[data-tool="nmap"]      { box-shadow: 0 0 8px rgba(68,170,255,0.12); border-color: #0a2a3a; }
+    .tool-card.tool-running[data-tool="scan"]      { box-shadow: 0 0 8px rgba(68,170,255,0.12); border-color: #0a2a3a; }
     .tool-card.tool-running[data-tool="responder"] { box-shadow: 0 0 8px rgba(255,255,0,0.12); border-color: #3a3a0a; }
     .tool-card.tool-running[data-tool="credcheck"] { box-shadow: 0 0 8px rgba(255,136,0,0.12); border-color: #3a2a0a; }
     .tool-card.tool-running[data-tool="spray"]     { box-shadow: 0 0 8px rgba(192,0,255,0.12); border-color: #2a0a3a; }
+    .tool-card.tool-running[data-tool="coerce"]    { box-shadow: 0 0 8px rgba(255,68,68,0.12); border-color: #3a0a0a; }
     /* Card header row */
     .tool-card-header {
         display: flex;
@@ -339,10 +341,11 @@
     }
     .tool-card.tool-running .tool-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
     .tool-card.tool-running[data-tool="discovery"] .tool-dot { background: #0f0; }
-    .tool-card.tool-running[data-tool="nmap"]      .tool-dot { background: #4af; }
+    .tool-card.tool-running[data-tool="scan"]      .tool-dot { background: #4af; }
     .tool-card.tool-running[data-tool="responder"] .tool-dot { background: #ff0; }
     .tool-card.tool-running[data-tool="credcheck"] .tool-dot { background: #f80; }
     .tool-card.tool-running[data-tool="spray"]     .tool-dot { background: #c0f; }
+    .tool-card.tool-running[data-tool="coerce"]    .tool-dot { background: #f44; }
     @keyframes pulse-dot {
         0%, 100% { opacity: 1; }
         50% { opacity: 0.4; }
@@ -356,10 +359,11 @@
         white-space: nowrap;
     }
     .tool-card[data-tool="discovery"] .tool-card-name { color: #0f0; }
-    .tool-card[data-tool="nmap"]      .tool-card-name { color: #4af; }
+    .tool-card[data-tool="scan"]      .tool-card-name { color: #4af; }
     .tool-card[data-tool="responder"] .tool-card-name { color: #ff0; }
     .tool-card[data-tool="credcheck"] .tool-card-name { color: #f80; }
     .tool-card[data-tool="spray"]     .tool-card-name { color: #c0f; }
+    .tool-card[data-tool="coerce"]    .tool-card-name { color: #f44; }
     /* Timer pushed right */
     .tool-card-timer {
         font-size: 10px;
@@ -374,10 +378,11 @@
     /* Accent divider below header */
     .tool-card-divider { height: 1px; margin: 0 10px; }
     .tool-card[data-tool="discovery"] .tool-card-divider { background: #0a2a0a; }
-    .tool-card[data-tool="nmap"]      .tool-card-divider { background: #0a1a2a; }
+    .tool-card[data-tool="scan"]      .tool-card-divider { background: #0a1a2a; }
     .tool-card[data-tool="responder"] .tool-card-divider { background: #2a2a0a; }
     .tool-card[data-tool="credcheck"] .tool-card-divider { background: #2a1a0a; }
     .tool-card[data-tool="spray"]     .tool-card-divider { background: #1a0a2a; }
+    .tool-card[data-tool="coerce"]    .tool-card-divider { background: #2a0a0a; }
     /* Card body — controls + buttons */
     .tool-card-body {
         display: flex;
@@ -670,6 +675,27 @@
         color: #0f0;
         border: 1px solid #003300;
     }
+
+    /* Vulnerability badges for recon scan results */
+    .vuln-badge {
+        display: inline-block;
+        padding: 1px 5px;
+        margin-right: 3px;
+        font-size: 9px;
+        font-family: 'Courier New', monospace;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-radius: 2px;
+        border: 1px solid;
+    }
+    .vuln-badge-critical { background: rgba(255,68,68,0.2); color: #f44; border-color: #f44; }
+    .vuln-badge-high { background: rgba(255,136,0,0.2); color: #f80; border-color: #f80; }
+    .vuln-badge-medium { background: rgba(255,255,0,0.15); color: #ff0; border-color: #ff0; }
+    .vuln-badge-info { background: rgba(68,170,255,0.15); color: #4af; border-color: #4af; }
+
+    /* Scan phase display */
+    .scan-phase { font-size: 9px; color: #4af; font-family: 'Courier New', monospace; margin-left: 6px; }
 
     /* Center panel */
     /* [10] Placeholder — larger ghostly icon, uppercase text */
@@ -2008,12 +2034,99 @@
                         <button class="button tool-btn" onclick="setInternalMode('monitor')" title="Set to monitor mode for passive capture">Monitor</button>
                         <button class="button tool-btn" onclick="setInternalMode('managed')" title="Set to managed mode to join a network">Managed</button>
                         <button class="button tool-btn" onclick="refreshInternalModes()" title="Refresh interface status">↻ Refresh</button>
-                        <button class="tools-toggle" id="toolsToggleBtn" onclick="toggleToolPanel()" title="Show/hide tool controls (Discovery, Nmap, Responder, Cred Check, Spray)">Tools ▼ <span class="active-count" id="activeToolBadge"></span></button>
+                        <button class="tools-toggle" id="toolsToggleBtn" onclick="toggleToolPanel()" title="Show/hide tool controls (Scan, Responder, Coerce, Cred Check, Spray, Discovery)">Tools ▼ <span class="active-count" id="activeToolBadge"></span></button>
                     </div>
                     <!-- Collapsible Tool Control Grid -->
                     <div class="tool-grid-wrapper" id="toolGridWrapper">
                     <div class="tool-grid">
-                        <!-- Discovery Card -->
+                        <!-- 1. Scan — arp-scan + nxc recon -->
+                        <div class="tool-card topbar-tool-group" id="scanToolGroup" data-tool="scan" data-section="scan">
+                            <div class="tool-card-header">
+                                <span class="tool-dot"></span>
+                                <span class="tool-card-name">Scan</span>
+                                <span id="scanTimerDisplay" class="tool-card-timer"></span>
+                                <span id="scanPhase" class="scan-phase"></span>
+                            </div>
+                            <div class="tool-card-divider"></div>
+                            <div class="tool-card-body">
+                                <input type="text" id="scanSubnet" placeholder="192.168.1.0/24" value="192.168.1.0/24" class="tool-input" title="Subnet to scan with arp-scan + nxc recon">
+                                <button id="scanBtn" onclick="startReconScan()" class="button tool-btn" title="Run recon scan: arp-scan host discovery then nxc SMB enumeration and vuln checks">🔎 Scan</button>
+                                <button id="scanCancelBtn" onclick="stopReconScan()" class="button danger tool-btn" style="display: none;" title="Cancel running recon scan">Cancel</button>
+                            </div>
+                        </div>
+                        <!-- 2. Responder — Set the trap (listen for forced auth) -->
+                        <div class="tool-card topbar-tool-group" id="respToolGroup" data-tool="responder" data-section="responder">
+                            <div class="tool-card-header">
+                                <span class="tool-dot"></span>
+                                <span class="tool-card-name">Responder</span>
+                                <span id="respTimerDisplay" class="tool-card-timer"></span>
+                            </div>
+                            <div class="tool-card-divider"></div>
+                            <div class="tool-card-body">
+                                <span class="tool-card-stat" style="color: #ff0;" title="Number of NTLMv2 hashes captured by Responder">Hashes: <span id="hashCount">0</span></span>
+                                <button id="respStartBtn" onclick="startResponder()" class="button tool-btn" title="Start Responder — captures NTLMv2 hashes forced by Coerce">▶ Start</button>
+                                <button id="respStopBtn" onclick="stopResponder()" class="button danger tool-btn" style="display: none;" title="Stop Responder">Stop</button>
+                            </div>
+                            <div id="poisonStatusRow" class="poison-status-row" title="Live poisoning statistics — how many protocol queries Responder is intercepting">
+                                <span class="poison-pill" title="LLMNR queries poisoned">LLMNR: <span id="poisonLlmnr">0</span></span>
+                                <span class="poison-pill" title="NBT-NS queries poisoned">NBT-NS: <span id="poisonNbns">0</span></span>
+                                <span class="poison-pill" title="WPAD proxy requests intercepted">WPAD: <span id="poisonWpad">0</span></span>
+                                <span class="poison-total" title="Total queries poisoned across all protocols">Total: <span id="poisonTotal">0</span></span>
+                            </div>
+                        </div>
+                        <!-- 3. Coerce — Force targets to authenticate (feeds Responder) -->
+                        <div class="tool-card topbar-tool-group" id="coerceToolGroup" data-tool="coerce" data-section="coerce">
+                            <div class="tool-card-header">
+                                <span class="tool-dot"></span>
+                                <span class="tool-card-name">Coerce</span>
+                                <span id="coerceTimerDisplay" class="tool-card-timer"></span>
+                            </div>
+                            <div class="tool-card-divider"></div>
+                            <div class="tool-card-body">
+                                <select id="coerceTarget" class="tool-select" title="Target host to force authentication from — select from scan-discovered hosts">
+                                    <option value="">-- target --</option>
+                                </select>
+                                <button id="coerceStartBtn" onclick="startCoerce()" class="button tool-btn" title="Force target to authenticate — Responder captures the NTLMv2 hash">⚡ Force</button>
+                                <button id="coerceStopBtn" onclick="stopCoerce()" class="button danger tool-btn" style="display: none;" title="Stop coercion attack">Stop</button>
+                            </div>
+                            <div id="coerceStatusRow" style="padding: 2px 10px 4px; font-size: 9px; color: #666; min-height: 14px;" title="Current coercion method being attempted">
+                                <span id="coerceMethod"></span>
+                            </div>
+                        </div>
+                        <!-- 4. Cred Check — Try default passwords -->
+                        <div class="tool-card topbar-tool-group" id="credCheckToolGroup" data-tool="credcheck" data-section="credCheck">
+                            <div class="tool-card-header">
+                                <span class="tool-dot"></span>
+                                <span class="tool-card-name">Cred Check</span>
+                                <span id="credCheckTimerDisplay" class="tool-card-timer"></span>
+                            </div>
+                            <div class="tool-card-divider"></div>
+                            <div class="tool-card-body">
+                                <span class="tool-card-stat" style="color: #f80;" title="Number of default credentials found">Found: <span id="defaultCredCount">0</span></span>
+                                <button id="credCheckStartBtn" onclick="startDefaultCredCheck()" class="button tool-btn" title="Test default/factory credentials (admin/admin, root/root, etc.) on all discovered hosts using Hydra">▶ Check Defaults</button>
+                                <button id="credCheckStopBtn" onclick="stopDefaultCredCheck()" class="button danger tool-btn" style="display: none;" title="Stop default credential check">Stop</button>
+                            </div>
+                        </div>
+                        <!-- 5. Cred Spray — Spray cracked passwords everywhere -->
+                        <div class="tool-card topbar-tool-group" id="sprayToolGroup" data-tool="spray" data-section="spray">
+                            <div class="tool-card-header">
+                                <span class="tool-dot"></span>
+                                <span class="tool-card-name">Cred Spray</span>
+                                <span id="sprayTimerDisplay" class="tool-card-timer"></span>
+                            </div>
+                            <div class="tool-card-divider"></div>
+                            <div class="tool-card-body">
+                                <span class="tool-card-stat" style="color: #c0f;" title="Number of hosts where credentials worked">Hits: <span id="sprayHitCount">0</span></span>
+                                <button id="sprayStartBtn" onclick="startCredSpray()" class="button tool-btn" title="Spray a cracked credential against all discovered hosts via SMB, SSH, RDP, WinRM">▶ Spray</button>
+                                <button id="sprayStopBtn" onclick="stopCredSpray()" class="button danger tool-btn" style="display: none;" title="Stop credential spray">Stop</button>
+                            </div>
+                            <div id="sprayInputs" class="spray-inputs" title="Enter credentials to spray — username, password, and domain">
+                                <input type="text" id="sprayUser" placeholder="username" title="Username to spray">
+                                <input type="text" id="sprayPass" placeholder="password" title="Password to spray">
+                                <input type="text" id="sprayDomain" placeholder="WORKGROUP" value="WORKGROUP" title="Domain or workgroup name">
+                            </div>
+                        </div>
+                        <!-- 6. Discovery — Background passive monitor -->
                         <div class="tool-card topbar-tool-group" id="discToolGroup" data-tool="discovery" data-section="discovery">
                             <div class="tool-card-header">
                                 <span class="tool-dot"></span>
@@ -2031,73 +2144,6 @@
                                 <button id="discStartBtn" onclick="startDiscovery()" class="button tool-btn" title="Start passive network monitoring">▶ Start</button>
                                 <button id="discStopBtn" onclick="stopDiscovery()" class="button danger tool-btn" style="display: none;" title="Stop discovery">Stop</button>
                                 <button id="discClearBtn" onclick="clearDiscovery()" class="button tool-btn" title="Clear discovery results">Clear</button>
-                            </div>
-                        </div>
-                        <!-- Nmap Card -->
-                        <div class="tool-card topbar-tool-group" id="nmapToolGroup" data-tool="nmap" data-section="nmap">
-                            <div class="tool-card-header">
-                                <span class="tool-dot"></span>
-                                <span class="tool-card-name">Nmap</span>
-                                <span id="nmapTimerDisplay" class="tool-card-timer"></span>
-                            </div>
-                            <div class="tool-card-divider"></div>
-                            <div class="tool-card-body">
-                                <input type="text" id="nmapSubnet" placeholder="192.168.1.0/24" value="192.168.1.0/24" class="tool-input" title="Subnet to scan with nmap">
-                                <button id="nmapScanBtn" onclick="nmapScan()" class="button tool-btn" title="Run nmap host discovery and port scan on subnet">🔎 Scan</button>
-                                <button id="nmapCancelBtn" onclick="stopNmapScan()" class="button danger tool-btn" style="display: none;" title="Cancel running nmap scan">Cancel</button>
-                            </div>
-                        </div>
-                        <!-- Responder Card -->
-                        <div class="tool-card topbar-tool-group" id="respToolGroup" data-tool="responder" data-section="responder">
-                            <div class="tool-card-header">
-                                <span class="tool-dot"></span>
-                                <span class="tool-card-name">Responder</span>
-                                <span id="respTimerDisplay" class="tool-card-timer"></span>
-                            </div>
-                            <div class="tool-card-divider"></div>
-                            <div class="tool-card-body">
-                                <span class="tool-card-stat" style="color: #ff0;" title="Number of NTLMv2 hashes captured by Responder">Hashes: <span id="hashCount">0</span></span>
-                                <button id="respStartBtn" onclick="startResponder()" class="button tool-btn" title="Start Responder — poison LLMNR/NBT-NS/WPAD to capture NTLMv2 hashes">▶ Start</button>
-                                <button id="respStopBtn" onclick="stopResponder()" class="button danger tool-btn" style="display: none;" title="Stop Responder">Stop</button>
-                            </div>
-                            <div id="poisonStatusRow" class="poison-status-row" title="Live poisoning statistics — how many protocol queries Responder is intercepting">
-                                <span class="poison-pill" title="LLMNR queries poisoned">LLMNR: <span id="poisonLlmnr">0</span></span>
-                                <span class="poison-pill" title="NBT-NS queries poisoned">NBT-NS: <span id="poisonNbns">0</span></span>
-                                <span class="poison-pill" title="WPAD proxy requests intercepted">WPAD: <span id="poisonWpad">0</span></span>
-                                <span class="poison-total" title="Total queries poisoned across all protocols">Total: <span id="poisonTotal">0</span></span>
-                            </div>
-                        </div>
-                        <!-- Cred Check Card -->
-                        <div class="tool-card topbar-tool-group" id="credCheckToolGroup" data-tool="credcheck" data-section="credCheck">
-                            <div class="tool-card-header">
-                                <span class="tool-dot"></span>
-                                <span class="tool-card-name">Cred Check</span>
-                                <span id="credCheckTimerDisplay" class="tool-card-timer"></span>
-                            </div>
-                            <div class="tool-card-divider"></div>
-                            <div class="tool-card-body">
-                                <span class="tool-card-stat" style="color: #f80;" title="Number of default credentials found">Found: <span id="defaultCredCount">0</span></span>
-                                <button id="credCheckStartBtn" onclick="startDefaultCredCheck()" class="button tool-btn" title="Test default/factory credentials (admin/admin, root/root, etc.) on all discovered hosts using Hydra">▶ Check Defaults</button>
-                                <button id="credCheckStopBtn" onclick="stopDefaultCredCheck()" class="button danger tool-btn" style="display: none;" title="Stop default credential check">Stop</button>
-                            </div>
-                        </div>
-                        <!-- Credential Spray Card -->
-                        <div class="tool-card topbar-tool-group" id="sprayToolGroup" data-tool="spray" data-section="spray">
-                            <div class="tool-card-header">
-                                <span class="tool-dot"></span>
-                                <span class="tool-card-name">Cred Spray</span>
-                                <span id="sprayTimerDisplay" class="tool-card-timer"></span>
-                            </div>
-                            <div class="tool-card-divider"></div>
-                            <div class="tool-card-body">
-                                <span class="tool-card-stat" style="color: #c0f;" title="Number of hosts where credentials worked">Hits: <span id="sprayHitCount">0</span></span>
-                                <button id="sprayStartBtn" onclick="startCredSpray()" class="button tool-btn" title="Spray a cracked credential against all discovered hosts via SMB, SSH, RDP, WinRM">▶ Spray</button>
-                                <button id="sprayStopBtn" onclick="stopCredSpray()" class="button danger tool-btn" style="display: none;" title="Stop credential spray">Stop</button>
-                            </div>
-                            <div id="sprayInputs" class="spray-inputs" title="Enter credentials to spray — username, password, and domain">
-                                <input type="text" id="sprayUser" placeholder="username" title="Username to spray">
-                                <input type="text" id="sprayPass" placeholder="password" title="Password to spray">
-                                <input type="text" id="sprayDomain" placeholder="WORKGROUP" value="WORKGROUP" title="Domain or workgroup name">
                             </div>
                         </div>
                     </div>
@@ -2137,7 +2183,7 @@
                             <div id="intelRecommendations" style="color: #ff0; margin-top: 3px;"></div>
                         </div>
                         <div id="discoveryResults" style="flex: 1; overflow-y: auto; font-size: 12px;">
-                            <div style="color: #555; padding: 20px 12px; text-align: center; font-size: 11px;">Run Discovery or Nmap to find hosts</div>
+                            <div style="color: #555; padding: 20px 12px; text-align: center; font-size: 11px;">Run Scan or Discovery to find hosts</div>
                         </div>
                     </div>
 
@@ -2147,7 +2193,7 @@
                         <div id="centerPlaceholder" class="center-placeholder">
                             <div class="center-placeholder-icon">🎯</div>
                             <div class="center-placeholder-text">Select a host from the discovery panel</div>
-                            <div class="center-placeholder-sub">Run Discovery or Nmap Scan to find targets</div>
+                            <div class="center-placeholder-sub">Run Scan or Discovery to find targets</div>
                         </div>
 
                         <!-- Workspace (shown when host selected) -->
@@ -2156,6 +2202,7 @@
                             <div id="targetInfoBar" class="target-info-bar">
                                 <div class="target-info-bar-header">
                                     <span id="targetInfoIp" class="target-info-ip"></span>
+                                    <button onclick="deepScanHost()" class="button" style="padding: 3px 8px; font-size: 9px; margin-left: 6px;" title="Full nmap port scan + service detection on this host">🔍 Deep Scan</button>
                                     <button class="target-deselect" onclick="deselectHost()" title="Deselect this target">✕ Deselect</button>
                                 </div>
                                 <div id="targetInfoMeta" class="target-info-meta"></div>
@@ -2619,6 +2666,7 @@
         // Page navigation
         function stopInternalPolling() {
             if (nmapPollInterval) { clearInterval(nmapPollInterval); nmapPollInterval = null; }
+            if (reconPollInterval) { clearInterval(reconPollInterval); reconPollInterval = null; }
             if (discoveryInterval) { clearInterval(discoveryInterval); discoveryInterval = null; }
             if (responderInterval) { clearInterval(responderInterval); responderInterval = null; }
             if (responderOutputInterval) { clearInterval(responderOutputInterval); responderOutputInterval = null; }
@@ -2626,6 +2674,7 @@
             if (snmpEnumPollInterval) { clearInterval(snmpEnumPollInterval); snmpEnumPollInterval = null; }
             if (defaultCredPollInterval) { clearInterval(defaultCredPollInterval); defaultCredPollInterval = null; }
             if (sprayPollInterval) { clearInterval(sprayPollInterval); sprayPollInterval = null; }
+            if (coercePollInterval) { clearInterval(coercePollInterval); coercePollInterval = null; }
             if (poisoningStatusInterval) { clearInterval(poisoningStatusInterval); poisoningStatusInterval = null; }
             // Clear all section timers
             for (var key in internalTimers) {
@@ -4327,13 +4376,15 @@
         let responderInterval = null;
         let responderOutputInterval = null;
         let nmapPollInterval = null;
+        var reconPollInterval = null;
         let selectedHost = null;
 
         // Per-section timers (replaces broken global timer for Internal page)
         let internalTimers = {
             discovery: { interval: null, startTime: null },
             responder: { interval: null, startTime: null },
-            nmap:      { interval: null, startTime: null },
+            scan:      { interval: null, startTime: null },
+            coerce:    { interval: null, startTime: null },
             listener:  { interval: null, startTime: null },
             smbEnum:   { interval: null, startTime: null },
             snmpEnum:  { interval: null, startTime: null },
@@ -4346,6 +4397,7 @@
         var snmpEnumPollInterval = null;
         var defaultCredPollInterval = null;
         var sprayPollInterval = null;
+        var coercePollInterval = null;
         var poisoningStatusInterval = null;
         var _smbEnumResults = {};
         var _snmpEnumResults = {};
@@ -4361,8 +4413,8 @@
             if (!t) return;
             if (t.interval) clearInterval(t.interval);
             t.startTime = startTimeMs;
-            var statusMap = { discovery: 'discTimerDisplay', responder: 'respTimerDisplay', nmap: null, listener: null, smbEnum: 'smbEnumStatus', snmpEnum: 'snmpEnumStatus', credCheck: 'credCheckTimerDisplay', spray: 'sprayTimerDisplay' };
-            var labelMap = { discovery: 'Running', responder: 'Running', nmap: null, listener: null, smbEnum: 'Running', snmpEnum: 'Running', credCheck: 'Running', spray: 'Spraying' };
+            var statusMap = { discovery: 'discTimerDisplay', responder: 'respTimerDisplay', scan: 'scanTimerDisplay', coerce: 'coerceTimerDisplay', listener: null, smbEnum: 'smbEnumStatus', snmpEnum: 'snmpEnumStatus', credCheck: 'credCheckTimerDisplay', spray: 'sprayTimerDisplay' };
+            var labelMap = { discovery: 'Running', responder: 'Running', scan: 'Scanning', coerce: 'Forcing', listener: null, smbEnum: 'Running', snmpEnum: 'Running', credCheck: 'Running', spray: 'Spraying' };
             var el = statusMap[section] ? document.getElementById(statusMap[section]) : null;
             // Add running glow to tool group
             var toolGroup = document.querySelector('.topbar-tool-group[data-section="' + section + '"]');
@@ -4371,7 +4423,7 @@
                 var elapsed = (Date.now() - t.startTime) / 1000;
                 if (el) {
                     el.textContent = labelMap[section] + ' ' + formatSectionElapsed(elapsed);
-                    el.style.color = section === 'responder' ? '#f00' : (section === 'credCheck' ? '#f80' : (section === 'spray' ? '#c0f' : '#0f0'));
+                    el.style.color = section === 'responder' ? '#f00' : (section === 'credCheck' ? '#f80' : (section === 'spray' ? '#c0f' : (section === 'scan' ? '#4af' : '#0f0')));
                 }
             }, 1000);
             // Immediate first update
@@ -4387,7 +4439,7 @@
             if (!t) return;
             if (t.interval) { clearInterval(t.interval); t.interval = null; }
             t.startTime = null;
-            var statusMap = { discovery: 'discTimerDisplay', responder: 'respTimerDisplay', nmap: null, listener: null, smbEnum: 'smbEnumStatus', snmpEnum: 'snmpEnumStatus', credCheck: 'credCheckTimerDisplay', spray: 'sprayTimerDisplay' };
+            var statusMap = { discovery: 'discTimerDisplay', responder: 'respTimerDisplay', scan: 'scanTimerDisplay', listener: null, smbEnum: 'smbEnumStatus', snmpEnum: 'snmpEnumStatus', credCheck: 'credCheckTimerDisplay', spray: 'sprayTimerDisplay' };
             var resetText = { smbEnum: 'Idle', snmpEnum: 'Idle' };
             var el = statusMap[section] ? document.getElementById(statusMap[section]) : null;
             if (el) {
@@ -4498,7 +4550,7 @@
                 document.getElementById('attackDomain').value = hostData.smb_domain;
             }
 
-            // Note: esc() used here only processes data from our own nmap scan results
+            // Note: esc() used here only processes data from our own recon/nmap scan results
             // (internal-only tool, not user-supplied web input), same pattern as existing code
             var esc = function(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
 
@@ -4551,6 +4603,30 @@
             // Show enum results for selected host
             renderEnumResults(ip);
 
+            // Context-sensitive sections based on host vulns
+            var vulns = hostData.vulns || {};
+            var hasEternalBlue = vulns.ms17_010 === true;
+            var hasRelay = vulns.relay_target === true;
+
+            // Exploitation section — show only if exploits apply
+            var exploitSection = document.querySelector('.section-exploit');
+            if (exploitSection) {
+                exploitSection.style.display = (hasEternalBlue || hasRelay) ? 'block' : 'none';
+                // Show/hide individual buttons
+                var ebBtn = exploitSection.querySelector('[onclick="launchEternalBlue()"]');
+                if (ebBtn) ebBtn.style.display = hasEternalBlue ? '' : 'none';
+                var relayBtn = exploitSection.querySelector('[onclick="startRelay()"]');
+                if (relayBtn) relayBtn.style.display = hasRelay ? '' : 'none';
+                var relayStopBtn = exploitSection.querySelector('[onclick="stopRelay()"]');
+                if (relayStopBtn) relayStopBtn.style.display = hasRelay ? '' : 'none';
+            }
+
+            // Listener — show if EternalBlue available (needs callback)
+            var listenerSection = document.querySelector('.section-listener');
+            if (listenerSection) {
+                listenerSection.style.display = hasEternalBlue ? 'block' : 'none';
+            }
+
             appendInternalOutput('[*] Target selected: ' + ip);
         }
 
@@ -4586,7 +4662,7 @@
 
                 // Auto-fill subnet and LHOST from first interface
                 var first = data.interfaces[0];
-                document.getElementById('nmapSubnet').value = first.subnet;
+                document.getElementById('scanSubnet').value = first.subnet;
                 document.getElementById('lhostInput').value = first.ip;
             } catch (err) {
                 // Silent fail — hardcoded defaults remain
@@ -4597,7 +4673,7 @@
             var name = document.getElementById('discoverInterface').value;
             for (var i = 0; i < _ifaceData.length; i++) {
                 if (_ifaceData[i].name === name) {
-                    document.getElementById('nmapSubnet').value = _ifaceData[i].subnet;
+                    document.getElementById('scanSubnet').value = _ifaceData[i].subnet;
                     document.getElementById('lhostInput').value = _ifaceData[i].ip;
                     break;
                 }
@@ -4940,7 +5016,7 @@
                 parts.push(snmpHtml);
             }
 
-            // Note: content built from esc()-sanitized internal tool output (same pattern as displayNmapResults)
+            // Note: content built from esc()-sanitized internal tool output (same pattern as displayReconResults)
             content.innerHTML = parts.join(''); // internal enum data, sanitized by esc()
             section.style.display = 'block';
         }
@@ -5062,19 +5138,21 @@
             } catch (e) { /* ignore */ }
 
             try {
-                const nmapResp = await fetch('/api/internal/scan/status');
-                const nmapData = await nmapResp.json();
-                if (nmapData.running) {
-                    var nmapStart = nmapData.start_time ? nmapData.start_time * 1000 : Date.now();
-                    startSectionTimer('nmap', nmapStart);
-                    document.getElementById('nmapScanBtn').disabled = true;
-                    document.getElementById('nmapCancelBtn').style.display = '';
-                    loadLastNmapResults();
+                const reconResp = await fetch('/api/internal/recon/status');
+                const reconData = await reconResp.json();
+                if (reconData.running) {
+                    var reconStart = reconData.start_time ? reconData.start_time * 1000 : Date.now();
+                    startSectionTimer('scan', reconStart);
+                    document.getElementById('scanBtn').disabled = true;
+                    document.getElementById('scanCancelBtn').style.display = '';
+                    var phaseLabels = {'arp-scan': 'ARP SCAN', 'nxc-smb': 'SMB ENUM', 'nxc-vulns': 'VULN CHECK', 'done': 'FINISHING', 'starting': 'STARTING'};
+                    document.getElementById('scanPhase').textContent = phaseLabels[reconData.phase] || reconData.phase || '';
+                    loadLastReconResults();
                     loadEnumResults();
                     refreshIntel();
                     refreshEvidence();
-                    if (!nmapPollInterval) {
-                        nmapPollInterval = setInterval(pollNmapStatus, 2000);
+                    if (!reconPollInterval) {
+                        reconPollInterval = setInterval(pollReconStatus, 2000);
                     }
                 }
             } catch (e) { /* ignore */ }
@@ -5091,13 +5169,31 @@
 
             // Load results for completed scans (files only exist if a scan ran this server session)
             try {
-                const nmapResp = await fetch('/api/internal/scan/status');
-                const nmapCheck = await nmapResp.json();
-                if (nmapCheck.start_time && !nmapCheck.running) {
-                    loadLastNmapResults();
+                const reconResp = await fetch('/api/internal/recon/status');
+                const reconCheck = await reconResp.json();
+                if (reconCheck.start_time && !reconCheck.running) {
+                    loadLastReconResults();
                     loadEnumResults();
                     refreshIntel();
                     refreshEvidence();
+                }
+            } catch (e) { /* ignore */ }
+
+            // Restore coercion state
+            try {
+                const coerceResp = await fetch('/api/internal/coerce/status');
+                const coerceData = await coerceResp.json();
+                populateCoerceTargets();
+                if (coerceData.running) {
+                    var coerceStart = coerceData.start_time ? coerceData.start_time * 1000 : Date.now();
+                    startSectionTimer('coerce', coerceStart);
+                    document.getElementById('coerceStartBtn').style.display = 'none';
+                    document.getElementById('coerceStopBtn').style.display = '';
+                    if (coerceData.method) document.getElementById('coerceMethod').textContent = coerceData.method;
+                    if (coerceData.target) document.getElementById('coerceTarget').value = coerceData.target;
+                    if (!coercePollInterval) {
+                        coercePollInterval = setInterval(pollCoerceStatus, 2000);
+                    }
                 }
             } catch (e) { /* ignore */ }
 
@@ -5194,7 +5290,8 @@
         async function clearDiscovery() {
             try {
                 await fetch('/api/internal/discover/clear', { method: 'POST' });
-                document.getElementById('discoveryResults').innerHTML = '<div style="color: #555; padding: 20px 12px; text-align: center; font-size: 11px;">Run Discovery or Nmap to find hosts</div>';
+                await fetch('/api/internal/recon/clear', { method: 'POST' });
+                document.getElementById('discoveryResults').innerHTML = '<div style="color: #555; padding: 20px 12px; text-align: center; font-size: 11px;">Run Scan or Discovery to find hosts</div>'; // static string, no user input
                 document.getElementById('intelBar').style.display = 'none';
                 _smbEnumResults = {};
                 _snmpEnumResults = {};
@@ -5206,22 +5303,23 @@
             }
         }
 
-        async function nmapScan() {
-            const subnet = document.getElementById('nmapSubnet').value.trim();
+        async function startReconScan() {
+            const subnet = document.getElementById('scanSubnet').value.trim();
             if (!subnet) {
                 appendInternalOutput('[-] No subnet specified');
                 return;
             }
-            const btn = document.getElementById('nmapScanBtn');
+            const btn = document.getElementById('scanBtn');
             btn.disabled = true;
             btn.textContent = '⏳ 0:00';
-            document.getElementById('nmapCancelBtn').style.display = '';
+            document.getElementById('scanCancelBtn').style.display = '';
             document.getElementById('discClearBtn').disabled = true;
-            appendInternalOutput('[*] Starting nmap scan on ' + subnet + ' (version detection + OS fingerprinting)...');
-            startSectionTimer('nmap', Date.now());
+            document.getElementById('scanPhase').textContent = '';
+            appendInternalOutput('[*] Starting recon scan on ' + subnet + ' (arp-scan \u2192 nxc)...');
+            startSectionTimer('scan', Date.now());
 
             try {
-                const response = await fetch('/api/internal/scan', {
+                const response = await fetch('/api/internal/recon/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ subnet, interface: document.getElementById('discoverInterface').value })
@@ -5229,103 +5327,256 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    if (nmapPollInterval) clearInterval(nmapPollInterval);
-                    nmapPollInterval = setInterval(pollNmapStatus, 2000);
+                    if (reconPollInterval) clearInterval(reconPollInterval);
+                    reconPollInterval = setInterval(pollReconStatus, 2000);
                 } else {
                     appendInternalOutput('[-] ' + (data.error || 'Failed to start scan'));
                     btn.disabled = false;
-                    btn.textContent = '🔎 Nmap Scan';
-                    document.getElementById('nmapCancelBtn').style.display = 'none';
+                    btn.textContent = '🔎 Scan';
+                    document.getElementById('scanCancelBtn').style.display = 'none';
                     document.getElementById('discClearBtn').disabled = false;
-                    stopSectionTimer('nmap');
+                    document.getElementById('scanPhase').textContent = '';
+                    stopSectionTimer('scan');
                 }
             } catch (err) {
-                appendInternalOutput('[-] Nmap error: ' + err.message);
+                appendInternalOutput('[-] Recon error: ' + err.message);
                 btn.disabled = false;
-                btn.textContent = '🔎 Nmap Scan';
-                document.getElementById('nmapCancelBtn').style.display = 'none';
+                btn.textContent = '🔎 Scan';
+                document.getElementById('scanCancelBtn').style.display = 'none';
                 document.getElementById('discClearBtn').disabled = false;
-                stopSectionTimer('nmap');
+                document.getElementById('scanPhase').textContent = '';
+                stopSectionTimer('scan');
             }
         }
 
-        var _lastNmapHostCount = 0;
+        var _lastReconHostCount = 0;
 
-        async function pollNmapStatus() {
+        async function pollReconStatus() {
             try {
-                const response = await fetch('/api/internal/scan/status');
+                const response = await fetch('/api/internal/recon/status');
                 const data = await response.json();
 
                 if (data.running) {
                     const mins = Math.floor(data.elapsed / 60);
                     const secs = String(data.elapsed % 60).padStart(2, '0');
-                    document.getElementById('nmapScanBtn').textContent = '⏳ ' + mins + ':' + secs;
+                    document.getElementById('scanBtn').textContent = '⏳ ' + mins + ':' + secs;
+                    // Show current phase
+                    var phaseLabels = {'arp-scan': 'ARP SCAN', 'nxc-smb': 'SMB ENUM', 'nxc-vulns': 'VULN CHECK', 'done': 'FINISHING', 'starting': 'STARTING'};
+                    document.getElementById('scanPhase').textContent = phaseLabels[data.phase] || data.phase || '';
 
                     // Fetch and display results while scanning (hosts appear as found)
-                    const resultsResp = await fetch('/api/internal/scan/results');
+                    const resultsResp = await fetch('/api/internal/recon/results');
                     const resultsData = await resultsResp.json();
                     if (resultsData.success && resultsData.results) {
                         var hostCount = (resultsData.results.hosts || []).length;
-                        if (hostCount !== _lastNmapHostCount) {
-                            displayNmapResults(resultsData.results);
-                            if (hostCount > _lastNmapHostCount && _lastNmapHostCount > 0) {
-                                appendInternalOutput('[+] New host discovered — ' + hostCount + ' total');
+                        if (hostCount !== _lastReconHostCount) {
+                            displayReconResults(resultsData.results);
+                            if (hostCount > _lastReconHostCount && _lastReconHostCount > 0) {
+                                appendInternalOutput('[+] New host discovered \u2014 ' + hostCount + ' total');
                             }
-                            _lastNmapHostCount = hostCount;
+                            _lastReconHostCount = hostCount;
                         }
                     }
                 } else {
-                    clearInterval(nmapPollInterval);
-                    nmapPollInterval = null;
-                    _lastNmapHostCount = 0;
-                    document.getElementById('nmapScanBtn').disabled = false;
-                    document.getElementById('nmapScanBtn').textContent = '🔎 Nmap Scan';
-                    document.getElementById('nmapCancelBtn').style.display = 'none';
+                    clearInterval(reconPollInterval);
+                    reconPollInterval = null;
+                    _lastReconHostCount = 0;
+                    document.getElementById('scanBtn').disabled = false;
+                    document.getElementById('scanBtn').textContent = '🔎 Scan';
+                    document.getElementById('scanCancelBtn').style.display = 'none';
                     document.getElementById('discClearBtn').disabled = false;
-                    stopSectionTimer('nmap');
+                    document.getElementById('scanPhase').textContent = '';
+                    stopSectionTimer('scan');
 
-                    const resultsResp = await fetch('/api/internal/scan/results');
+                    const resultsResp = await fetch('/api/internal/recon/results');
                     const resultsData = await resultsResp.json();
                     if (resultsData.success && resultsData.results) {
-                        displayNmapResults(resultsData.results);
-                        appendInternalOutput('[*] Scan stopped — ' + (resultsData.results.hosts || []).length + ' host(s) found');
+                        displayReconResults(resultsData.results);
+                        appendInternalOutput('[*] Recon complete \u2014 ' + (resultsData.results.hosts || []).length + ' host(s) found');
                         refreshIntel();
                     } else {
                         appendInternalOutput('[-] Scan stopped but no results available');
                     }
                 }
             } catch (err) {
-                console.error('Nmap poll error:', err);
+                console.error('Recon poll error:', err);
             }
         }
 
-        async function stopNmapScan() {
-            // Reset UI immediately so timer doesn't leak on network error
-            if (nmapPollInterval) {
-                clearInterval(nmapPollInterval);
-                nmapPollInterval = null;
+        async function stopReconScan() {
+            if (reconPollInterval) {
+                clearInterval(reconPollInterval);
+                reconPollInterval = null;
             }
-            document.getElementById('nmapScanBtn').disabled = false;
-            document.getElementById('nmapScanBtn').textContent = '🔎 Nmap Scan';
-            document.getElementById('nmapCancelBtn').style.display = 'none';
+            document.getElementById('scanBtn').disabled = false;
+            document.getElementById('scanBtn').textContent = '🔎 Scan';
+            document.getElementById('scanCancelBtn').style.display = 'none';
             document.getElementById('discClearBtn').disabled = false;
-            stopSectionTimer('nmap');
+            document.getElementById('scanPhase').textContent = '';
+            stopSectionTimer('scan');
             try {
-                await fetch('/api/internal/scan/stop', { method: 'POST' });
-                appendInternalOutput('[*] Nmap scan cancelled');
+                await fetch('/api/internal/recon/stop', { method: 'POST' });
+                appendInternalOutput('[*] Recon scan cancelled');
             } catch (err) {
                 appendInternalOutput('[-] Cancel error: ' + err.message);
             }
         }
 
-        async function loadLastNmapResults() {
+        async function loadLastReconResults() {
             try {
-                const response = await fetch('/api/internal/scan/results');
+                const response = await fetch('/api/internal/recon/results');
                 const data = await response.json();
                 if (data.success && data.results && (data.results.hosts || []).length > 0) {
-                    displayNmapResults(data.results);
+                    displayReconResults(data.results);
                 }
             } catch (e) { /* ignore */ }
+        }
+
+        async function deepScanHost() {
+            if (!selectedHost || !selectedHost.ip) {
+                appendInternalOutput('[-] No host selected for deep scan');
+                return;
+            }
+            var ip = selectedHost.ip;
+            appendInternalOutput('[*] Starting deep scan (full nmap) on ' + ip + '...');
+            try {
+                const response = await fetch('/api/internal/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ subnet: ip, interface: document.getElementById('discoverInterface').value })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    appendInternalOutput('[+] Deep scan started on ' + ip);
+                    if (nmapPollInterval) clearInterval(nmapPollInterval);
+                    nmapPollInterval = setInterval(async function() {
+                        try {
+                            const resp = await fetch('/api/internal/scan/status');
+                            const status = await resp.json();
+                            if (!status.running) {
+                                clearInterval(nmapPollInterval);
+                                nmapPollInterval = null;
+                                const resultsResp = await fetch('/api/internal/scan/results');
+                                const resultsData = await resultsResp.json();
+                                if (resultsData.success && resultsData.results) {
+                                    // Merge deep scan port data into selected host
+                                    var deepHosts = resultsData.results.hosts || [];
+                                    var match = deepHosts.find(function(dh) { return dh.ip === ip; });
+                                    if (match && match.ports && match.ports.length > 0) {
+                                        appendInternalOutput('[+] Deep scan found ' + match.ports.length + ' open ports on ' + ip);
+                                        // Update selected host ports display
+                                        selectedHost.ports = match.ports;
+                                        if (match.os) selectedHost.os = match.os;
+                                        if (match.smb_info) selectedHost.smb_info = Object.assign(selectedHost.smb_info || {}, match.smb_info);
+                                        selectHost(ip, document.querySelector('#discoveryResults .host-item.selected'));
+                                    } else {
+                                        appendInternalOutput('[*] Deep scan complete \u2014 no additional ports found');
+                                    }
+                                }
+                            }
+                        } catch (e) { console.error('Deep scan poll error:', e); }
+                    }, 3000);
+                } else {
+                    appendInternalOutput('[-] ' + (data.error || 'Failed to start deep scan'));
+                }
+            } catch (err) {
+                appendInternalOutput('[-] Deep scan error: ' + err.message);
+            }
+        }
+
+        // --- Coerce functions (NTLM coercion via Coercer tool) ---
+
+        function populateCoerceTargets() {
+            // Fill the coerce target dropdown from recon-discovered hosts
+            var sel = document.getElementById('coerceTarget');
+            if (!sel) return;
+            var current = sel.value;
+            // Clear existing options safely
+            while (sel.options.length > 0) sel.remove(0);
+            var defOpt = document.createElement('option');
+            defOpt.value = '';
+            defOpt.textContent = '-- target --';
+            sel.appendChild(defOpt);
+            var hostEls = document.querySelectorAll('#discoveryResults .host-item[data-host]');
+            hostEls.forEach(function(el) {
+                try {
+                    var hd = JSON.parse(el.dataset.host || '{}');
+                    if (hd.ip) {
+                        var opt = document.createElement('option');
+                        opt.value = hd.ip;
+                        opt.textContent = hd.ip;
+                        sel.appendChild(opt);
+                    }
+                } catch(e) {}
+            });
+            if (current) sel.value = current;
+        }
+
+        async function startCoerce() {
+            var target = document.getElementById('coerceTarget').value;
+            if (!target) {
+                appendInternalOutput('[-] Select a target host first');
+                return;
+            }
+            var iface = document.getElementById('discoverInterface').value;
+            appendInternalOutput('[*] Coercing ' + target + ' — forcing NTLM authentication...');
+
+            try {
+                var resp = await fetch('/api/internal/coerce/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target: target, interface: iface })
+                });
+                var data = await resp.json();
+                if (data.success) {
+                    appendInternalOutput('[+] ' + data.message);
+                    document.getElementById('coerceStartBtn').style.display = 'none';
+                    document.getElementById('coerceStopBtn').style.display = '';
+                    startSectionTimer('coerce');
+                    coercePollInterval = setInterval(pollCoerceStatus, 2000);
+                } else {
+                    appendInternalOutput('[-] Coerce failed: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                appendInternalOutput('[-] Coerce error: ' + err.message);
+            }
+        }
+
+        async function stopCoerce() {
+            if (coercePollInterval) { clearInterval(coercePollInterval); coercePollInterval = null; }
+            document.getElementById('coerceStartBtn').style.display = '';
+            document.getElementById('coerceStopBtn').style.display = 'none';
+            document.getElementById('coerceMethod').textContent = '';
+            stopSectionTimer('coerce');
+            try {
+                await fetch('/api/internal/coerce/stop', { method: 'POST' });
+                appendInternalOutput('[*] Coercion stopped');
+            } catch (err) {
+                appendInternalOutput('[-] Stop error: ' + err.message);
+            }
+        }
+
+        async function pollCoerceStatus() {
+            try {
+                var resp = await fetch('/api/internal/coerce/status');
+                var data = await resp.json();
+                if (data.method) {
+                    document.getElementById('coerceMethod').textContent = data.method;
+                }
+                if (!data.running) {
+                    clearInterval(coercePollInterval);
+                    coercePollInterval = null;
+                    document.getElementById('coerceStartBtn').style.display = '';
+                    document.getElementById('coerceStopBtn').style.display = 'none';
+                    stopSectionTimer('coerce');
+                    if (data.method === 'Done') {
+                        appendInternalOutput('[+] Coercion complete — check Responder for captured hashes');
+                        document.getElementById('coerceMethod').textContent = 'Done — check hashes';
+                    }
+                }
+            } catch (err) {
+                console.error('Coerce poll error:', err);
+            }
         }
 
         // --- Clear functions for Internal page panels ---
@@ -5374,14 +5625,14 @@
             } catch(e) { console.error('Clear enum failed:', e); }
         }
 
-        function displayNmapResults(results) {
+        function displayReconResults(results) {
             const hosts = results.hosts || [];
             if (hosts.length === 0) {
-                document.getElementById('discoveryResults').innerHTML = '<div style="color: #555; padding: 20px 12px; text-align: center; font-size: 11px;">No hosts found in scan.</div>';
+                document.getElementById('discoveryResults').innerHTML = '<div style="color: #555; padding: 20px 12px; text-align: center; font-size: 11px;">No hosts found in scan.</div>'; // static string
                 updateHostCount();
                 return;
             }
-            // Note: esc() only processes nmap scan output (internal tool data, not user web input)
+            // esc() only processes recon scan output (internal tool data, not user web input)
             const esc = function(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); };
             const DANGEROUS_PORTS = ['21', '23', '69', '161', '512', '513', '514'];
             const INTERESTING_PORTS = ['445', '139', '3389', '5985', '5986', '88', '389', '636'];
@@ -5395,17 +5646,21 @@
                 const devType = esc(h.device_type || '');
                 const smb = h.smb_info;
                 const ports = h.ports || [];
+                const vulns = h.vulns || {};
 
                 const hasDangerous = ports.some(function(p) { return DANGEROUS_PORTS.indexOf(p.port) >= 0; });
                 const hasSMB = ports.some(function(p) { return p.port === '445' || p.port === '139'; });
                 const smbSigningOff = smb && smb.signing === 'disabled';
+                const hasCriticalVuln = vulns.ms17_010 === true;
+                const hasHighVuln = vulns.relay_target === true;
 
-                // Determine criticality class
+                // Determine criticality class — vulns override port-based logic
                 let critClass = '';
-                if (hasDangerous || smbSigningOff) critClass = ' host-critical';
+                if (hasCriticalVuln) critClass = ' host-critical';
+                else if (hasHighVuln || hasDangerous || smbSigningOff) critClass = ' host-critical';
                 else if (hasSMB) critClass = ' host-interesting';
 
-                // Build host data JSON for data attribute (store smb_domain shortcut)
+                // Build host data JSON for data attribute
                 var hostObj = JSON.parse(JSON.stringify(h));
                 if (smb && smb.domain) hostObj.smb_domain = smb.domain;
                 var dataAttr = esc(JSON.stringify(hostObj));
@@ -5417,14 +5672,14 @@
                 html += '<div class="host-item-info">';
                 html += '<div class="host-item-ip">' + ip + '</div>';
 
-                // Meta line — show hostname, OS (skip ambiguous "X or Y" guesses), vendor
+                // Meta line
                 var vendor = esc(h.vendor || '');
                 var meta = [];
                 if (hostname) meta.push(hostname);
                 if (os && os.indexOf(' or ') === -1) meta.push(os);
                 if (vendor && vendor !== 'Unknown') meta.push(vendor);
                 if (meta.length > 0) {
-                    html += '<div class="host-item-meta">' + meta.join(' · ') + '</div>';
+                    html += '<div class="host-item-meta">' + meta.join(' \u00b7 ') + '</div>';
                 }
 
                 // Port summary (compact)
@@ -5433,29 +5688,39 @@
                     html += '<div class="host-item-ports">' + portNums + '</div>';
                 }
 
-                // Badges
-                var badges = [];
-                // Device type badge (blue) for notable device types
+                // Vulnerability badges (from recon scan)
+                var vulnBadges = [];
+                if (vulns.ms17_010) vulnBadges.push('<span class="vuln-badge vuln-badge-critical" title="MS17-010 EternalBlue \u2014 direct RCE, no creds needed">ETERNALBLUE</span>');
+                if (vulns.relay_target) vulnBadges.push('<span class="vuln-badge vuln-badge-high" title="SMB signing disabled \u2014 NTLM relay possible">RELAY</span>');
+                if (smb && smb.smbv1) vulnBadges.push('<span class="vuln-badge vuln-badge-medium" title="SMBv1 enabled \u2014 legacy protocol with known exploits">SMBv1</span>');
+                // Port-based info badges
+                if (ports.some(function(p) { return p.port === '3389'; })) vulnBadges.push('<span class="vuln-badge vuln-badge-info" title="Remote Desktop Protocol available">RDP</span>');
+                if (ports.some(function(p) { return p.port === '5985' || p.port === '5986'; })) vulnBadges.push('<span class="vuln-badge vuln-badge-info" title="Windows Remote Management available">WINRM</span>');
+
+                // Legacy badges (from nmap/recon results — port-based)
+                var legacyBadges = [];
                 if (devType && devType !== 'workstation' && devType !== 'unknown') {
                     var typeLabel = esc(devType).toUpperCase().replace(/_/g, ' ');
-                    badges.push('<span class="host-badge" style="background:rgba(68,170,255,0.15);color:#4af;border-color:#4af;">' + typeLabel + '</span>');
+                    legacyBadges.push('<span class="host-badge" style="background:rgba(68,170,255,0.15);color:#4af;border-color:#4af;">' + typeLabel + '</span>');
                 }
-                if (smbSigningOff) badges.push('<span class="host-badge host-badge-critical">RELAY TARGET</span>');
+                if (smbSigningOff && !vulns.relay_target) legacyBadges.push('<span class="host-badge host-badge-critical">RELAY TARGET</span>');
                 ports.forEach(function(p) {
-                    if (p.port === '23') badges.push('<span class="host-badge host-badge-critical">Telnet</span>');
-                    if (p.port === '21') badges.push('<span class="host-badge host-badge-critical">FTP</span>');
+                    if (p.port === '23') legacyBadges.push('<span class="host-badge host-badge-critical">Telnet</span>');
+                    if (p.port === '21') legacyBadges.push('<span class="host-badge host-badge-critical">FTP</span>');
                 });
-                if (hasSMB) badges.push('<span class="host-badge host-badge-warn">SMB</span>');
-                if (badges.length > 0) {
-                    html += '<div>' + badges.join('') + '</div>';
+                if (hasSMB && !vulns.relay_target && !smbSigningOff) legacyBadges.push('<span class="host-badge host-badge-warn">SMB</span>');
+
+                var allBadges = vulnBadges.concat(legacyBadges);
+                if (allBadges.length > 0) {
+                    html += '<div>' + allBadges.join('') + '</div>';
                 }
 
                 html += '</div></div>';
             });
 
-            document.getElementById('discoveryResults').innerHTML = html; // nmap output, sanitized by esc()
+            document.getElementById('discoveryResults').innerHTML = html; // recon output, sanitized by esc()
             updateHostCount();
-            // Re-apply selection highlight after innerHTML replacement
+            // Re-apply selection highlight
             if (selectedHost) {
                 var reItems = document.querySelectorAll('#discoveryResults .host-item[data-host]');
                 for (var ri = 0; ri < reItems.length; ri++) {
@@ -5466,6 +5731,7 @@
                 }
             }
             refreshEnumBadges();
+            populateCoerceTargets();
         }
 
         async function refreshIntel() {
@@ -7008,9 +7274,11 @@
             setStatus('KILLING ALL...', true);
             stopCountdown();
             
-            // Stop all UI polling
+            // Stop all UI polling — every page
             if (liveAttackPoll) { clearInterval(liveAttackPoll); liveAttackPoll = null; }
             if (typeof autoCaptureInterval !== 'undefined' && autoCaptureInterval) { clearInterval(autoCaptureInterval); autoCaptureInterval = null; }
+            if (typeof stopInternalPolling === 'function') stopInternalPolling();
+            if (typeof stopMitmPolling === 'function') stopMitmPolling();
             
             try {
                 const response = await fetch('/api/kill_all', { method: 'POST' });

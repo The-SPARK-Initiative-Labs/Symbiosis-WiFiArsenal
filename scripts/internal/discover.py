@@ -401,9 +401,9 @@ def main():
     if local_subnet:
         print(f"[*] Scanning {local_subnet}...")
         try:
-            # Ping sweep — fast parallel scan, works even when router blocks L2 broadcast
+            # Ping sweep — ICMP-based (--send-ip) because WiFi routers drop ARP floods
             result = subprocess.run(
-                ['nmap', '-sn', '-n', '--min-rate', '300', str(local_subnet)],
+                ['nmap', '-sn', '-n', '--send-ip', '-e', interface, str(local_subnet)],
                 capture_output=True, text=True, timeout=30
             )
             # Parse nmap ping sweep output for IPs and MACs

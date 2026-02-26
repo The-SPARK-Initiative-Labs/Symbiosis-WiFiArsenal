@@ -24,6 +24,14 @@ cleanup() {
     # Kill any remaining server processes
     sudo pkill -f "python3 server.py" 2>/dev/null
 
+    # Kill Internal page processes that run as separate root processes
+    sudo pkill -9 nmap 2>/dev/null
+    sudo pkill -9 arp-scan 2>/dev/null
+    sudo pkill -9 -f nxc 2>/dev/null
+    sudo pkill -9 responder 2>/dev/null
+    sudo pkill -9 coercer 2>/dev/null
+    sudo pkill -9 -f "discover.py" 2>/dev/null
+
     # Kill the tee logger if still running
     [ ! -z "$TEE_PID" ] && kill "$TEE_PID" 2>/dev/null
 

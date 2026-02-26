@@ -292,13 +292,15 @@ WiFi Arsenal is a comprehensive WiFi penetration testing platform on Kali Linux.
 - **Ambiguous OS fingerprints:** nmap often returns "Device A or Device B" (e.g., "Canon printer or Mercusys WAP"). The `" or "` pattern means nmap isn't sure. Don't trust these blindly — cross-reference with port product strings, which are definitive (nmap confirmed the service).
 - **classify_device() in server.py** uses a priority cascade: product strings > ports > OS fingerprint > hostname > SMB > MAC vendor > fallback. Product strings are most reliable; OS fingerprints are skipped if ambiguous.
 
-### Test Lab (hackme network)
+### Test Lab (hackme network) — SET UP 2026-02-25
 - TP-Link router, SSID "hackme", subnet 192.168.0.0/24
-- Windows 11 target laptop on the network (Intel NIC, ports 135/139/445 open). IPs are DHCP — scan to find it, don't assume a specific address.
-- Printer (default creds, SNMP) — connected to hackme network
+- Windows 11 target laptop: network set to **Private**, file and printer sharing **ON**, SMBv1 **ON**, shared folder `C:\Shared` (Everyone: Read)
+- **Local accounts on Windows box:** `manager` (admin, crackable password), `frontdesk` (standard user, weak password), plus Ben's existing `testlab` account
 - Kali connects via alfa1 in managed mode
-- **Windows firewall gotcha:** Default "Public" profile blocks all ports. Must be set to "Private" for SMB. Domain-joined business machines do this automatically — test lab quirk only.
-- **Responder `\\badname` gotcha:** Typing `\\badname` in Explorer does NOT auto-send NTLM creds. It pops a credential dialog because the host doesn't exist. Whatever you type is made-up creds, not the user's real password. For real hashes, need automatic NTLM traffic from a Private network with file sharing enabled. See Issue #27 for proper test lab setup.
+- IPs are DHCP — always scan first, don't assume addresses
+- **Windows firewall:** Network profile is Private so SMB/ports are visible. Public blocks everything.
+- **Responder `\\badname` gotcha:** Typing `\\badname` in Explorer does NOT auto-send NTLM creds. It pops a credential dialog because the host doesn't exist. Whatever you type is made-up creds, not the user's real password. On a Private network with file sharing enabled, Windows broadcasts LLMNR/NBT-NS automatically — Responder captures real hashes without anyone typing anything.
+- **Printer:** HP Envy 6000 available but not on hackme yet. Not needed for core testing.
 
 ---
 

