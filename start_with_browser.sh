@@ -30,6 +30,8 @@ cleanup() {
     sudo pkill -9 -f nxc 2>/dev/null
     sudo pkill -9 responder 2>/dev/null
     sudo pkill -9 coercer 2>/dev/null
+    sudo pkill -9 arpspoof 2>/dev/null
+    sudo sysctl -w net.ipv4.ip_forward=0 2>/dev/null
     sudo pkill -9 -f "discover.py" 2>/dev/null
 
     # Kill the tee logger if still running
