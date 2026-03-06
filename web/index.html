@@ -317,6 +317,7 @@
     .tool-card[data-tool="credcheck"] { border-top: 2px solid #f80; }
     .tool-card[data-tool="spray"]     { border-top: 2px solid #c0f; }
     .tool-card[data-tool="coerce"]    { border-top: 2px solid #f44; }
+    .tool-card[data-tool="arpspoof"]    { border-top: 2px solid #f44; }
     /* Running state glow */
     .tool-card.tool-running[data-tool="discovery"] { box-shadow: 0 0 8px rgba(0,255,0,0.12); border-color: #0a3a0a; }
     .tool-card.tool-running[data-tool="scan"]      { box-shadow: 0 0 8px rgba(68,170,255,0.12); border-color: #0a2a3a; }
@@ -324,6 +325,7 @@
     .tool-card.tool-running[data-tool="credcheck"] { box-shadow: 0 0 8px rgba(255,136,0,0.12); border-color: #3a2a0a; }
     .tool-card.tool-running[data-tool="spray"]     { box-shadow: 0 0 8px rgba(192,0,255,0.12); border-color: #2a0a3a; }
     .tool-card.tool-running[data-tool="coerce"]    { box-shadow: 0 0 8px rgba(255,68,68,0.12); border-color: #3a0a0a; }
+    .tool-card.tool-running[data-tool="arpspoof"]    { box-shadow: 0 0 8px rgba(255,68,68,0.12); border-color: #3a0a0a; }
     /* Card header row */
     .tool-card-header {
         display: flex;
@@ -346,6 +348,7 @@
     .tool-card.tool-running[data-tool="credcheck"] .tool-dot { background: #f80; }
     .tool-card.tool-running[data-tool="spray"]     .tool-dot { background: #c0f; }
     .tool-card.tool-running[data-tool="coerce"]    .tool-dot { background: #f44; }
+    .tool-card.tool-running[data-tool="arpspoof"]    .tool-dot { background: #f44; }
     @keyframes pulse-dot {
         0%, 100% { opacity: 1; }
         50% { opacity: 0.4; }
@@ -364,6 +367,7 @@
     .tool-card[data-tool="credcheck"] .tool-card-name { color: #f80; }
     .tool-card[data-tool="spray"]     .tool-card-name { color: #c0f; }
     .tool-card[data-tool="coerce"]    .tool-card-name { color: #f44; }
+    .tool-card[data-tool="arpspoof"]    .tool-card-name { color: #f44; }
     /* Timer pushed right */
     .tool-card-timer {
         font-size: 10px;
@@ -383,6 +387,7 @@
     .tool-card[data-tool="credcheck"] .tool-card-divider { background: #2a1a0a; }
     .tool-card[data-tool="spray"]     .tool-card-divider { background: #1a0a2a; }
     .tool-card[data-tool="coerce"]    .tool-card-divider { background: #2a0a0a; }
+    .tool-card[data-tool="arpspoof"]    .tool-card-divider { background: #2a0a0a; }
     /* Card body — controls + buttons */
     .tool-card-body {
         display: flex;
@@ -2074,6 +2079,26 @@
                                 <span class="poison-total" title="Total queries poisoned across all protocols">Total: <span id="poisonTotal">0</span></span>
                             </div>
                         </div>
+                        <!-- 3. MITM — ARP spoof man-in-the-middle (intercept traffic between target and gateway) -->
+                        <div class="tool-card topbar-tool-group" id="arpspoofToolGroup" data-tool="arpspoof" data-section="arpspoof">
+                            <div class="tool-card-header">
+                                <span class="tool-dot"></span>
+                                <span class="tool-card-name">MITM</span>
+                                <span id="arpspoofTimerDisplay" class="tool-card-timer"></span>
+                            </div>
+                            <div class="tool-card-divider"></div>
+                            <div class="tool-card-body">
+                                <select id="arpspoofTarget" class="tool-select" title="Target host to ARP spoof — all their traffic routes through us">
+                                    <option value="">-- target --</option>
+                                </select>
+                                <button id="arpspoofStartBtn" onclick="startArpspoof()" class="button tool-btn" title="Start ARP spoof MITM — poisons target and gateway, intercepts all traffic">▶ Spoof</button>
+                                <button id="arpspoofStopBtn" onclick="stopArpspoof()" class="button danger tool-btn" style="display: none;" title="Stop ARP spoof and disable IP forwarding">Stop</button>
+                            </div>
+                            <div id="arpspoofStatusRow" style="padding: 2px 10px 4px; font-size: 9px; color: #666; min-height: 14px;" title="ARP spoof status — target, gateway, and packet count">
+                                <span id="arpspoofStatus">Idle</span>
+                                <span id="arpspoofPacketCount" style="float: right; color: #f44;">0 pkts</span>
+                            </div>
+                        </div>
                         <!-- 3. Coerce — Force targets to authenticate (feeds Responder) -->
                         <div class="tool-card topbar-tool-group" id="coerceToolGroup" data-tool="coerce" data-section="coerce">
                             <div class="tool-card-header">
@@ -2676,6 +2701,8 @@
             if (sprayPollInterval) { clearInterval(sprayPollInterval); sprayPollInterval = null; }
             if (coercePollInterval) { clearInterval(coercePollInterval); coercePollInterval = null; }
             if (poisoningStatusInterval) { clearInterval(poisoningStatusInterval); poisoningStatusInterval = null; }
+            if (arpspoofPollInterval) { clearInterval(arpspoofPollInterval); arpspoofPollInterval = null; }
+            if (arpspoofOutputInterval) { clearInterval(arpspoofOutputInterval); arpspoofOutputInterval = null; }
             // Clear all section timers
             for (var key in internalTimers) {
                 if (internalTimers[key].interval) { clearInterval(internalTimers[key].interval); internalTimers[key].interval = null; }
@@ -4389,7 +4416,8 @@
             smbEnum:   { interval: null, startTime: null },
             snmpEnum:  { interval: null, startTime: null },
             credCheck: { interval: null, startTime: null },
-            spray:     { interval: null, startTime: null }
+            spray:     { interval: null, startTime: null },
+            arpspoof:  { interval: null, startTime: null }
         };
 
         // Enum result caches + poll intervals
@@ -4399,6 +4427,8 @@
         var sprayPollInterval = null;
         var coercePollInterval = null;
         var poisoningStatusInterval = null;
+        var arpspoofPollInterval = null;
+        var arpspoofOutputInterval = null;
         var _smbEnumResults = {};
         var _snmpEnumResults = {};
 
@@ -4413,8 +4443,8 @@
             if (!t) return;
             if (t.interval) clearInterval(t.interval);
             t.startTime = startTimeMs;
-            var statusMap = { discovery: 'discTimerDisplay', responder: 'respTimerDisplay', scan: 'scanTimerDisplay', coerce: 'coerceTimerDisplay', listener: null, smbEnum: 'smbEnumStatus', snmpEnum: 'snmpEnumStatus', credCheck: 'credCheckTimerDisplay', spray: 'sprayTimerDisplay' };
-            var labelMap = { discovery: 'Running', responder: 'Running', scan: 'Scanning', coerce: 'Forcing', listener: null, smbEnum: 'Running', snmpEnum: 'Running', credCheck: 'Running', spray: 'Spraying' };
+            var statusMap = { discovery: 'discTimerDisplay', responder: 'respTimerDisplay', scan: 'scanTimerDisplay', coerce: 'coerceTimerDisplay', listener: null, smbEnum: 'smbEnumStatus', snmpEnum: 'snmpEnumStatus', credCheck: 'credCheckTimerDisplay', spray: 'sprayTimerDisplay', arpspoof: 'arpspoofTimerDisplay' };
+            var labelMap = { discovery: 'Running', responder: 'Running', scan: 'Scanning', coerce: 'Forcing', listener: null, smbEnum: 'Running', snmpEnum: 'Running', credCheck: 'Running', spray: 'Spraying', arpspoof: 'Spoofing' };
             var el = statusMap[section] ? document.getElementById(statusMap[section]) : null;
             // Add running glow to tool group
             var toolGroup = document.querySelector('.topbar-tool-group[data-section="' + section + '"]');
@@ -4423,7 +4453,7 @@
                 var elapsed = (Date.now() - t.startTime) / 1000;
                 if (el) {
                     el.textContent = labelMap[section] + ' ' + formatSectionElapsed(elapsed);
-                    el.style.color = section === 'responder' ? '#f00' : (section === 'credCheck' ? '#f80' : (section === 'spray' ? '#c0f' : (section === 'scan' ? '#4af' : '#0f0')));
+                    el.style.color = section === 'responder' ? '#f00' : (section === 'credCheck' ? '#f80' : (section === 'spray' ? '#c0f' : (section === 'scan' ? '#4af' : (section === 'arpspoof' ? '#f44' : '#0f0'))));
                 }
             }, 1000);
             // Immediate first update
@@ -5158,6 +5188,26 @@
             } catch (e) { /* ignore */ }
 
             try {
+                const arpspoofResp = await fetch('/api/internal/arpspoof/status');
+                const arpspoofData = await arpspoofResp.json();
+                if (arpspoofData.running) {
+                    var arpspoofStart = arpspoofData.start_time ? arpspoofData.start_time * 1000 : Date.now();
+                    startSectionTimer('arpspoof', arpspoofStart);
+                    document.getElementById('arpspoofStartBtn').style.display = 'none';
+                    document.getElementById('arpspoofStopBtn').style.display = '';
+                    document.getElementById('arpspoofToolGroup').classList.add('tool-running');
+                    document.getElementById('arpspoofPacketCount').textContent = (arpspoofData.packet_count || 0) + ' pkts';
+                    document.getElementById('arpspoofStatus').textContent = arpspoofData.target_ip + ' \u2194 ' + (arpspoofData.gateway_ip || 'gw');
+                    if (!arpspoofPollInterval) {
+                        arpspoofPollInterval = setInterval(pollArpspoofStatus, 3000);
+                    }
+                    if (!arpspoofOutputInterval) {
+                        arpspoofOutputInterval = setInterval(pollArpspoofOutput, 2000);
+                    }
+                }
+            } catch (e) { /* ignore */ }
+
+            try {
                 const lstnResp = await fetch('/api/internal/listener/status');
                 const lstnData = await lstnResp.json();
                 if (lstnData.running) {
@@ -5184,6 +5234,7 @@
                 const coerceResp = await fetch('/api/internal/coerce/status');
                 const coerceData = await coerceResp.json();
                 populateCoerceTargets();
+                populateArpspoofTargets();
                 if (coerceData.running) {
                     var coerceStart = coerceData.start_time ? coerceData.start_time * 1000 : Date.now();
                     startSectionTimer('coerce', coerceStart);
@@ -5732,6 +5783,7 @@
             }
             refreshEnumBadges();
             populateCoerceTargets();
+            populateArpspoofTargets();
         }
 
         async function refreshIntel() {
@@ -5852,8 +5904,9 @@
 
         async function startResponder() {
             const iface = document.getElementById('discoverInterface').value;
+
             appendInternalOutput('[*] Starting Responder on ' + iface + '...');
-            
+
             try {
                 const response = await fetch('/api/internal/responder/start', {
                     method: 'POST',
@@ -5881,7 +5934,7 @@
                 appendInternalOutput('[-] Error: ' + err.message);
             }
         }
-        
+
         async function stopResponder() {
             try {
                 await fetch('/api/internal/responder/stop', { method: 'POST' });
@@ -5905,7 +5958,130 @@
                 appendInternalOutput('[-] Error: ' + err.message);
             }
         }
-        
+
+        // ---- ARP Spoof MITM (IPv4 ARP poisoning — replaces mitm6) ----
+
+        function populateArpspoofTargets() {
+            var sel = document.getElementById('arpspoofTarget');
+            if (!sel) return;
+            var current = sel.value;
+            while (sel.options.length > 0) sel.remove(0);
+            var defOpt = document.createElement('option');
+            defOpt.value = '';
+            defOpt.textContent = '-- target --';
+            sel.appendChild(defOpt);
+            var hostEls = document.querySelectorAll('#discoveryResults .host-item[data-host]');
+            hostEls.forEach(function(el) {
+                try {
+                    var hd = JSON.parse(el.dataset.host || '{}');
+                    if (hd.ip) {
+                        var opt = document.createElement('option');
+                        opt.value = hd.ip;
+                        opt.textContent = hd.ip;
+                        sel.appendChild(opt);
+                    }
+                } catch(e) {}
+            });
+            if (current) sel.value = current;
+        }
+
+        async function startArpspoof() {
+            var target = document.getElementById('arpspoofTarget').value;
+            if (!target) {
+                appendInternalOutput('[-] Select a target host first');
+                return;
+            }
+            var iface = document.getElementById('discoverInterface').value;
+
+            appendInternalOutput('[*] Starting ARP spoof MITM on ' + target + ' via ' + iface + '...');
+
+            try {
+                const response = await fetch('/api/internal/arpspoof/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target_ip: target, interface: iface })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    startSectionTimer('arpspoof', Date.now());
+                    document.getElementById('arpspoofStartBtn').style.display = 'none';
+                    document.getElementById('arpspoofStopBtn').style.display = '';
+                    document.getElementById('arpspoofToolGroup').classList.add('tool-running');
+                    document.getElementById('arpspoofStatus').textContent = target + ' \u2194 ' + (data.gateway || 'gw');
+                    appendInternalOutput('[+] MITM active — ' + target + ' \u2194 ' + data.gateway + ' (PID ' + data.pid + ')');
+
+                    if (arpspoofPollInterval) clearInterval(arpspoofPollInterval);
+                    arpspoofPollInterval = setInterval(pollArpspoofStatus, 3000);
+                    if (arpspoofOutputInterval) clearInterval(arpspoofOutputInterval);
+                    arpspoofOutputInterval = setInterval(pollArpspoofOutput, 2000);
+                } else {
+                    appendInternalOutput('[-] Failed: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                appendInternalOutput('[-] Error: ' + err.message);
+            }
+        }
+
+        async function stopArpspoof() {
+            try {
+                await fetch('/api/internal/arpspoof/stop', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+
+                stopSectionTimer('arpspoof');
+                document.getElementById('arpspoofStartBtn').style.display = '';
+                document.getElementById('arpspoofStopBtn').style.display = 'none';
+                document.getElementById('arpspoofToolGroup').classList.remove('tool-running');
+                document.getElementById('arpspoofStatus').textContent = 'Stopped';
+
+                if (arpspoofPollInterval) {
+                    clearInterval(arpspoofPollInterval);
+                    arpspoofPollInterval = null;
+                }
+                if (arpspoofOutputInterval) {
+                    clearInterval(arpspoofOutputInterval);
+                    arpspoofOutputInterval = null;
+                }
+
+                appendInternalOutput('[*] MITM stopped — IP forwarding disabled');
+            } catch (err) {
+                appendInternalOutput('[-] Error: ' + err.message);
+            }
+        }
+
+        async function pollArpspoofStatus() {
+            try {
+                const resp = await fetch('/api/internal/arpspoof/status');
+                const data = await resp.json();
+
+                document.getElementById('arpspoofPacketCount').textContent = (data.packet_count || 0) + ' pkts';
+
+                if (data.running) {
+                    document.getElementById('arpspoofStatus').textContent = data.target_ip + ' \u2194 ' + (data.gateway_ip || 'gw');
+                }
+
+                if (!data.running && document.getElementById('arpspoofStopBtn').style.display !== 'none') {
+                    stopArpspoof();
+                    appendInternalOutput('[!] MITM stopped unexpectedly — IP forwarding disabled');
+                }
+            } catch (e) { /* ignore */ }
+        }
+
+        async function pollArpspoofOutput() {
+            try {
+                const resp = await fetch('/api/internal/arpspoof/output');
+                const data = await resp.json();
+                if (data.success && data.events && data.events.length > 0) {
+                    data.events.forEach(function(evt) {
+                        appendInternalOutput('[MITM] ' + evt.message);
+                    });
+                }
+            } catch (e) { /* ignore */ }
+        }
+
         async function pollResponderOutput() {
             try {
                 const response = await fetch('/api/internal/responder/output');
@@ -8012,27 +8188,33 @@ function monitorClients() {
                 logGlassActivity('⚠️ Check a file first');
                 return;
             }
-            
-            const filename = checkedBoxes[0].value;
-            logGlassActivity('📤 Uploading ' + filename + ' to Glass...');
-            
-            try {
-                const response = await fetch('/api/glass/upload', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({filename: filename})
-                });
-                const result = await response.json();
-                
-                if (result.success) {
-                    logGlassActivity('✓ Uploaded to Glass queue');
-                    refreshGlassQueue();
-                } else {
-                    logGlassActivity('✗ Upload failed: ' + (result.error || result.output || 'Unknown error'));
+
+            const files = Array.from(checkedBoxes).map(cb => cb.value);
+            logGlassActivity('📤 Uploading ' + files.length + ' file(s) to Glass...');
+            let sent = 0;
+
+            for (const filename of files) {
+                try {
+                    const response = await fetch('/api/glass/upload', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({filename: filename})
+                    });
+                    const result = await response.json();
+
+                    if (result.success) {
+                        sent++;
+                        logGlassActivity('✓ ' + filename);
+                    } else {
+                        logGlassActivity('✗ ' + filename + ': ' + (result.error || result.output || 'Failed'));
+                    }
+                } catch (error) {
+                    logGlassActivity('✗ ' + filename + ': ' + error.message);
                 }
-            } catch (error) {
-                logGlassActivity('✗ Connection error: ' + error.message);
             }
+
+            logGlassActivity('📤 Done: ' + sent + '/' + files.length + ' uploaded');
+            refreshGlassQueue();
         }
         
 
